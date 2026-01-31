@@ -109,12 +109,31 @@ def fetch_works_for_journal(journal_id, journal_name):
         print(f"  Error fetching works for {journal_name}: {e}")
         return []
 
-def update_data(include_works=True):
+def get_downloaded_journal_ids():
+    """
+    Returns a set of journal IDs that already have works downloaded.
+    This allows resuming downloads without re-downloading existing data.
+    """
+    if not os.path.exists(WORKS_PARQUET_FILE):
+        return set()
+    
+    try:
+        # Read just the journal_id column to check what's already downloaded
+        df = pd.read_parquet(WORKS_PARQUET_FILE, columns=['journal_id'])
+        downloaded_ids = set(df['journal_id'].unique())
+        print(f"Found {len(downloaded_ids)} journals already downloaded.")
+        return downloaded_ids
+    except Exception as e:
+        print(f"Warning: Could not read existing works file: {e}")
+        return set()
+
+def update_data(include_works=True, resume=True):
     """
     Main function to update the dataset for all LATAM countries.
     
     Args:
         include_works: If True, also downloads all works (articles) for each journal.
+        resume: If True, skips journals that already have works downloaded.
     """
     all_journals = []
     print("Starting data update from OpenAlex...")
@@ -142,6 +161,21 @@ def update_data(include_works=True):
             print("\n" + "="*60)
             print("Starting Works (articles) download...")
             print(f"This will download articles for {len(df)} journals.")
+            
+            # Check for resume capability
+            downloaded_journal_ids = set()
+            if resume:
+                downloaded_journal_ids = get_downloaded_journal_ids()
+                if downloaded_journal_ids:
+                    print(f"RESUME MODE: Skipping {len(downloaded_journal_ids)} already downloaded journals.")
+            
+            journals_to_process = [j for j in all_journals if j['id'] not in downloaded_journal_ids]
+            
+            if not journals_to_process:
+                print("All journals already downloaded! Nothing to do.")
+                return len(df)
+            
+            print(f"Will process {len(journals_to_process)} journals.")
             print("This may take a considerable amount of time.")
             print("="*60 + "\n")
             
@@ -150,8 +184,11 @@ def update_data(include_works=True):
             batch_size = 1  # Write every journal
             writer = None
             
-            for idx, journal in enumerate(all_journals, 1):
-                print(f"[{idx}/{len(all_journals)}] Processing {journal['display_name']}...")
+            # If resuming, we need to append to existing file
+            append_mode = resume and len(downloaded_journal_ids) > 0
+            
+            for idx, journal in enumerate(journals_to_process, 1):
+                print(f"[{idx}/{len(journals_to_process)}] Processing {journal['display_name']}...")
                 journal_works = fetch_works_for_journal(journal['id'], journal['display_name'])
                 batch_works.extend(journal_works)
                 
@@ -176,27 +213,49 @@ def update_data(include_works=True):
                         table = pa.Table.from_pandas(batch_df)
                         
                         if writer is None:
-                            # Initialize writer with the schema of the first batch
-                            # Fix: Coerce Null-inferred columns to String to accommodate future data
-                            # If a column is all nulls in the first batch, PyArrow infers it as Null type.
-                            # This causes failures when subsequent batches contain data.
-                            new_fields = []
-                            for field in table.schema:
-                                if field.type == pa.null():
-                                    new_fields.append(pa.field(field.name, pa.string()))
-                                else:
-                                    new_fields.append(field)
-                            
-                            robust_schema = pa.schema(new_fields)
-                            
-                            # Cast table to the robust schema
-                            try:
-                                table = table.cast(robust_schema)
-                            except:
-                                pass
-                            
-                            writer = pq.ParquetWriter(WORKS_PARQUET_FILE, robust_schema)
-                            print(f"  → Created new Parquet file: {WORKS_PARQUET_FILE}")
+                            # Check if we're appending to an existing file
+                            if append_mode and os.path.exists(WORKS_PARQUET_FILE):
+                                # Read existing schema from file
+                                existing_file = pq.ParquetFile(WORKS_PARQUET_FILE)
+                                robust_schema = existing_file.schema_arrow
+                                print(f"  → Appending to existing file with {existing_file.metadata.num_rows:,} rows")
+                                
+                                # Cast new table to match existing schema
+                                try:
+                                    # Ensure batch has all columns from existing schema
+                                    batch_df = batch_df.reindex(columns=robust_schema.names)
+                                    table = pa.Table.from_pandas(batch_df, schema=robust_schema)
+                                except Exception as e:
+                                    print(f"  Warning: Schema mismatch ({e}), will try to adapt...")
+                                    # Convert object columns to strings to match
+                                    for col in batch_df.columns:
+                                        if batch_df[col].dtype == 'object':
+                                            batch_df[col] = batch_df[col].apply(lambda x: str(x) if pd.notnull(x) else None)
+                                    batch_df = batch_df.reindex(columns=robust_schema.names)
+                                    table = pa.Table.from_pandas(batch_df, schema=robust_schema)
+                                
+                                # Open in append mode
+                                writer = pq.ParquetWriter(WORKS_PARQUET_FILE, robust_schema)
+                            else:
+                                # Initialize writer with the schema of the first batch
+                                # Fix: Coerce Null-inferred columns to String to accommodate future data
+                                new_fields = []
+                                for field in table.schema:
+                                    if field.type == pa.null():
+                                        new_fields.append(pa.field(field.name, pa.string()))
+                                    else:
+                                        new_fields.append(field)
+                                
+                                robust_schema = pa.schema(new_fields)
+                                
+                                # Cast table to the robust schema
+                                try:
+                                    table = table.cast(robust_schema)
+                                except:
+                                    pass
+                                
+                                writer = pq.ParquetWriter(WORKS_PARQUET_FILE, robust_schema)
+                                print(f"  → Created new Parquet file: {WORKS_PARQUET_FILE}")
                         
                         # Ensure table matches schema of writer (handle missing/extra columns naively)
                         if not table.schema.equals(writer.schema):

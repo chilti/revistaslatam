@@ -14,7 +14,7 @@ Sistema de recolección y análisis de datos bibliométricos para revistas latin
 
 1.  **Clonar el repositorio**:
     ```bash
-    git clone https://github.com/usuario/revistas_latam.git
+    git clone https://github.com/chilti/revistas_latam.git
     cd revistas_latam
     ```
 
@@ -43,7 +43,26 @@ python src/data_collector.py
 ```
 Esto generará archivos `.parquet` en la carpeta `data/`.
 
-### 2. Ejecutar el Dashboard
+### 2. Precalcular Indicadores (Recomendado)
+Después de descargar los artículos, ejecuta el script de precálculo para acelerar el dashboard:
+
+```bash
+python precompute_metrics.py
+```
+
+Este script calcula y guarda en caché:
+- FWCI (Field-Weighted Citation Impact)
+- Percentiles de citas
+- % Top 10% (artículos altamente citados)
+- % Artículos en acceso abierto
+- % Revistas indexadas en Scopus, CORE, DOAJ
+
+Los resultados se guardan en `data/cache/` y el dashboard los cargará automáticamente.
+
+**Opciones:**
+- `python precompute_metrics.py --force`: Forzar recálculo aunque exista caché válido
+
+### 3. Ejecutar el Dashboard
 Para visualizar los indicadores:
 
 ```bash
@@ -53,11 +72,13 @@ streamlit run dashboard.py
 ## 📂 Estructura del Proyecto
 
 - `dashboard.py`: Aplicación principal (Streamlit).
+- `precompute_metrics.py`: Script para precalcular indicadores.
 - `src/`: Módulos de lógica.
   - `data_collector.py`: Interacción con API OpenAlex y guardado incremental.
   - `data_processor.py`: Limpieza y cálculo de KPIs generales.
   - `performance_metrics.py`: Cálculo avanzado de métricas (Normalización, Percentiles).
 - `data/`: Almacenamiento de datos (ignorado en git por tamaño).
+  - `cache/`: Métricas precalculadas para carga rápida del dashboard.
 
 ## 📝 Notas
 - Este proyecto utiliza `pyalex` para interactuar con OpenAlex.

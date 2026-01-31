@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 import json
+import os
+from pathlib import Path
+import pyarrow.parquet as pq
 
 def safe_get(obj, *keys, default=None):
     """Safely navigate nested dictionaries."""
@@ -11,200 +14,505 @@ def safe_get(obj, *keys, default=None):
             return default
     return obj if obj is not None else default
 
-def load_works_data(filepath):
-    """
-    Loads works (articles) data from parquet file.
-    """
-    try:
-        df = pd.read_parquet(filepath)
-        
-        # Parse potential JSON columns (works data)
-        json_cols = ['open_access', 'primary_topic', 'topics', 'authorships']
-        for col in json_cols:
-            if col in df.columns and df[col].dtype == 'object':
-                sample = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
-                if isinstance(sample, str) and (sample.startswith('{') or sample.startswith('[')):
-                    try:
-                        df[col] = df[col].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
-                    except:
-                        pass
-                        
-        return df
-    except Exception as e:
-        print(f"Error loading works data: {e}")
-        return pd.DataFrame()
+def parse_json_field(value):
+    """Parse JSON string to dict/list if needed."""
+    if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
+        try:
+            return json.loads(value)
+        except:
+            return value
+    return value
 
-def get_topic_baselines(works_df):
-    """
-    Pre-calculates average citations per topic for FWCI.
-    Returns: dict {topic_name: avg_citations}
-    """
-    # Extract primary topic name safely
-    def get_topic_name(row):
-        return safe_get(row, 'primary_topic', 'display_name')
+def get_cache_dir():
+    """Returns the cache directory path."""
+    cache_dir = Path(__file__).parent.parent / 'data' / 'cache'
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
-    # Create a temporary column for grouping
-    # We use apply because data might be mixed dict/json-string/None
-    # But for speed, we should rely on the fact that load_works_data already parses JSON
-    # So we assume dicts or None.
-    
-    # Reset index to ensure clean operations
-    df = works_df.copy()
-    
-    # Extract topic names into a list to avoid slow apply if possible, or just use apply
-    # Check if 'primary_topic_name' already exists (optimization)
-    if 'primary_topic_name' not in df.columns:
-        df['primary_topic_name'] = df.apply(get_topic_name, axis=1)
-    
-    # Group by topic
-    topic_stats = df.groupby('primary_topic_name')['cited_by_count'].mean()
-    return topic_stats.to_dict()
-
-def enrich_works_data(works_df, topic_baselines=None):
+class MetricsAccumulator:
     """
-    Adds calculated columns to works_df:
-    - citation_percentile (0-100)
-    - fwci (Field-Weighted Citation Impact)
+    Accumulates metrics across chunks for memory-efficient processing.
     """
-    df = works_df.copy()
+    def __init__(self):
+        self.reset()
     
-    # 1. Percentiles (Global rank)
-    df['citation_percentile'] = df['cited_by_count'].rank(pct=True) * 100
-    
-    # 2. FWCI
-    if topic_baselines:
-        # Extract topic name if not present
-        if 'primary_topic_name' not in df.columns:
-            df['primary_topic_name'] = df.apply(lambda x: safe_get(x, 'primary_topic', 'display_name'), axis=1)
-        
-        # Map average citations
-        df['expected_citations'] = df['primary_topic_name'].map(topic_baselines)
-        
-        # Calculate FWCI (Observed / Expected)
-        # Handle division by zero or missing baseline
-        df['fwci'] = df.apply(
-            lambda x: x['cited_by_count'] / x['expected_citations'] if pd.notnull(x['expected_citations']) and x['expected_citations'] > 0 else 1.0, 
-            axis=1
-        )
-    else:
-        df['fwci'] = 1.0
-        
-    return df
-
-def calculate_metrics_from_enriched(enriched_df, total_works_count_for_percentile=None):
-    """
-    Calculates summary metrics from an already enriched DataFrame (subset of works).
-    """
-    if len(enriched_df) == 0:
-        return {
-            'num_documents': 0, 'pct_oa_articles': 0, 'avg_citations': 0,
-            'fwci_approx': 0, 'pct_top10': 0, 'avg_percentile': 0
+    def reset(self):
+        """Reset all accumulators."""
+        self.count = 0
+        self.fwci_sum = 0.0
+        self.percentile_sum = 0.0
+        self.top_10_count = 0
+        self.top_1_count = 0
+        self.oa_counts = {
+            'gold': 0,
+            'green': 0,
+            'hybrid': 0,
+            'bronze': 0,
+            'closed': 0
         }
     
-    num_documents = len(enriched_df)
-    
-    # OA
-    oa_values = enriched_df.apply(lambda x: safe_get(x, 'open_access', 'is_oa', default=safe_get(x, 'is_oa', default=False)), axis=1)
-    pct_oa_articles = (oa_values.sum() / num_documents) * 100
-    
-    # Citations
-    avg_citations = enriched_df['cited_by_count'].mean()
-    
-    # Percentiles
-    avg_percentile = enriched_df['citation_percentile'].mean()
-    
-    # Top 10% (Global definition)
-    # Ideally, we should check if percentile >= 90
-    pct_top10 = (len(enriched_df[enriched_df['citation_percentile'] >= 90]) / num_documents) * 100
-    
-    # FWCI
-    fwci_approx = enriched_df['fwci'].mean()
-    
-    return {
-        'num_documents': num_documents,
-        'pct_oa_articles': round(pct_oa_articles, 2),
-        'avg_citations': round(avg_citations, 2),
-        'fwci_approx': round(fwci_approx, 2),
-        'pct_top10': round(pct_top10, 2),
-        'avg_percentile': round(avg_percentile, 2)
-    }
-
-def calculate_journal_performance_metrics(works_df, journal_id):
-    # 1. Pre-calculate baselines (this is expensive to do per-call, ideally done once in Dashboard)
-    # But for backward compatibility we do it here if not passed. 
-    # NOTE: In optimal flow, dashboard pre-calculates global baselines. 
-    # Here we will just calculate local baselines which is wrong for FWCI but acceptable if no global context.
-    # BETTER: Just filter works_df for journal, but we need global rankings for percentiles.
-    
-    # Assuming works_df is the GLOBAL dataset
-    # We should calculate percentiles visually relative to global.
-    
-    # Let's check if 'citation_percentile' exists, if so use it, else calculate on fly
-    if 'citation_percentile' not in works_df.columns:
-        # Full recalculation (slow)
-        topic_baselines = get_topic_baselines(works_df)
-        enriched_global = enrich_works_data(works_df, topic_baselines)
-        journal_works = enriched_global[enriched_global['journal_id'] == journal_id]
-    else:
-        # Already enriched
-        journal_works = works_df[works_df['journal_id'] == journal_id]
+    def add_batch(self, df_chunk):
+        """Add a batch of works to the accumulator."""
+        self.count += len(df_chunk)
         
-    return calculate_metrics_from_enriched(journal_works)
+        # FWCI
+        if 'fwci' in df_chunk.columns:
+            fwci_values = pd.to_numeric(df_chunk['fwci'], errors='coerce').fillna(0)
+            self.fwci_sum += fwci_values.sum()
+        
+        # Percentile
+        if 'citation_normalized_percentile' in df_chunk.columns:
+            percentile_values = pd.to_numeric(df_chunk['citation_normalized_percentile'], errors='coerce').fillna(0)
+            self.percentile_sum += percentile_values.sum()
+        
+        # Top 10%
+        if 'is_in_top_10_percent' in df_chunk.columns:
+            top_10_values = df_chunk['is_in_top_10_percent'].fillna(False).astype(bool)
+            self.top_10_count += top_10_values.sum()
+        
+        # Top 1%
+        if 'is_in_top_1_percent' in df_chunk.columns:
+            top_1_values = df_chunk['is_in_top_1_percent'].fillna(False).astype(bool)
+            self.top_1_count += top_1_values.sum()
+        
+        # OA Status
+        if 'oa_status' in df_chunk.columns:
+            oa_counts = df_chunk['oa_status'].value_counts()
+            for oa_type, count in oa_counts.items():
+                if oa_type in self.oa_counts:
+                    self.oa_counts[oa_type] += count
+    
+    def get_metrics(self):
+        """Calculate final metrics from accumulated values."""
+        if self.count == 0:
+            return {
+                'num_documents': 0,
+                'fwci_avg': 0.0,
+                'pct_top_10': 0.0,
+                'pct_top_1': 0.0,
+                'avg_percentile': 0.0,
+                'pct_oa_gold': 0.0,
+                'pct_oa_green': 0.0,
+                'pct_oa_hybrid': 0.0,
+                'pct_oa_bronze': 0.0,
+                'pct_oa_closed': 0.0
+            }
+        
+        return {
+            'num_documents': self.count,
+            'fwci_avg': round(self.fwci_sum / self.count, 2),
+            'pct_top_10': round((self.top_10_count / self.count) * 100, 2),
+            'pct_top_1': round((self.top_1_count / self.count) * 100, 2),
+            'avg_percentile': round(self.percentile_sum / self.count, 2),
+            'pct_oa_gold': round((self.oa_counts['gold'] / self.count) * 100, 2),
+            'pct_oa_green': round((self.oa_counts['green'] / self.count) * 100, 2),
+            'pct_oa_hybrid': round((self.oa_counts['hybrid'] / self.count) * 100, 2),
+            'pct_oa_bronze': round((self.oa_counts['bronze'] / self.count) * 100, 2),
+            'pct_oa_closed': round((self.oa_counts['closed'] / self.count) * 100, 2)
+        }
 
-def calculate_country_performance_metrics(works_df, journals_df, country_code):
+def process_works_in_chunks(works_filepath, filter_func=None, chunk_size=50000):
+    """
+    Process works file in chunks and calculate metrics.
+    
+    Args:
+        works_filepath: Path to works parquet file
+        filter_func: Optional function to filter rows (receives DataFrame chunk)
+        chunk_size: Number of rows per chunk
+    
+    Returns:
+        dict with aggregated metrics
+    """
+    parquet_file = pq.ParquetFile(works_filepath)
+    accumulator = MetricsAccumulator()
+    
+    total_rows = parquet_file.metadata.num_rows
+    chunks_processed = 0
+    
+    for batch in parquet_file.iter_batches(batch_size=chunk_size):
+        df_chunk = batch.to_pandas()
+        
+        # Parse JSON fields if needed
+        if 'open_access' in df_chunk.columns:
+            df_chunk['oa_status'] = df_chunk['open_access'].apply(
+                lambda x: safe_get(parse_json_field(x), 'oa_status', default='closed')
+            )
+        
+        # Extract publication year if needed
+        if 'publication_year' not in df_chunk.columns and 'biblio' in df_chunk.columns:
+            df_chunk['publication_year'] = df_chunk['biblio'].apply(
+                lambda x: safe_get(parse_json_field(x), 'year')
+            )
+        
+        # Apply filter if provided
+        if filter_func is not None:
+            df_chunk = filter_func(df_chunk)
+        
+        if len(df_chunk) > 0:
+            accumulator.add_batch(df_chunk)
+        
+        chunks_processed += 1
+        if chunks_processed % 10 == 0:
+            print(f"    Processed {chunks_processed * chunk_size:,} / {total_rows:,} rows...")
+    
+    return accumulator.get_metrics()
+
+def get_year_range(works_filepath):
+    """
+    Detect the range of years available in the works data.
+    Returns (min_year, max_year)
+    """
+    parquet_file = pq.ParquetFile(works_filepath)
+    years = set()
+    
+    # Sample first few batches to get year range
+    for i, batch in enumerate(parquet_file.iter_batches(batch_size=100000)):
+        df_chunk = batch.to_pandas()
+        
+        # Extract publication year
+        if 'publication_year' not in df_chunk.columns and 'biblio' in df_chunk.columns:
+            df_chunk['publication_year'] = df_chunk['biblio'].apply(
+                lambda x: safe_get(parse_json_field(x), 'year')
+            )
+        
+        if 'publication_year' in df_chunk.columns:
+            chunk_years = pd.to_numeric(df_chunk['publication_year'], errors='coerce').dropna()
+            years.update(chunk_years.unique())
+        
+        # Sample first 500k rows to get good coverage
+        if i >= 4:
+            break
+    
+    if years:
+        return int(min(years)), int(max(years))
+    else:
+        return 2000, 2025  # Default fallback
+
+def calculate_annual_metrics_chunked(works_filepath, start_year=None, end_year=None):
+    """
+    Calculate metrics for each year and for the entire period.
+    Processes data in chunks to avoid loading all to memory.
+    If start_year/end_year not provided, auto-detects from data.
+    
+    Returns:
+        - annual_metrics: DataFrame with metrics per year
+        - period_metrics: dict with metrics for entire period
+    """
+    # Auto-detect year range if not provided
+    if start_year is None or end_year is None:
+        print("  → Detecting year range...")
+        detected_start, detected_end = get_year_range(works_filepath)
+        start_year = start_year or detected_start
+        end_year = end_year or detected_end
+        print(f"  → Year range: {start_year}-{end_year}")
+    
+    print("  → Calculating annual metrics...")
+    
+    # Calculate metrics for each year
+    annual_data = []
+    for year in range(start_year, end_year + 1):
+        print(f"    Year {year}...")
+        filter_func = lambda df, y=year: df[df['publication_year'] == y]
+        metrics = process_works_in_chunks(works_filepath, filter_func)
+        metrics['year'] = year
+        annual_data.append(metrics)
+    
+    annual_metrics_df = pd.DataFrame(annual_data)
+    
+    # Calculate metrics for entire period
+    print(f"    Period {start_year}-{end_year}...")
+    filter_func = lambda df: df[
+        (df['publication_year'] >= start_year) & 
+        (df['publication_year'] <= end_year)
+    ]
+    period_metrics = process_works_in_chunks(works_filepath, filter_func)
+    period_metrics['period'] = f'{start_year}-{end_year}'
+    
+    return annual_metrics_df, period_metrics
+
+def calculate_journal_metrics_chunked(works_filepath, journal_id, start_year=None, end_year=None):
+    """
+    Calculate metrics for a specific journal using chunk processing.
+    """
+    # Get year range if not provided
+    if start_year is None or end_year is None:
+        start_year, end_year = get_year_range(works_filepath)
+    
+    # Annual metrics
+    annual_data = []
+    for year in range(start_year, end_year + 1):
+        year_filter = lambda df, jid=journal_id, y=year: df[(df['journal_id'] == jid) & (df['publication_year'] == y)]
+        metrics = process_works_in_chunks(works_filepath, year_filter)
+        metrics['year'] = year
+        metrics['journal_id'] = journal_id
+        annual_data.append(metrics)
+    
+    annual_metrics_df = pd.DataFrame(annual_data)
+    
+    # Period metrics
+    period_filter = lambda df, jid=journal_id: df[
+        (df['journal_id'] == jid) & 
+        (df['publication_year'] >= start_year) & 
+        (df['publication_year'] <= end_year)
+    ]
+    period_metrics = process_works_in_chunks(works_filepath, period_filter)
+    period_metrics['journal_id'] = journal_id
+    period_metrics['period'] = f'{start_year}-{end_year}'
+    
+    return annual_metrics_df, period_metrics
+
+def calculate_country_metrics_chunked(works_filepath, journals_df, country_code, start_year=None, end_year=None):
+    """
+    Calculate metrics for a specific country using chunk processing.
+    """
     country_journals = journals_df[journals_df['country_code'] == country_code]
     
-    # Journal mets
-    num_journals = len(country_journals)
-    if num_journals == 0: return {}
+    if len(country_journals) == 0:
+        return None, None, None
     
+    # Get year range if not provided
+    if start_year is None or end_year is None:
+        start_year, end_year = get_year_range(works_filepath)
+    
+    num_journals = len(country_journals)
+    journal_ids = country_journals['id'].tolist()
+    
+    # Journal indexing metrics
     pct_scopus = (country_journals.apply(lambda x: safe_get(x, 'is_indexed_in_scopus', default=False), axis=1).sum() / num_journals) * 100
     pct_core = (country_journals.apply(lambda x: safe_get(x, 'is_core', default=False), axis=1).sum() / num_journals) * 100
     pct_doaj = (country_journals.apply(lambda x: safe_get(x, 'is_in_doaj', default=False), axis=1).sum() / num_journals) * 100
     
-    # Works mets
-    journal_ids = country_journals['id'].tolist()
-    
-    if 'citation_percentile' not in works_df.columns:
-        topic_baselines = get_topic_baselines(works_df)
-        enriched_global = enrich_works_data(works_df, topic_baselines)
-        country_works = enriched_global[enriched_global['journal_id'].isin(journal_ids)]
-    else:
-        country_works = works_df[works_df['journal_id'].isin(journal_ids)]
-        
-    metrics = calculate_metrics_from_enriched(country_works)
-    
-    # Merge
-    metrics.update({
+    journal_metrics = {
         'num_journals': num_journals,
         'pct_scopus': round(pct_scopus, 2),
         'pct_core': round(pct_core, 2),
         'pct_doaj': round(pct_doaj, 2)
-    })
-    return metrics
-
-def calculate_latam_performance_metrics(works_df, journals_df):
-    # Journal mets
-    num_journals = len(journals_df)
-    if num_journals == 0: return {}
+    }
     
+    print(f"    Processing country {country_code} ({num_journals} journals)...")
+    
+    # Annual metrics
+    annual_data = []
+    for year in range(start_year, end_year + 1):
+        year_filter = lambda df, jids=journal_ids, y=year: df[
+            (df['journal_id'].isin(jids)) & 
+            (df['publication_year'] == y)
+        ]
+        metrics = process_works_in_chunks(works_filepath, year_filter)
+        metrics['year'] = year
+        metrics['country_code'] = country_code
+        annual_data.append(metrics)
+    
+    annual_metrics_df = pd.DataFrame(annual_data)
+    
+    # Period metrics
+    period_filter = lambda df, jids=journal_ids: df[
+        (df['journal_id'].isin(jids)) & 
+        (df['publication_year'] >= start_year) & 
+        (df['publication_year'] <= end_year)
+    ]
+    period_metrics = process_works_in_chunks(works_filepath, period_filter)
+    period_metrics.update(journal_metrics)
+    period_metrics['country_code'] = country_code
+    period_metrics['period'] = '2021-2025'
+    
+    return annual_metrics_df, period_metrics, journal_metrics
+
+def calculate_latam_metrics_chunked(works_filepath, journals_df, start_year=None, end_year=None):
+    """
+    Calculate metrics for all LATAM using chunk processing.
+    """
+    num_journals = len(journals_df)
+    
+    if num_journals == 0:
+        return None, None, None
+    
+    # Get year range if not provided
+    if start_year is None or end_year is None:
+        start_year, end_year = get_year_range(works_filepath)
+    
+    # Journal indexing metrics
     pct_scopus = (journals_df.apply(lambda x: safe_get(x, 'is_indexed_in_scopus', default=False), axis=1).sum() / num_journals) * 100
     pct_core = (journals_df.apply(lambda x: safe_get(x, 'is_core', default=False), axis=1).sum() / num_journals) * 100
     pct_doaj = (journals_df.apply(lambda x: safe_get(x, 'is_in_doaj', default=False), axis=1).sum() / num_journals) * 100
     
-    if 'citation_percentile' not in works_df.columns:
-        topic_baselines = get_topic_baselines(works_df)
-        enriched_global = enrich_works_data(works_df, topic_baselines)
-    else:
-        enriched_global = works_df
-        
-    metrics = calculate_metrics_from_enriched(enriched_global)
-    
-    # Merge
-    metrics.update({
+    journal_metrics = {
         'num_journals': num_journals,
         'pct_scopus': round(pct_scopus, 2),
         'pct_core': round(pct_core, 2),
         'pct_doaj': round(pct_doaj, 2)
-    })
-    return metrics
+    }
+    
+    print(f"    Processing LATAM ({num_journals} journals)...")
+    
+    # Annual metrics
+    annual_data = []
+    for year in range(start_year, end_year + 1):
+        year_filter = lambda df, y=year: df[df['publication_year'] == y]
+        metrics = process_works_in_chunks(works_filepath, year_filter)
+        metrics['year'] = year
+        annual_data.append(metrics)
+    
+    annual_metrics_df = pd.DataFrame(annual_data)
+    
+    # Period metrics
+    period_filter = lambda df: df[
+        (df['publication_year'] >= start_year) & 
+        (df['publication_year'] <= end_year)
+    ]
+    period_metrics = process_works_in_chunks(works_filepath, period_filter)
+    period_metrics.update(journal_metrics)
+    period_metrics['period'] = f'{start_year}-{end_year}'
+    
+    return annual_metrics_df, period_metrics, journal_metrics
+
+def compute_and_cache_all_metrics(works_filepath, journals_filepath, force_recalculate=False):
+    """
+    Master function to compute and cache all performance metrics.
+    Uses chunk-based processing to avoid loading all data to memory.
+    
+    Generates:
+    - Annual metrics tables (2021-2025) for journals, countries, and LATAM
+    - Period metrics (2021-2025 aggregate) for journals, countries, and LATAM
+    
+    Args:
+        works_filepath: Path to works parquet file
+        journals_filepath: Path to journals parquet file
+        force_recalculate: If True, ignore cache and recalculate everything
+    
+    Returns:
+        dict with all computed metrics
+    """
+    cache_dir = get_cache_dir()
+    
+    print("⚙️  Loading journals data...")
+    try:
+        journals_df = pd.read_parquet(journals_filepath)
+    except Exception as e:
+        print(f"⚠️  Error loading journals data: {e}")
+        return None
+    
+    if journals_df.empty:
+        print("⚠️  No journals data available")
+        return None
+    
+    print(f"✓ Loaded {len(journals_df):,} journals")
+    
+    # Verify works file exists
+    if not os.path.exists(works_filepath):
+        print(f"⚠️  Works file not found: {works_filepath}")
+        return None
+    
+    parquet_file = pq.ParquetFile(works_filepath)
+    total_works = parquet_file.metadata.num_rows
+    print(f"✓ Works file contains {total_works:,} articles")
+    
+    # Detect year range
+    print("\n⚙️  Detecting year range in data...")
+    start_year, end_year = get_year_range(works_filepath)
+    print(f"✓ Year range: {start_year}-{end_year}")
+    
+    # Calculate metrics at all levels
+    print("\n⚙️  Computing metrics (chunk-based processing)...")
+    
+    # 1. LATAM level (process first as it's the broadest)
+    print("\n📊 LATAM metrics...")
+    latam_annual, latam_period, _ = calculate_latam_metrics_chunked(works_filepath, journals_df, start_year, end_year)
+    
+    if latam_annual is not None:
+        latam_annual.to_parquet(cache_dir / 'metrics_latam_annual.parquet', index=False)
+        print(f"  ✓ Saved LATAM annual metrics: {len(latam_annual)} years")
+    
+    if latam_period is not None:
+        latam_period_df = pd.DataFrame([latam_period])
+        latam_period_df.to_parquet(cache_dir / 'metrics_latam_period.parquet', index=False)
+        print(f"  ✓ Saved LATAM period metrics")
+    
+    # 2. Country level
+    print("\n📊 Country metrics...")
+    country_annual_list = []
+    country_period_list = []
+    
+    for country_code in journals_df['country_code'].unique():
+        annual, period, _ = calculate_country_metrics_chunked(works_filepath, journals_df, country_code, start_year, end_year)
+        
+        if annual is not None:
+            country_annual_list.append(annual)
+        
+        if period is not None:
+            country_period_list.append(period)
+    
+    country_annual_df = pd.concat(country_annual_list, ignore_index=True) if country_annual_list else pd.DataFrame()
+    country_period_df = pd.DataFrame(country_period_list) if country_period_list else pd.DataFrame()
+    
+    if not country_annual_df.empty:
+        country_annual_df.to_parquet(cache_dir / 'metrics_country_annual.parquet', index=False)
+        print(f"  ✓ Saved country annual metrics: {len(country_annual_df)} rows")
+    
+    if not country_period_df.empty:
+        country_period_df.to_parquet(cache_dir / 'metrics_country_period.parquet', index=False)
+        print(f"  ✓ Saved country period metrics: {len(country_period_df)} countries")
+    
+    # 3. Journal level (most granular - can be slow)
+    print("\n📊 Journal metrics...")
+    print(f"  Processing {len(journals_df)} journals...")
+    
+    journal_annual_list = []
+    journal_period_list = []
+    
+    for idx, journal_id in enumerate(journals_df['id'].unique(), 1):
+        if idx % 50 == 0:
+            print(f"    Progress: {idx}/{len(journals_df)} journals...")
+        
+        annual, period = calculate_journal_metrics_chunked(works_filepath, journal_id, start_year, end_year)
+        
+        if annual is not None and len(annual) > 0:
+            journal_annual_list.append(annual)
+        
+        if period is not None:
+            journal_period_list.append(period)
+    
+    journal_annual_df = pd.concat(journal_annual_list, ignore_index=True) if journal_annual_list else pd.DataFrame()
+    journal_period_df = pd.DataFrame(journal_period_list) if journal_period_list else pd.DataFrame()
+    
+    if not journal_annual_df.empty:
+        journal_annual_df.to_parquet(cache_dir / 'metrics_journal_annual.parquet', index=False)
+        print(f"  ✓ Saved journal annual metrics: {len(journal_annual_df)} rows")
+    
+    if not journal_period_df.empty:
+        journal_period_df.to_parquet(cache_dir / 'metrics_journal_period.parquet', index=False)
+        print(f"  ✓ Saved journal period metrics: {len(journal_period_df)} journals")
+    
+    print("\n✅ All metrics computed and cached successfully!")
+    
+    return {
+        'journal_annual': journal_annual_df,
+        'journal_period': journal_period_df,
+        'country_annual': country_annual_df,
+        'country_period': country_period_df,
+        'latam_annual': latam_annual,
+        'latam_period': latam_period
+    }
+
+def load_cached_metrics(level, metric_type='period'):
+    """
+    Load cached metrics.
+    
+    Args:
+        level: 'journal', 'country', or 'latam'
+        metric_type: 'annual' or 'period'
+    
+    Returns:
+        DataFrame with metrics or None if not found
+    """
+    cache_dir = get_cache_dir()
+    cache_file = cache_dir / f'metrics_{level}_{metric_type}.parquet'
+    
+    if cache_file.exists():
+        try:
+            df = pd.read_parquet(cache_file)
+            return df
+        except Exception as e:
+            print(f"Error loading cache: {e}")
+            return None
+    return None
