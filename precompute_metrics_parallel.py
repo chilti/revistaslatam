@@ -197,9 +197,11 @@ def main():
     print("=" * 70)
     print()
     
-    # Detect number of cores
-    num_cores = cpu_count()
-    print(f"🖥️  Detected {num_cores} CPU cores")
+    # Detect number of cores - use 75% to leave resources for system
+    total_cores = cpu_count()
+    num_cores = max(1, int(total_cores * 0.75))  # Use 75% of cores
+    print(f"🖥️  Detected {total_cores} CPU cores")
+    print(f"📊 Using {num_cores} cores (75% - leaving {total_cores - num_cores} for system)")
     
     # Load data to RAM
     print("\n⚙️  Loading data to RAM...")

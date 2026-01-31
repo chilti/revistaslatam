@@ -32,45 +32,6 @@ level = st.sidebar.radio(
 
 st.sidebar.markdown("---")
 
-# Data Update Section
-st.sidebar.subheader("Gestión de Datos")
-if st.sidebar.button("Actualizar Datos (OpenAlex)"):
-    with st.sidebar.status("Descargando datos...", expanded=True) as status:
-        st.write("Conectando con OpenAlex...")
-        count = update_data()
-        if count > 0:
-            status.update(label="¡Actualización completa!", state="complete", expanded=False)
-            st.sidebar.success(f"Se actualizaron {count} revistas.")
-            st.rerun()
-        else:
-            status.update(label="Error en actualización", state="error", expanded=False)
-            st.sidebar.error("No se pudieron descargar datos.")
-
-# Metrics Precalculation Section
-if st.sidebar.button("Precalcular Indicadores"):
-    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-    works_path = os.path.join(data_dir, 'latin_american_works.parquet')
-    journals_path = os.path.join(data_dir, 'latin_american_journals.parquet')
-    
-    if not os.path.exists(works_path):
-        st.sidebar.error("No hay datos de artículos disponibles.")
-    else:
-        with st.sidebar.status("Precalculando indicadores...", expanded=True) as status:
-            st.write("Calculando métricas por año...")
-            try:
-                result = compute_and_cache_all_metrics(works_path, journals_path, force_recalculate=True)
-                if result:
-                    status.update(label="¡Precálculo completo!", state="complete", expanded=False)
-                    st.sidebar.success(f"Métricas calculadas exitosamente.")
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    status.update(label="Error en precálculo", state="error", expanded=False)
-                    st.sidebar.error("No se pudieron calcular las métricas.")
-            except Exception as e:
-                status.update(label="Error en precálculo", state="error", expanded=False)
-                st.sidebar.error(f"Error: {e}")
-
 # Show cache status
 cache_dir = get_cache_dir()
 latam_cache = cache_dir / 'metrics_latam_annual.parquet'
@@ -111,6 +72,92 @@ if level == "Region (Latinoamérica)":
     col1.metric("Revistas Indexadas", len(df))
     col2.metric("Total Artículos", f"{df['works_count'].sum():,}")
     
+    # Geographic Map Section
+    if has_cached_metrics:
+        st.markdown("---")
+        st.subheader("Mapa Regional por Indicador")
+        
+        # Load country metrics for map
+        country_period = load_cached_metrics('country', 'period')
+        
+        if country_period is not None and len(country_period) > 0:
+            # Indicator selector
+            indicator_options = {
+                'Número de Revistas': 'num_journals',
+                'Artículos': 'num_documents',
+                'FWCI Promedio': 'fwci_avg',
+                '% Acceso Abierto': 'pct_oa_total',
+                '% Cerrado': 'pct_oa_closed',
+                '% Gold': 'pct_oa_gold',
+                '% Green': 'pct_oa_green',
+                '% Hybrid': 'pct_oa_hybrid',
+                '% Bronze': 'pct_oa_bronze',
+                '% Top 10%': 'pct_top_10'
+            }
+            
+            selected_indicator = st.selectbox(
+                "Selecciona un indicador para visualizar:",
+                options=list(indicator_options.keys()),
+                index=0
+            )
+            
+            # Calculate % OA Total if needed
+            if 'pct_oa_total' not in country_period.columns:
+                country_period['pct_oa_total'] = (
+                    country_period['pct_oa_gold'] + 
+                    country_period['pct_oa_green'] + 
+                    country_period['pct_oa_hybrid'] + 
+                    country_period['pct_oa_bronze']
+                )
+            
+            # Get the column name for the selected indicator
+            indicator_col = indicator_options[selected_indicator]
+            
+            # Create choropleth map
+            fig_map = px.choropleth(
+                country_period,
+                locations='country_code',
+                locationmode='ISO-3',
+                color=indicator_col,
+                hover_name='country_code',
+                hover_data={
+                    'country_code': True,
+                    indicator_col: ':.2f',
+                    'num_journals': ':,',
+                    'num_documents': ':,'
+                },
+                color_continuous_scale='Viridis',
+                labels={indicator_col: selected_indicator},
+                title=f'{selected_indicator} por País'
+            )
+            
+            # Focus on Latin America
+            fig_map.update_geos(
+                scope='south america',
+                showcountries=True,
+                countrycolor="lightgray",
+                showcoastlines=True,
+                coastlinecolor="gray",
+                projection_type='natural earth',
+                center=dict(lat=-10, lon=-60),
+                lataxis_range=[-60, 35],
+                lonaxis_range=[-120, -30]
+            )
+            
+            fig_map.update_layout(
+                height=600,
+                margin=dict(l=0, r=0, t=40, b=0)
+            )
+            
+            st.plotly_chart(fig_map, use_container_width=True)
+            
+            # Show top 5 countries for selected indicator
+            st.markdown(f"**Top 5 Países - {selected_indicator}**")
+            top_countries = country_period.nlargest(5, indicator_col)[['country_code', indicator_col, 'num_journals', 'num_documents']]
+            top_countries.columns = ['País', selected_indicator, 'Revistas', 'Artículos']
+            st.dataframe(top_countries, use_container_width=True, hide_index=True)
+    
+
     if has_cached_metrics:
         st.markdown("---")
         st.subheader("Indicadores de Desempeño")
