@@ -40,23 +40,33 @@ def calculate_performance_metrics_from_df(works_df):
     
     num_documents = len(works_df)
     
-    # FWCI average
-    fwci_avg = works_df['fwci'].mean() if 'fwci' in works_df.columns else 0.0
+    # FWCI average - convert to numeric first
+    if 'fwci' in works_df.columns:
+        fwci_values = pd.to_numeric(works_df['fwci'], errors='coerce')
+        fwci_avg = fwci_values.mean()
+    else:
+        fwci_avg = 0.0
     
-    # % Top 10%
+    # % Top 10% - convert to boolean
     if 'is_in_top_10_percent' in works_df.columns:
-        pct_top_10 = (works_df['is_in_top_10_percent'].sum() / num_documents) * 100
+        top_10_values = pd.to_numeric(works_df['is_in_top_10_percent'], errors='coerce').fillna(0).astype(bool)
+        pct_top_10 = (top_10_values.sum() / num_documents) * 100
     else:
         pct_top_10 = 0.0
     
-    # % Top 1%
+    # % Top 1% - convert to boolean
     if 'is_in_top_1_percent' in works_df.columns:
-        pct_top_1 = (works_df['is_in_top_1_percent'].sum() / num_documents) * 100
+        top_1_values = pd.to_numeric(works_df['is_in_top_1_percent'], errors='coerce').fillna(0).astype(bool)
+        pct_top_1 = (top_1_values.sum() / num_documents) * 100
     else:
         pct_top_1 = 0.0
     
-    # Average Percentile
-    avg_percentile = works_df['citation_normalized_percentile'].mean() if 'citation_normalized_percentile' in works_df.columns else 0.0
+    # Average Percentile - convert to numeric first
+    if 'citation_normalized_percentile' in works_df.columns:
+        percentile_values = pd.to_numeric(works_df['citation_normalized_percentile'], errors='coerce')
+        avg_percentile = percentile_values.mean()
+    else:
+        avg_percentile = 0.0
     
     # OA percentages by type
     if 'oa_status' in works_df.columns:
@@ -81,10 +91,10 @@ def calculate_performance_metrics_from_df(works_df):
     
     metrics = {
         'num_documents': num_documents,
-        'fwci_avg': round(fwci_avg, 2),
+        'fwci_avg': round(fwci_avg, 2) if pd.notna(fwci_avg) else 0.0,
         'pct_top_10': round(pct_top_10, 2),
         'pct_top_1': round(pct_top_1, 2),
-        'avg_percentile': round(avg_percentile, 2)
+        'avg_percentile': round(avg_percentile, 2) if pd.notna(avg_percentile) else 0.0
     }
     
     metrics.update({k: round(v, 2) for k, v in oa_types.items()})
