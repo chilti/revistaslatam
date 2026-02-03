@@ -2,6 +2,7 @@
 """
 Optimized parallelized metrics precalculation script.
 Uses chunked processing to avoid memory exhaustion.
+Supports incremental processing to skip already computed metrics.
 """
 import sys
 import os
@@ -10,6 +11,7 @@ import pandas as pd
 import numpy as np
 from multiprocessing import Pool, cpu_count
 import time
+import argparse
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent / 'src'))
@@ -37,6 +39,7 @@ def init_worker(works_file, journals_file, start_year, end_year):
 def calculate_performance_metrics_from_df(works_df):
     """
     Calculate performance metrics from a DataFrame (in-memory version).
+    Matches the logic from performance_metrics.py MetricsAccumulator.
     """
     if len(works_df) == 0:
         return {
@@ -54,31 +57,33 @@ def calculate_performance_metrics_from_df(works_df):
     
     num_documents = len(works_df)
     
-    # FWCI average - convert to numeric first
+    # FWCI average - convert to numeric, fillna(0), then calculate mean
+    # This matches MetricsAccumulator logic: sum(fillna(0)) / count
     if 'fwci' in works_df.columns:
-        fwci_values = pd.to_numeric(works_df['fwci'], errors='coerce')
-        fwci_avg = fwci_values.mean()
+        fwci_values = pd.to_numeric(works_df['fwci'], errors='coerce').fillna(0)
+        fwci_avg = fwci_values.sum() / num_documents
     else:
         fwci_avg = 0.0
     
-    # % Top 10% - convert to boolean
+    # % Top 10% - fillna(False) then convert to bool (matches original)
     if 'is_in_top_10_percent' in works_df.columns:
-        top_10_values = pd.to_numeric(works_df['is_in_top_10_percent'], errors='coerce').fillna(0).astype(bool)
+        top_10_values = works_df['is_in_top_10_percent'].fillna(False).astype(bool)
         pct_top_10 = (top_10_values.sum() / num_documents) * 100
     else:
         pct_top_10 = 0.0
     
-    # % Top 1% - convert to boolean
+    # % Top 1% - fillna(False) then convert to bool (matches original)
     if 'is_in_top_1_percent' in works_df.columns:
-        top_1_values = pd.to_numeric(works_df['is_in_top_1_percent'], errors='coerce').fillna(0).astype(bool)
+        top_1_values = works_df['is_in_top_1_percent'].fillna(False).astype(bool)
         pct_top_1 = (top_1_values.sum() / num_documents) * 100
     else:
         pct_top_1 = 0.0
     
-    # Average Percentile - convert to numeric first
+    # Average Percentile - convert to numeric, fillna(0), then calculate mean
+    # This matches MetricsAccumulator logic: sum(fillna(0)) / count
     if 'citation_normalized_percentile' in works_df.columns:
-        percentile_values = pd.to_numeric(works_df['citation_normalized_percentile'], errors='coerce')
-        avg_percentile = percentile_values.mean()
+        percentile_values = pd.to_numeric(works_df['citation_normalized_percentile'], errors='coerce').fillna(0)
+        avg_percentile = percentile_values.sum() / num_documents
     else:
         avg_percentile = 0.0
     
@@ -105,10 +110,10 @@ def calculate_performance_metrics_from_df(works_df):
     
     metrics = {
         'num_documents': num_documents,
-        'fwci_avg': round(fwci_avg, 2) if pd.notna(fwci_avg) else 0.0,
+        'fwci_avg': round(fwci_avg, 2),
         'pct_top_10': round(pct_top_10, 2),
         'pct_top_1': round(pct_top_1, 2),
-        'avg_percentile': round(avg_percentile, 2) if pd.notna(avg_percentile) else 0.0
+        'avg_percentile': round(avg_percentile, 2)
     }
     
     metrics.update({k: round(v, 2) for k, v in oa_types.items()})
@@ -221,8 +226,54 @@ def process_in_chunks(items, worker_func, num_cores, chunk_size, desc="items"):
     
     return all_results
 
+def load_existing_metrics(cache_dir, metric_type):
+    """Load existing metrics if they exist."""
+    file_map = {
+        'country_annual': 'metrics_country_annual.parquet',
+        'country_period': 'metrics_country_period.parquet',
+        'journal_annual': 'metrics_journal_annual.parquet',
+        'journal_period': 'metrics_journal_period.parquet'
+    }
+    
+    file_path = cache_dir / file_map.get(metric_type)
+    if file_path.exists():
+        return pd.read_parquet(file_path)
+    return None
+
+def get_items_to_process(all_items, existing_df, id_column, force=False):
+    """
+    Determine which items need to be processed.
+    
+    Args:
+        all_items: List of all item IDs (countries or journals)
+        existing_df: DataFrame with existing metrics (or None)
+        id_column: Column name containing the ID ('country_code' or 'journal_id')
+        force: If True, process all items regardless of existing metrics
+    
+    Returns:
+        Tuple of (items_to_process, existing_df)
+    """
+    if force or existing_df is None:
+        return all_items, existing_df
+    
+    existing_ids = set(existing_df[id_column].unique())
+    items_to_process = [item for item in all_items if item not in existing_ids]
+    
+    return items_to_process, existing_df
+
 def main():
     global works_file, journals_file, start_year, end_year
+    
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='Precompute metrics for Latin American journals (optimized with incremental processing)'
+    )
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force recalculation of all metrics, even if they already exist'
+    )
+    args = parser.parse_args()
     
     data_dir = Path(__file__).parent / 'data'
     works_file = data_dir / 'latin_american_works.parquet'
@@ -234,6 +285,10 @@ def main():
     
     print("=" * 70)
     print("OPTIMIZED PARALLELIZED METRICS PRECALCULATION")
+    if args.force:
+        print("MODE: FORCE (recalculating all metrics)")
+    else:
+        print("MODE: INCREMENTAL (skipping existing metrics)")
     print("=" * 70)
     print()
     
@@ -325,34 +380,63 @@ def main():
     countries = sorted(temp_journals['country_code'].unique())
     del temp_journals
     
-    # Process in chunks (smaller chunks = less memory per batch)
-    chunk_size = max(1, len(countries) // 4)  # Process ~4 batches
-    results = process_in_chunks(countries, process_country_worker, num_cores, 
-                                chunk_size, desc="countries")
+    # Load existing metrics and determine what to process
+    existing_country_annual = load_existing_metrics(cache_dir, 'country_annual')
+    existing_country_period = load_existing_metrics(cache_dir, 'country_period')
     
-    # Collect results
-    country_annual_list = []
-    country_period_list = []
+    countries_to_process, _ = get_items_to_process(
+        countries, existing_country_period, 'country_code', force=args.force
+    )
     
-    for country_code, annual, period in results:
-        if annual is not None:
-            country_annual_list.append(annual)
-        if period is not None:
-            country_period_list.append(period)
-    
-    # Save
-    if country_annual_list:
-        country_annual_df = pd.concat(country_annual_list, ignore_index=True)
-        country_annual_df.to_parquet(cache_dir / 'metrics_country_annual.parquet', index=False)
-        print(f"  ✓ Saved country annual metrics: {len(country_annual_df)} rows")
-    
-    if country_period_list:
-        country_period_df = pd.DataFrame(country_period_list)
-        country_period_df.to_parquet(cache_dir / 'metrics_country_period.parquet', index=False)
-        print(f"  ✓ Saved country period metrics: {len(country_period_df)} countries")
-    
-    country_time = time.time() - country_start
-    print(f"  ✓ Country metrics completed in {country_time:.1f}s")
+    if len(countries_to_process) == 0:
+        print(f"  ℹ️  All {len(countries)} countries already processed (use --force to recalculate)")
+        country_time = 0
+    else:
+        if not args.force and existing_country_period is not None:
+            print(f"  ℹ️  Found existing metrics for {len(countries) - len(countries_to_process)} countries")
+            print(f"  📝 Processing {len(countries_to_process)} new countries...")
+        else:
+            print(f"  📝 Processing all {len(countries_to_process)} countries...")
+        
+        # Process in chunks (smaller chunks = less memory per batch)
+        chunk_size = max(1, len(countries_to_process) // 4)  # Process ~4 batches
+        results = process_in_chunks(countries_to_process, process_country_worker, num_cores, 
+                                    chunk_size, desc="countries")
+        
+        # Collect results
+        country_annual_list = []
+        country_period_list = []
+        
+        for country_code, annual, period in results:
+            if annual is not None:
+                country_annual_list.append(annual)
+            if period is not None:
+                country_period_list.append(period)
+        
+        # Combine with existing metrics if in incremental mode
+        if country_annual_list:
+            new_country_annual = pd.concat(country_annual_list, ignore_index=True)
+            if not args.force and existing_country_annual is not None:
+                country_annual_df = pd.concat([existing_country_annual, new_country_annual], ignore_index=True)
+                print(f"  ✓ Combined {len(new_country_annual)} new rows with {len(existing_country_annual)} existing rows")
+            else:
+                country_annual_df = new_country_annual
+            country_annual_df.to_parquet(cache_dir / 'metrics_country_annual.parquet', index=False)
+            print(f"  ✓ Saved country annual metrics: {len(country_annual_df)} total rows")
+        
+        if country_period_list:
+            new_country_period = pd.DataFrame(country_period_list)
+            if not args.force and existing_country_period is not None:
+                country_period_df = pd.concat([existing_country_period, new_country_period], ignore_index=True)
+                print(f"  ✓ Combined {len(new_country_period)} new countries with {len(existing_country_period)} existing")
+            else:
+                country_period_df = new_country_period
+            country_period_df.to_parquet(cache_dir / 'metrics_country_period.parquet', index=False)
+            print(f"  ✓ Saved country period metrics: {len(country_period_df)} total countries")
+        
+        country_time = time.time() - country_start
+        print(f"  ✓ Country metrics completed in {country_time:.1f}s")
+
     
     # 3. Journal metrics (CHUNKED PARALLEL)
     print(f"\n📊 Journal metrics (chunked processing)...")
@@ -363,34 +447,63 @@ def main():
     journal_ids = temp_journals['id'].unique().tolist()
     del temp_journals
     
-    # Process in chunks (smaller chunks for journals since there are more)
-    chunk_size = max(10, len(journal_ids) // 20)  # Process ~20 batches
-    results = process_in_chunks(journal_ids, process_journal_worker, num_cores, 
-                                chunk_size, desc="journals")
+    # Load existing metrics and determine what to process
+    existing_journal_annual = load_existing_metrics(cache_dir, 'journal_annual')
+    existing_journal_period = load_existing_metrics(cache_dir, 'journal_period')
     
-    # Collect results
-    journal_annual_list = []
-    journal_period_list = []
+    journals_to_process, _ = get_items_to_process(
+        journal_ids, existing_journal_period, 'journal_id', force=args.force
+    )
     
-    for annual, period in results:
-        if annual is not None and len(annual) > 0:
-            journal_annual_list.append(annual)
-        if period is not None:
-            journal_period_list.append(period)
-    
-    # Save
-    if journal_annual_list:
-        journal_annual_df = pd.concat(journal_annual_list, ignore_index=True)
-        journal_annual_df.to_parquet(cache_dir / 'metrics_journal_annual.parquet', index=False)
-        print(f"  ✓ Saved journal annual metrics: {len(journal_annual_df)} rows")
-    
-    if journal_period_list:
-        journal_period_df = pd.DataFrame(journal_period_list)
-        journal_period_df.to_parquet(cache_dir / 'metrics_journal_period.parquet', index=False)
-        print(f"  ✓ Saved journal period metrics: {len(journal_period_df)} journals")
-    
-    journal_time = time.time() - journal_start
-    print(f"  ✓ Journal metrics completed in {journal_time:.1f}s")
+    if len(journals_to_process) == 0:
+        print(f"  ℹ️  All {len(journal_ids)} journals already processed (use --force to recalculate)")
+        journal_time = 0
+    else:
+        if not args.force and existing_journal_period is not None:
+            print(f"  ℹ️  Found existing metrics for {len(journal_ids) - len(journals_to_process)} journals")
+            print(f"  📝 Processing {len(journals_to_process)} new journals...")
+        else:
+            print(f"  📝 Processing all {len(journals_to_process)} journals...")
+        
+        # Process in chunks (smaller chunks for journals since there are more)
+        chunk_size = max(10, len(journals_to_process) // 20)  # Process ~20 batches
+        results = process_in_chunks(journals_to_process, process_journal_worker, num_cores, 
+                                    chunk_size, desc="journals")
+        
+        # Collect results
+        journal_annual_list = []
+        journal_period_list = []
+        
+        for annual, period in results:
+            if annual is not None and len(annual) > 0:
+                journal_annual_list.append(annual)
+            if period is not None:
+                journal_period_list.append(period)
+        
+        # Combine with existing metrics if in incremental mode
+        if journal_annual_list:
+            new_journal_annual = pd.concat(journal_annual_list, ignore_index=True)
+            if not args.force and existing_journal_annual is not None:
+                journal_annual_df = pd.concat([existing_journal_annual, new_journal_annual], ignore_index=True)
+                print(f"  ✓ Combined {len(new_journal_annual)} new rows with {len(existing_journal_annual)} existing rows")
+            else:
+                journal_annual_df = new_journal_annual
+            journal_annual_df.to_parquet(cache_dir / 'metrics_journal_annual.parquet', index=False)
+            print(f"  ✓ Saved journal annual metrics: {len(journal_annual_df)} total rows")
+        
+        if journal_period_list:
+            new_journal_period = pd.DataFrame(journal_period_list)
+            if not args.force and existing_journal_period is not None:
+                journal_period_df = pd.concat([existing_journal_period, new_journal_period], ignore_index=True)
+                print(f"  ✓ Combined {len(new_journal_period)} new journals with {len(existing_journal_period)} existing")
+            else:
+                journal_period_df = new_journal_period
+            journal_period_df.to_parquet(cache_dir / 'metrics_journal_period.parquet', index=False)
+            print(f"  ✓ Saved journal period metrics: {len(journal_period_df)} total journals")
+        
+        journal_time = time.time() - journal_start
+        print(f"  ✓ Journal metrics completed in {journal_time:.1f}s")
+
     
     # Summary
     total_time = time.time() - start_time
