@@ -295,7 +295,7 @@ def main():
     # Detect number of cores - use fewer cores to reduce memory pressure
     total_cores = cpu_count()
     # Use 25% of cores (more conservative) or max 8 cores
-    num_cores = min(8, max(1, int(total_cores * 0.25)))
+    num_cores = min(4, max(1, int(total_cores * 0.10)))
     print(f"🖥️  Detected {total_cores} CPU cores")
     print(f"📊 Using {num_cores} cores (conservative to manage memory)")
     
