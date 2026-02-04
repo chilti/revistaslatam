@@ -110,13 +110,13 @@ def calculate_performance_metrics_from_df(works_df):
     
     metrics = {
         'num_documents': num_documents,
-        'fwci_avg': round(fwci_avg, 2),
-        'pct_top_10': round(pct_top_10, 2),
-        'pct_top_1': round(pct_top_1, 2),
-        'avg_percentile': round(avg_percentile, 2)
+        'fwci_avg': round(fwci_avg, 6),
+        'pct_top_10': round(pct_top_10, 6),
+        'pct_top_1': round(pct_top_1, 6),
+        'avg_percentile': round(avg_percentile, 6)
     }
     
-    metrics.update({k: round(v, 2) for k, v in oa_types.items()})
+    metrics.update({k: round(v, 6) for k, v in oa_types.items()})
     
     return metrics
 
@@ -142,9 +142,9 @@ def process_country_worker(country_code):
     
     journal_metrics = {
         'num_journals': num_journals,
-        'pct_scopus': round(pct_scopus, 2),
-        'pct_core': round(pct_core, 2),
-        'pct_doaj': round(pct_doaj, 2)
+        'pct_scopus': round(pct_scopus, 6),
+        'pct_core': round(pct_core, 6),
+        'pct_doaj': round(pct_doaj, 6)
     }
     
     # Annual metrics
@@ -365,9 +365,9 @@ def main():
     
     journal_metrics = {
         'num_journals': num_journals,
-        'pct_scopus': round(pct_scopus, 2),
-        'pct_core': round(pct_core, 2),
-        'pct_doaj': round(pct_doaj, 2)
+        'pct_scopus': round(pct_scopus, 6),
+        'pct_core': round(pct_core, 6),
+        'pct_doaj': round(pct_doaj, 6)
     }
     
     # Annual
