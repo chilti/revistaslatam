@@ -44,13 +44,55 @@ python src/data_collector.py
 Esto generará archivos `.parquet` en la carpeta `data/`.
 
 ### 2. Precalcular Indicadores (Recomendado)
-Después de descargar los artículos, ejecuta el script de precálculo para acelerar el dashboard:
+Después de descargar los artículos, ejecuta el script de precálculo para acelerar el dashboard.
+
+#### Opción A: Script Optimizado Paralelo (Recomendado)
+Para máquinas con múltiples cores y grandes volúmenes de datos:
+
+```bash
+python precompute_metrics_parallel_optimized.py
+```
+
+**Características**:
+- ✅ **Procesamiento paralelo**: Usa múltiples cores para acelerar el cálculo
+- ✅ **Procesamiento incremental**: Solo calcula métricas para revistas/países nuevos
+- ✅ **Optimizado para memoria**: Procesa en chunks para evitar saturar la RAM
+- ✅ **Recuperación de errores**: Continúa donde se quedó si falla
+
+**Opciones**:
+- `--force`: Recalcula todas las métricas desde cero (ignora cache)
+
+**Ejemplo**:
+```bash
+# Primera ejecución - calcula todo
+python precompute_metrics_parallel_optimized.py
+
+# Ejecuciones posteriores - solo procesa lo nuevo
+python precompute_metrics_parallel_optimized.py
+
+# Forzar recálculo completo
+python precompute_metrics_parallel_optimized.py --force
+```
+
+**Documentación detallada**:
+- 📖 [Guía de Cálculo de Métricas](METRICS_CALCULATION_GUIDE.md) - Explicación detallada de cómo se calcula cada métrica
+- 📖 [Procesamiento Incremental](INCREMENTAL_PROCESSING.md) - Cómo funciona el modo incremental
+- 📖 [Correcciones de Cálculo](CALCULATION_FIXES.md) - Validación de consistencia con script original
+
+#### Opción B: Script Original (Más Simple)
+Para datasets pequeños o primera vez:
 
 ```bash
 python precompute_metrics.py
 ```
 
-Este script calcula y guarda en caché:
+**Opciones**:
+- `--force`: Forzar recálculo aunque exista caché válido
+
+---
+
+**Métricas calculadas** (ambos scripts):
+
 - FWCI (Field-Weighted Citation Impact)
 - Percentiles de citas
 - % Top 10% (artículos altamente citados)
@@ -72,13 +114,33 @@ streamlit run dashboard.py
 ## 📂 Estructura del Proyecto
 
 - `dashboard.py`: Aplicación principal (Streamlit).
-- `precompute_metrics.py`: Script para precalcular indicadores.
+- `precompute_metrics.py`: Script original para precalcular indicadores.
+- `precompute_metrics_parallel.py`: Script paralelo básico.
+- `precompute_metrics_parallel_optimized.py`: Script optimizado con procesamiento incremental (recomendado).
 - `src/`: Módulos de lógica.
   - `data_collector.py`: Interacción con API OpenAlex y guardado incremental.
   - `data_processor.py`: Limpieza y cálculo de KPIs generales.
   - `performance_metrics.py`: Cálculo avanzado de métricas (Normalización, Percentiles).
 - `data/`: Almacenamiento de datos (ignorado en git por tamaño).
   - `cache/`: Métricas precalculadas para carga rápida del dashboard.
+
+### 📚 Documentación
+
+- **[METRICS_CALCULATION_GUIDE.md](METRICS_CALCULATION_GUIDE.md)**: Guía completa y detallada de cómo se calcula cada métrica
+  - Definiciones de todas las métricas
+  - Fórmulas y ejemplos paso a paso
+  - Proceso de cálculo paralelo
+  - Validación de resultados
+  
+- **[INCREMENTAL_PROCESSING.md](INCREMENTAL_PROCESSING.md)**: Documentación del procesamiento incremental
+  - Cómo funciona el modo incremental
+  - Ventajas y casos de uso
+  - Comparación de rendimiento
+  
+- **[CALCULATION_FIXES.md](CALCULATION_FIXES.md)**: Validación de consistencia con script original
+  - Correcciones aplicadas
+  - Verificación de equivalencia
+
 
 ## 📝 Notas
 - Este proyecto utiliza `pyalex` para interactuar con OpenAlex.
