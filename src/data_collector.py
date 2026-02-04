@@ -127,13 +127,14 @@ def get_downloaded_journal_ids():
         print(f"Warning: Could not read existing works file: {e}")
         return set()
 
-def update_data(include_works=True, resume=True):
+def update_data(include_works=True, resume=True, update_journals=False):
     """
     Main function to update the dataset for all LATAM countries.
     
     Args:
         include_works: If True, also downloads all works (articles) for each journal.
         resume: If True, skips journals that already have works downloaded.
+        update_journals: If True, re-downloads journal metadata. Default False to avoid unnecessary API calls.
     """
     all_journals = []
     print("Starting data update from OpenAlex...")
@@ -142,19 +143,38 @@ def update_data(include_works=True, resume=True):
     if not os.path.exists(DATA_DIR):
         os.makedirs(DATA_DIR)
 
-    for country in LATAM_COUNTRIES:
-        print(f"Fetching journals for {country}...")
-        country_journals = fetch_journals_by_country(country)
-        all_journals.extend(country_journals)
-        print(f"Found {len(country_journals)} journals for {country}.")
+    # Check if we should update journals
+    if update_journals or not os.path.exists(PARQUET_FILE):
+        print("\n" + "="*60)
+        print("DOWNLOADING JOURNAL METADATA")
+        print("="*60)
+        
+        for country in LATAM_COUNTRIES:
+            print(f"Fetching journals for {country}...")
+            country_journals = fetch_journals_by_country(country)
+            all_journals.extend(country_journals)
+            print(f"Found {len(country_journals)} journals for {country}.")
+
+        if all_journals:
+            df = pd.DataFrame(all_journals)
+            
+            # Save journals to parquet
+            print(f"Saving {len(df)} journal records to {PARQUET_FILE}...")
+            df.to_parquet(PARQUET_FILE, index=False)
+            print("Journal data update complete.")
+        else:
+            print("No journal data found.")
+            return 0
+    else:
+        print("\n" + "="*60)
+        print("LOADING EXISTING JOURNAL METADATA")
+        print("="*60)
+        print(f"Using existing journal file: {PARQUET_FILE}")
+        df = pd.read_parquet(PARQUET_FILE)
+        all_journals = df.to_dict('records')
+        print(f"Loaded {len(all_journals)} journals from cache.")
 
     if all_journals:
-        df = pd.DataFrame(all_journals)
-        
-        # Save journals to parquet
-        print(f"Saving {len(df)} journal records to {PARQUET_FILE}...")
-        df.to_parquet(PARQUET_FILE, index=False)
-        print("Journal data update complete.")
         
         # Download works if requested
         if include_works:
@@ -193,7 +213,7 @@ def update_data(include_works=True, resume=True):
                 batch_works.extend(journal_works)
                 
                 # Write batch to parquet and clear memory every batch_size journals
-                if idx % batch_size == 0 or idx == len(all_journals):
+                if idx % batch_size == 0 or idx == len(journals_to_process):
                     if batch_works:
                         batch_df = pd.DataFrame(batch_works)
                         
@@ -307,7 +327,7 @@ def update_data(include_works=True, resume=True):
                         del batch_df
                         del table
                     
-                    print(f"\n--- Progress: {idx}/{len(all_journals)} journals processed ---\n")
+                    print(f"\n--- Progress: {idx}/{len(journals_to_process)} journals processed ---\n")
             
             if writer:
                 writer.close()
