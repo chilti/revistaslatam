@@ -230,10 +230,29 @@ def calculate_annual_metrics_chunked(works_filepath, start_year=None, end_year=N
     
     return annual_metrics_df, period_metrics
 
-def calculate_journal_metrics_chunked(works_filepath, journal_id, start_year=None, end_year=None):
+def calculate_journal_metrics_chunked(works_filepath, journals_df, journal_id, start_year=None, end_year=None):
     """
     Calculate metrics for a specific journal using chunk processing.
     """
+    # Get journal metadata
+    journal_info = journals_df[journals_df['id'] == journal_id]
+    
+    if len(journal_info) == 0:
+        return None, None
+    
+    journal_info = journal_info.iloc[0]
+    
+    # Extract indexing information
+    is_scopus = safe_get(journal_info, 'is_indexed_in_scopus', default=False)
+    is_core = safe_get(journal_info, 'is_core', default=False)
+    is_doaj = safe_get(journal_info, 'is_in_doaj', default=False)
+    
+    journal_indexing = {
+        'is_scopus': bool(is_scopus),
+        'is_core': bool(is_core),
+        'is_doaj': bool(is_doaj)
+    }
+    
     # Get year range if not provided
     if start_year is None or end_year is None:
         start_year, end_year = get_year_range(works_filepath)
@@ -245,6 +264,8 @@ def calculate_journal_metrics_chunked(works_filepath, journal_id, start_year=Non
         metrics = process_works_in_chunks(works_filepath, year_filter)
         metrics['year'] = year
         metrics['journal_id'] = journal_id
+        # Add indexing info to annual metrics
+        metrics.update(journal_indexing)
         annual_data.append(metrics)
     
     annual_metrics_df = pd.DataFrame(annual_data)
@@ -258,6 +279,8 @@ def calculate_journal_metrics_chunked(works_filepath, journal_id, start_year=Non
     period_metrics = process_works_in_chunks(works_filepath, period_filter)
     period_metrics['journal_id'] = journal_id
     period_metrics['period'] = f'{start_year}-{end_year}'
+    # Add indexing info to period metrics
+    period_metrics.update(journal_indexing)
     
     return annual_metrics_df, period_metrics
 
@@ -464,7 +487,7 @@ def compute_and_cache_all_metrics(works_filepath, journals_filepath, force_recal
         if idx % 50 == 0:
             print(f"    Progress: {idx}/{len(journals_df)} journals...")
         
-        annual, period = calculate_journal_metrics_chunked(works_filepath, journal_id, start_year, end_year)
+        annual, period = calculate_journal_metrics_chunked(works_filepath, journals_df, journal_id, start_year, end_year)
         
         if annual is not None and len(annual) > 0:
             journal_annual_list.append(annual)

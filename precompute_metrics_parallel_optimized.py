@@ -172,7 +172,26 @@ def process_country_worker(country_code):
 
 def process_journal_worker(journal_id):
     """Worker function to process a single journal (uses global data)."""
-    global _works_df, _start_year, _end_year
+    global _works_df, _journals_df, _start_year, _end_year
+    
+    # Get journal metadata
+    journal_info = _journals_df[_journals_df['id'] == journal_id]
+    
+    if len(journal_info) == 0:
+        return None, None
+    
+    journal_info = journal_info.iloc[0]
+    
+    # Extract indexing information
+    is_scopus = safe_get(journal_info, 'is_indexed_in_scopus', default=False)
+    is_core = safe_get(journal_info, 'is_core', default=False)
+    is_doaj = safe_get(journal_info, 'is_in_doaj', default=False)
+    
+    journal_indexing = {
+        'is_scopus': bool(is_scopus),
+        'is_core': bool(is_core),
+        'is_doaj': bool(is_doaj)
+    }
     
     # Filter works for this journal
     journal_works = _works_df[_works_df['journal_id'] == journal_id].copy()
@@ -187,6 +206,8 @@ def process_journal_worker(journal_id):
         metrics = calculate_performance_metrics_from_df(year_works)
         metrics['year'] = year
         metrics['journal_id'] = journal_id
+        # Add indexing info to annual metrics
+        metrics.update(journal_indexing)
         annual_data.append(metrics)
     
     annual_metrics_df = pd.DataFrame(annual_data)
@@ -199,6 +220,8 @@ def process_journal_worker(journal_id):
     period_metrics = calculate_performance_metrics_from_df(period_works)
     period_metrics['journal_id'] = journal_id
     period_metrics['period'] = f'{_start_year}-{_end_year}'
+    # Add indexing info to period metrics
+    period_metrics.update(journal_indexing)
     
     return annual_metrics_df, period_metrics
 

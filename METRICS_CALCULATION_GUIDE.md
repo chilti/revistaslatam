@@ -227,11 +227,20 @@ Total OA = 40 + 20 + 10 + 5 = 75%
 
 ## Métricas de Indexación de Revistas
 
-Estas métricas solo se calculan a nivel de **país** y **LATAM**, no por revista individual.
+Estas métricas indican si una revista está indexada en bases de datos académicas importantes.
+
+**Niveles donde se calculan**:
+- ✅ **LATAM**: Porcentaje de revistas indexadas
+- ✅ **País**: Porcentaje de revistas indexadas  
+- ✅ **Revista**: Valores booleanos (True/False) indicando si está indexada
+
+---
 
 ### 11. **Número de Revistas** (`num_journals`)
 
 **Definición**: Cantidad total de revistas.
+
+**Niveles**: Solo LATAM y País
 
 **Cálculo**:
 ```python
@@ -240,8 +249,9 @@ num_journals = len(journals_df)
 
 ---
 
-### 12. **% Scopus** (`pct_scopus`)
+### 12. **Scopus** 
 
+**A nivel LATAM/País** (`pct_scopus`):
 **Definición**: Porcentaje de revistas indexadas en Scopus.
 
 **Cálculo**:
@@ -265,10 +275,22 @@ Indexadas en Scopus: 30
 pct_scopus = (30 / 50) * 100 = 60.00%
 ```
 
+**A nivel Revista** (`is_scopus`):
+**Definición**: Indica si la revista está indexada en Scopus.
+
+**Cálculo**:
+```python
+is_scopus = safe_get(journal_info, 'is_indexed_in_scopus', default=False)
+is_scopus = bool(is_scopus)
+```
+
+**Valores**: `True` o `False`
+
 ---
 
-### 13. **% CORE** (`pct_core`)
+### 13. **CORE**
 
+**A nivel LATAM/País** (`pct_core`):
 **Definición**: Porcentaje de revistas en CORE (Computing Research and Education).
 
 **Cálculo**: Idéntico a Scopus, usando `is_core`.
@@ -283,10 +305,22 @@ pct_core = (core_count / num_journals) * 100
 pct_core = round(pct_core, 2)
 ```
 
+**A nivel Revista** (`is_core`):
+**Definición**: Indica si la revista está en CORE.
+
+**Cálculo**:
+```python
+is_core = safe_get(journal_info, 'is_core', default=False)
+is_core = bool(is_core)
+```
+
+**Valores**: `True` o `False`
+
 ---
 
-### 14. **% DOAJ** (`pct_doaj`)
+### 14. **DOAJ**
 
+**A nivel LATAM/País** (`pct_doaj`):
 **Definición**: Porcentaje de revistas en Directory of Open Access Journals.
 
 **Cálculo**: Idéntico a Scopus, usando `is_in_doaj`.
@@ -300,6 +334,17 @@ doaj_count = journals_df.apply(
 pct_doaj = (doaj_count / num_journals) * 100
 pct_doaj = round(pct_doaj, 2)
 ```
+
+**A nivel Revista** (`is_doaj`):
+**Definición**: Indica si la revista está en DOAJ.
+
+**Cálculo**:
+```python
+is_doaj = safe_get(journal_info, 'is_in_doaj', default=False)
+is_doaj = bool(is_doaj)
+```
+
+**Valores**: `True` o `False`
 
 ---
 
@@ -368,9 +413,19 @@ for year in range(start_year, end_year + 1):
 **Datos de entrada**:
 - Una revista específica
 - Artículos de esa revista
+- Metadatos de la revista (indexación)
 
 **Proceso**:
 ```python
+# 0. Obtener información de indexación de la revista
+journal_info = journals_df[journals_df['id'] == journal_id].iloc[0]
+
+journal_indexing = {
+    'is_scopus': bool(safe_get(journal_info, 'is_indexed_in_scopus', default=False)),
+    'is_core': bool(safe_get(journal_info, 'is_core', default=False)),
+    'is_doaj': bool(safe_get(journal_info, 'is_in_doaj', default=False))
+}
+
 # 1. Filtrar artículos de la revista
 journal_works = works_df[works_df['journal_id'] == journal_id]
 
@@ -380,9 +435,15 @@ for year in range(start_year, end_year + 1):
     metrics = calculate_performance_metrics_from_df(year_works)
     metrics['year'] = year
     metrics['journal_id'] = journal_id
+    # Agregar información de indexación
+    metrics.update(journal_indexing)
 ```
 
-**Métricas calculadas**: Solo rendimiento y OA (1-10), NO indexación
+**Métricas calculadas**: 
+- ✅ Rendimiento científico (1-5): num_documents, fwci_avg, pct_top_10, pct_top_1, avg_percentile
+- ✅ Acceso abierto (6-10): pct_oa_gold, pct_oa_green, pct_oa_hybrid, pct_oa_bronze, pct_oa_closed
+- ✅ Indexación (12-14): is_scopus, is_core, is_doaj (valores booleanos)
+- ❌ NO se incluye: num_journals (no aplica a nivel individual)
 
 ---
 
@@ -588,6 +649,13 @@ OA Status:
    pct_oa_closed = (5/50) × 100 = 10.00%
    ```
 
+7. **Indexing** (asumiendo que la revista está indexada en Scopus y DOAJ, pero no en CORE):
+   ```
+   is_scopus = True
+   is_core = False
+   is_doaj = True
+   ```
+
 **Resultado final**:
 ```python
 {
@@ -601,6 +669,9 @@ OA Status:
     'pct_oa_hybrid': 10.00,
     'pct_oa_bronze': 0.00,
     'pct_oa_closed': 10.00,
+    'is_scopus': True,
+    'is_core': False,
+    'is_doaj': True,
     'year': 2023,
     'journal_id': 'https://openalex.org/S123456'
 }
@@ -687,11 +758,10 @@ data/cache/
 
 ### Esquema de Datos
 
-**Annual (anuales)**:
+**LATAM Annual/Period**:
 ```
 Columnas:
-- year (int): Año
-- country_code / journal_id: Identificador
+- year (int) / period (str): Año o período
 - num_documents (int)
 - fwci_avg (float)
 - pct_top_10 (float)
@@ -702,18 +772,51 @@ Columnas:
 - pct_oa_hybrid (float)
 - pct_oa_bronze (float)
 - pct_oa_closed (float)
-- [Solo país/LATAM] num_journals (int)
-- [Solo país/LATAM] pct_scopus (float)
-- [Solo país/LATAM] pct_core (float)
-- [Solo país/LATAM] pct_doaj (float)
+- num_journals (int)
+- pct_scopus (float) - % de revistas indexadas
+- pct_core (float) - % de revistas indexadas
+- pct_doaj (float) - % de revistas indexadas
 ```
 
-**Period (período)**:
+**Country Annual/Period**:
 ```
 Columnas:
-- period (str): Ej. "2021-2025"
-- country_code / journal_id: Identificador
-- [Mismas métricas que annual]
+- year (int) / period (str): Año o período
+- country_code (str): Código del país
+- num_documents (int)
+- fwci_avg (float)
+- pct_top_10 (float)
+- pct_top_1 (float)
+- avg_percentile (float)
+- pct_oa_gold (float)
+- pct_oa_green (float)
+- pct_oa_hybrid (float)
+- pct_oa_bronze (float)
+- pct_oa_closed (float)
+- num_journals (int)
+- pct_scopus (float) - % de revistas indexadas
+- pct_core (float) - % de revistas indexadas
+- pct_doaj (float) - % de revistas indexadas
+```
+
+**Journal Annual/Period**:
+```
+Columnas:
+- year (int) / period (str): Año o período
+- journal_id (str): ID de la revista
+- num_documents (int)
+- fwci_avg (float)
+- pct_top_10 (float)
+- pct_top_1 (float)
+- avg_percentile (float)
+- pct_oa_gold (float)
+- pct_oa_green (float)
+- pct_oa_hybrid (float)
+- pct_oa_bronze (float)
+- pct_oa_closed (float)
+- is_scopus (bool) - Si la revista está indexada en Scopus
+- is_core (bool) - Si la revista está indexada en CORE
+- is_doaj (bool) - Si la revista está indexada en DOAJ
 ```
 
 ---
