@@ -449,6 +449,23 @@ elif level == "Revista":
                                title='Distribución por Tipo de Acceso Abierto',
                                color_discrete_sequence=px.colors.qualitative.Set3)
                 st.plotly_chart(fig_oa, use_container_width=True)
+                
+                # Indexing status
+                st.markdown("#### Indexación de la Revista")
+                
+                # Create badges for indexing
+                indexing_badges = []
+                if period_data.get('is_scopus', False):
+                    indexing_badges.append("🔵 **Scopus**")
+                if period_data.get('is_core', False):
+                    indexing_badges.append("🟢 **CORE**")
+                if period_data.get('is_doaj', False):
+                    indexing_badges.append("🟡 **DOAJ**")
+                
+                if indexing_badges:
+                    st.markdown(" | ".join(indexing_badges))
+                else:
+                    st.markdown("⚪ No indexada en bases de datos principales")
         
         if journal_annual is not None:
             journal_annual_data = journal_annual[journal_annual['journal_id'] == journal_data['id']]
