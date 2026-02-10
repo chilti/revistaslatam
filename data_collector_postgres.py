@@ -12,22 +12,16 @@ import datetime
 # Database configuration
 DB_CONFIG = {
     'host': 'localhost',
-    'database': 'openalex',
+    'database': 'openalex_db',  # Debe coincidir con load_missing_tables.py
     'user': 'postgres',
     'password': 'tu_contasena',
     'port': 5432
 }
 
 # Data directory
-DATA_DIR = Path(__file__).parent.parent / 'data'
+DATA_DIR = Path(__file__).parent / 'data'
 JOURNALS_FILE = DATA_DIR / 'latin_american_journals.parquet'
 WORKS_FILE = DATA_DIR / 'latin_american_works.parquet'
-
-# Latin American country codes
-LATAM_COUNTRIES = [
-    'MX', 'BR', 'AR', 'CL', 'CO', 'PE', 'VE', 'EC', 'CU', 'UY',
-    'CR', 'BO', 'DO', 'GT', 'PY', 'SV', 'HN', 'NI', 'PA', 'PR'
-]
 
 
 def get_db_connection():
@@ -49,37 +43,9 @@ def fetch_latin_american_journals():
     conn = get_db_connection()
     
     try:
-        # Query to get sources (journals) with institution information
-        # We need to join with institutions to get country_code
-        query = """
-        SELECT DISTINCT
-            s.id,
-            s.issn_l,
-            s.issn,
-            s.display_name,
-            s.publisher,
-            s.works_count,
-            s.cited_by_count,
-            s.is_oa,
-            s.is_in_doaj,
-            s.homepage_url,
-            s.works_api_url,
-            s.updated_date,
-            i.country_code
-        FROM openalex.sources s
-        INNER JOIN openalex.works w ON w.id LIKE '%'
-        INNER JOIN openalex.works_primary_location wpl ON wpl.work_id = w.id
-        INNER JOIN openalex.works_authorships wa ON wa.work_id = w.id
-        INNER JOIN openalex.institutions i ON i.id = wa.institution_id
-        WHERE wpl.source_id = s.id
-            AND i.country_code = ANY(%s)
-        LIMIT 1000;
-        """
-        
-        # Simpler approach: Get journals that have works from LATAM authors
-        # This might be too slow, let's try a different approach
-        
-        # Alternative: If sources table has country_code directly
+        # Query to get sources (journals) directly
+        # We assume the sources table only contains LATAM journals (loaded via load_missing_tables.py)
+        # and has the country_code column
         query = """
         SELECT 
             id,
@@ -93,51 +59,40 @@ def fetch_latin_american_journals():
             is_in_doaj,
             homepage_url,
             works_api_url,
-            updated_date
+            updated_date,
+            country_code,
+            is_scopus
         FROM openalex.sources
-        WHERE id IN (
-            SELECT DISTINCT wpl.source_id
-            FROM openalex.works_primary_location wpl
-            INNER JOIN openalex.works_authorships wa ON wa.work_id = wpl.work_id
-            INNER JOIN openalex.institutions i ON i.id = wa.institution_id
-            WHERE i.country_code = ANY(%s)
-        )
         ORDER BY works_count DESC;
         """
         
-        print(f"Querying journals with authors from: {', '.join(LATAM_COUNTRIES)}")
+        print(f"Querying all journals from openalex.sources table...")
         
-        df = pd.read_sql_query(query, conn, params=(LATAM_COUNTRIES,))
-        
-        # Add country_code by finding the most common country for each journal
-        print("Determining primary country for each journal...")
-        
-        for idx, row in df.iterrows():
-            # Get the most common country for this journal's works
-            country_query = """
-            SELECT i.country_code, COUNT(*) as count
-            FROM openalex.works_primary_location wpl
-            INNER JOIN openalex.works_authorships wa ON wa.work_id = wpl.work_id
-            INNER JOIN openalex.institutions i ON i.id = wa.institution_id
-            WHERE wpl.source_id = %s
-                AND i.country_code = ANY(%s)
-            GROUP BY i.country_code
-            ORDER BY count DESC
-            LIMIT 1;
+        try:
+            df = pd.read_sql_query(query, conn)
+        except Exception as e:
+            print(f"Warning: Could not query with country_code/is_scopus. Trying without them: {e}")
+            # Fallback if user didn't reload table with country_code
+            query_fallback = """
+            SELECT 
+                id,
+                issn_l,
+                issn,
+                display_name,
+                publisher,
+                works_count,
+                cited_by_count,
+                is_oa,
+                is_in_doaj,
+                homepage_url,
+                works_api_url,
+                updated_date,
+                'UNKNOWN' as country_code,
+                False as is_scopus
+            FROM openalex.sources
+            ORDER BY works_count DESC;
             """
-            
-            country_df = pd.read_sql_query(country_query, conn, params=(row['id'], LATAM_COUNTRIES))
-            
-            if len(country_df) > 0:
-                df.at[idx, 'country_code'] = country_df.iloc[0]['country_code']
-            else:
-                df.at[idx, 'country_code'] = None
-            
-            if (idx + 1) % 100 == 0:
-                print(f"  Processed {idx + 1}/{len(df)} journals...")
-        
-        # Remove journals without a country code
-        df = df[df['country_code'].notna()]
+            df = pd.read_sql_query(query_fallback, conn)
         
         # Add download metadata
         df['download_date'] = datetime.datetime.now().isoformat()
@@ -221,23 +176,26 @@ def fetch_works_for_journal(journal_id, journal_name, conn):
     # Merge authorships
     works_df = works_df.merge(authorships_df, left_on='id', right_on='work_id', how='left')
     
-    # Get concepts
-    concepts_query = """
-    SELECT 
-        wc.work_id,
-        json_agg(
-            json_build_object(
-                'concept_id', wc.concept_id,
-                'score', wc.score
-            )
-        ) as concepts
-    FROM openalex.works_concepts wc
-    WHERE wc.work_id = ANY(%s)
-    GROUP BY wc.work_id;
-    """
-    
-    concepts_df = pd.read_sql_query(concepts_query, conn, params=(work_ids,))
-    works_df = works_df.merge(concepts_df, left_on='id', right_on='work_id', how='left', suffixes=('', '_concepts'))
+    # Get concepts (if table exists and has data)
+    try:
+        concepts_query = """
+        SELECT 
+            wc.work_id,
+            json_agg(
+                json_build_object(
+                    'concept_id', wc.concept_id,
+                    'score', wc.score
+                )
+            ) as concepts
+        FROM openalex.works_concepts wc
+        WHERE wc.work_id = ANY(%s)
+        GROUP BY wc.work_id;
+        """
+        
+        concepts_df = pd.read_sql_query(concepts_query, conn, params=(work_ids,))
+        works_df = works_df.merge(concepts_df, left_on='id', right_on='work_id', how='left', suffixes=('', '_concepts'))
+    except:
+        print("  Note: works_concepts table empty or not found, skipping concepts")
     
     # Get topics (if exists)
     try:
@@ -351,7 +309,7 @@ def update_data_from_postgres(update_journals=True, update_works=True):
             all_works = []
             
             for idx, journal in journals_to_process.iterrows():
-                print(f"[{idx+1}/{len(journals_to_process)}] {journal['display_name']} ({journal['country_code']})")
+                print(f"[{idx+1}/{len(journals_to_process)}] {journal['display_name']} ({journal.get('country_code', 'UNKNOWN')})")
                 
                 works_df = fetch_works_for_journal(journal['id'], journal['display_name'], conn)
                 

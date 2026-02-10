@@ -12,7 +12,7 @@ from io import StringIO
 DB_PARAMS = {
     "host": "localhost",
     "port": 5432,
-    "database": "openalex",  # Cambiar si usas otro nombre
+    "database": "openalex_db",  # Cambiar si usas otro nombre
     "user": "postgres",
     "password": "tu_contasena" 
 }
@@ -32,10 +32,17 @@ def clean(val):
     return str(val).replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
 
 def clean_json(val):
-    """Convierte JSON a string limpio."""
+    """Convierte JSON a string limpio sin corromper Unicode."""
     if val is None:
         return '\\N'
-    return json.dumps(val).replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
+    # ensure_ascii=False preserva caracteres Unicode correctamente
+    # separators sin espacios para formato compacto
+    json_str = json.dumps(val, ensure_ascii=False, separators=(',', ':'))
+    # Escapar comillas dobles para PostgreSQL COPY (\" → \")
+    # Solo reemplazar caracteres problemáticos para TSV
+    json_str = json_str.replace('\\', '\\\\')  # Escapar backslashes primero
+    json_str = json_str.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
+    return json_str
 
 
 def load_sources():
@@ -94,7 +101,9 @@ def load_sources():
                                     data.get('is_in_doaj', False),
                                     data.get('homepage_url'),
                                     data.get('works_api_url'),
-                                    data.get('updated_date')
+                                    data.get('updated_date'),
+                                    data.get('country_code'),  # Agregado country_code
+                                    bool((data.get('ids') or {}).get('scopus'))  # Agregado is_scopus
                                 ]
                                 
                                 buffer.write('\t'.join([clean(i) for i in row]) + '\n')
@@ -105,10 +114,45 @@ def load_sources():
                     print(f"  {file}: {count_in_file} revistas LATAM")
                     total_loaded += count_in_file
     
+    # Crear la tabla sources con country_code si no existe
+    # (Nota: Si ya existe sin country_code, deberás borrarla manualmente o el copy fallará si las columnas no coinciden)
+    # Pero aquí asumimos que el usuario borrará la tabla antes de correr esto
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS openalex.sources (
+                id text PRIMARY KEY,
+                issn_l text,
+                issn json,
+                display_name text,
+                publisher text,
+                works_count integer,
+                cited_by_count integer,
+                is_oa boolean,
+                is_in_doaj boolean,
+                homepage_url text,
+                works_api_url text,
+                updated_date timestamp without time zone,
+                country_code text,
+                is_scopus boolean
+            );
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"Advertencia al crear tabla sources: {e}")
+        conn.rollback()
+
     # Cargar a la base de datos
     try:
         buffer.seek(0)
-        cur.copy_from(buffer, 'sources', sep='\t', null='\\N')
+        # Especificar columnas explícitamente para evitar errores si la tabla tiene diferente orden
+        columns = (
+            'id', 'issn_l', 'issn', 'display_name', 'publisher', 
+            'works_count', 'cited_by_count', 'is_oa', 'is_in_doaj', 
+            'homepage_url', 'works_api_url', 'updated_date', 'country_code', 'is_scopus'
+        )
+        # Especificar encoding UTF-8 explícitamente
+        cur.execute("SET client_encoding TO 'UTF8';")
+        cur.copy_from(buffer, 'sources', sep='\t', null='\\N', columns=columns)
         conn.commit()
         print(f"\n✓ Cargadas {total_loaded} revistas LATAM")
     except Exception as e:
@@ -191,10 +235,43 @@ def load_institutions():
                     print(f"  {file}: {count_in_file} instituciones LATAM")
                     total_loaded += count_in_file
     
+    # Crear tabla con PRIMARY KEY si no existe
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS openalex.institutions (
+                id text PRIMARY KEY,
+                ror text,
+                display_name text,
+                country_code text,
+                type text,
+                homepage_url text,
+                image_url text,
+                image_thumbnail_url text,
+                display_name_acronyms json,
+                display_name_alternatives json,
+                works_count integer,
+                cited_by_count integer,
+                works_api_url text,
+                updated_date timestamp without time zone
+            );
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"Advertencia al crear tabla institutions: {e}")
+        conn.rollback()
+
     # Cargar a la base de datos
     try:
         buffer.seek(0)
-        cur.copy_from(buffer, 'institutions', sep='\t', null='\\N')
+        columns = (
+            'id', 'ror', 'display_name', 'country_code', 'type',
+            'homepage_url', 'image_url', 'image_thumbnail_url',
+            'display_name_acronyms', 'display_name_alternatives',
+            'works_count', 'cited_by_count', 'works_api_url', 'updated_date'
+        )
+        # Especificar encoding UTF-8 explícitamente
+        cur.execute("SET client_encoding TO 'UTF8';")
+        cur.copy_from(buffer, 'institutions', sep='\t', null='\\N', columns=columns)
         conn.commit()
         print(f"\n✓ Cargadas {total_loaded} instituciones LATAM")
     except Exception as e:
@@ -233,7 +310,7 @@ def load_works_primary_location(latam_source_ids):
     # Primero, crear la tabla si no existe
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS openalex.works_primary_location (
-        work_id text,
+        work_id text PRIMARY KEY,
         source_id text,
         is_oa boolean,
         landing_page_url text,
@@ -338,7 +415,7 @@ def load_works_open_access(latam_source_ids):
     # Crear la tabla si no existe
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS openalex.works_open_access (
-        work_id text,
+        work_id text PRIMARY KEY,
         is_oa boolean,
         oa_status text,
         oa_url text,
