@@ -30,7 +30,7 @@ def get_db_connection():
         conn = psycopg2.connect(**DB_CONFIG)
         return conn
     except Exception as e:
-        print(f"Error connecting to database: {e}")
+        print(f"Error connecting to database: {e}") 
         raise
 
 
@@ -282,15 +282,39 @@ def update_data_from_postgres(update_journals=True, update_works=True):
     # Step 2: Fetch works
     if update_works:
         print("\n" + "="*70)
-        print("FETCHING WORKS FROM POSTGRESQL")
+        print("FETCHING WORKS FROM POSTGRESQL (OPTIMIZED MODE)")
         print("="*70)
+        
+        # Directory for partial files
+        PARTS_DIR = DATA_DIR / 'works_parts'
+        PARTS_DIR.mkdir(exist_ok=True)
         
         # Check which journals already have works
         downloaded_journal_ids = set()
+        
+        # 1. Check main file if exists
         if WORKS_FILE.exists():
-            existing_works = pd.read_parquet(WORKS_FILE, columns=['journal_id'])
-            downloaded_journal_ids = set(existing_works['journal_id'].unique())
-            print(f"Found {len(downloaded_journal_ids)} journals already downloaded")
+            try:
+                print("Reading existing IDs from main file...")
+                existing_works = pd.read_parquet(WORKS_FILE, columns=['journal_id'])
+                ids_main = set(existing_works['journal_id'].unique())
+                downloaded_journal_ids.update(ids_main)
+                print(f"  - Found {len(ids_main)} journals in main file")
+            except Exception as e:
+                print(f"  Warning reading main file: {e}")
+        
+        # 2. Check partial files
+        print("Reading existing IDs from partial files...")
+        part_files = list(PARTS_DIR.glob('*.parquet'))
+        for f in part_files:
+            try:
+                # Read only necessary column, very fast
+                ids_part = pd.read_parquet(f, columns=['journal_id'])['journal_id'].unique()
+                downloaded_journal_ids.update(ids_part)
+            except Exception:
+                continue
+                
+        print(f"Total unique journals already downloaded: {len(downloaded_journal_ids)}")
         
         # Filter journals to process
         journals_to_process = journals_df[~journals_df['id'].isin(downloaded_journal_ids)]
@@ -307,49 +331,53 @@ def update_data_from_postgres(update_journals=True, update_works=True):
         
         try:
             all_works = []
+            batch_count = 0
             
             for idx, journal in journals_to_process.iterrows():
                 print(f"[{idx+1}/{len(journals_to_process)}] {journal['display_name']} ({journal.get('country_code', 'UNKNOWN')})")
                 
-                works_df = fetch_works_for_journal(journal['id'], journal['display_name'], conn)
-                
-                if len(works_df) > 0:
-                    all_works.append(works_df)
-                
-                # Save incrementally every 10 journals
-                if len(all_works) >= 10:
-                    print("\n  → Saving batch to disk...")
-                    batch_df = pd.concat(all_works, ignore_index=True)
+                try:
+                    works_df = fetch_works_for_journal(journal['id'], journal['display_name'], conn)
                     
-                    if WORKS_FILE.exists():
-                        # Append to existing file
-                        existing = pd.read_parquet(WORKS_FILE)
-                        combined = pd.concat([existing, batch_df], ignore_index=True)
-                        combined.to_parquet(WORKS_FILE, index=False)
-                    else:
-                        batch_df.to_parquet(WORKS_FILE, index=False)
+                    if len(works_df) > 0:
+                        all_works.append(works_df)
+                except Exception as e:
+                    print(f"  ❌ Error fetching works for {journal['display_name']}: {e}")
+                    # Continue to next journal
+                
+                # Save incrementally every 50 journals (larger batch is fine now since we don't read huge file)
+                # Or if list gets too big in memory
+                if len(all_works) >= 20:
+                    batch_count += 1
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    batch_filename = f"batch_{timestamp}_{batch_count}.parquet"
+                    batch_path = PARTS_DIR / batch_filename
                     
-                    print(f"  ✓ Saved {len(batch_df)} works")
-                    all_works = []
+                    print(f"\n  → Saving batch {batch_count} to {batch_filename}...")
+                    try:
+                        batch_df = pd.concat(all_works, ignore_index=True)
+                        batch_df.to_parquet(batch_path, index=False)
+                        print(f"  ✓ Saved {len(batch_df)} works")
+                        all_works = [] # Clear memory
+                    except Exception as e:
+                        print(f"  ❌ Error saving batch: {e}")
                 
                 print()
             
             # Save remaining works
             if len(all_works) > 0:
                 print("\n→ Saving final batch...")
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                batch_filename = f"batch_{timestamp}_final.parquet"
+                batch_path = PARTS_DIR / batch_filename
+                
                 batch_df = pd.concat(all_works, ignore_index=True)
-                
-                if WORKS_FILE.exists():
-                    existing = pd.read_parquet(WORKS_FILE)
-                    combined = pd.concat([existing, batch_df], ignore_index=True)
-                    combined.to_parquet(WORKS_FILE, index=False)
-                else:
-                    batch_df.to_parquet(WORKS_FILE, index=False)
-                
+                batch_df.to_parquet(batch_path, index=False)
                 print(f"✓ Saved {len(batch_df)} works")
             
             print("\n" + "="*70)
             print("DATA UPDATE COMPLETE")
+            print("Run consolidate_works.py to merge all files if needed.")
             print("="*70)
             
         finally:
