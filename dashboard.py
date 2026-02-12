@@ -301,6 +301,43 @@ elif level == "País":
                 col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
                 col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
                 col5.metric("Percentil Prom.", f"{period_data.get('avg_percentile', 0):.1f}")
+                # Data Tables Expander
+                with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
+                    tab1, tab2, tab3 = st.tabs(["Datos Crudos", "Suavizado (w=3)", "Suavizado (w=5)"])
+                    
+                    # RAW DATA
+                    if os.path.exists(traj_raw_file):
+                        raw_df = pd.read_parquet(traj_raw_file)
+                        raw_subset = raw_df[raw_df['id'].isin([target_id, country_code, 'LATAM'])].sort_values(['id', 'year'])
+                        # Format for display
+                        cols_to_show = ['name', 'type', 'year', 'num_documents', 'fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1']
+                        existing_cols = [c for c in cols_to_show if c in raw_subset.columns]
+                        tab1.dataframe(raw_subset[existing_cols], use_container_width=True, hide_index=True)
+                    else:
+                        tab1.warning("Archivo de datos crudos no encontrado.")
+                        
+                    # SMOOTHED DATA (w=3)
+                    if os.path.exists(traj_smooth_file):
+                        smooth_df = pd.read_parquet(traj_smooth_file)
+                        smooth_subset = smooth_df[smooth_df['id'].isin([target_id, country_code, 'LATAM'])].sort_values(['id', 'year'])
+                        # Format
+                        existing_cols_s = [c for c in cols_to_show if c in smooth_subset.columns]
+                        tab2.dataframe(smooth_subset[existing_cols_s], use_container_width=True, hide_index=True)
+                        tab2.caption("Nota: Datos suavizados (media móvil exponencial, window=3).")
+                    else:
+                        tab2.warning("Archivo de datos suavizados (w=3) no encontrado.")
+
+                    # SMOOTHED DATA (w=5)
+                    traj_smooth_w5_file = os.path.join(base_path, 'data', 'cache', 'trajectory_data_smoothed_w5.parquet')
+                    if os.path.exists(traj_smooth_w5_file):
+                        smooth_w5_df = pd.read_parquet(traj_smooth_w5_file)
+                        smooth_w5_subset = smooth_w5_df[smooth_w5_df['id'].isin([target_id, country_code, 'LATAM'])].sort_values(['id', 'year'])
+                        # Format
+                        existing_cols_w5 = [c for c in cols_to_show if c in smooth_w5_subset.columns]
+                        tab3.dataframe(smooth_w5_subset[existing_cols_w5], use_container_width=True, hide_index=True)
+                        tab3.caption("Nota: Datos suavizados intensamente (media móvil exponencial, window=5).")
+                    else:
+                        tab3.warning("Archivo de datos suavizados (w=5) no encontrado.")
                 
                 # Open Access breakdown
                 st.markdown("#### Distribución de Acceso Abierto")
@@ -504,6 +541,115 @@ elif level == "Revista":
                     st.dataframe(recent_years, use_container_width=True, hide_index=True)
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
+
+    # --- TRAYECTORIA DE DESEMPEÑO (UMAP) ---
+    st.markdown("---")
+    st.subheader("Trayectoria de Desempeño (Perfil Multidimensional)")
+    st.markdown("""
+    Esta visualización proyecta 5 indicadores clave (Documentos, FWCI, Percentil Promedio, Top 1%, Top 10%) 
+    en un plano 2D para observar la evolución del desempeño a lo largo del tiempo.
+    """)
+    
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    traj_coords_file = os.path.join(base_path, 'data', 'cache', 'trajectory_coordinates.parquet')
+    traj_raw_file = os.path.join(base_path, 'data', 'cache', 'trajectory_data_raw.parquet')
+    traj_smooth_file = os.path.join(base_path, 'data', 'cache', 'trajectory_data_smoothed.parquet')
+    
+    if os.path.exists(traj_coords_file):
+        try:
+            coords_df = pd.read_parquet(traj_coords_file)
+            
+            # IDs to show
+            target_id = journal_data['id']
+            country_code = journal_data.get('country_code', '')
+            
+            # Filter: Journal, Country, and LATAM
+            mask = (coords_df['id'] == target_id) | (coords_df['id'] == country_code) | (coords_df['id'] == 'LATAM')
+            subset_df = coords_df[mask].copy()
+            
+            if not subset_df.empty:
+                fig_traj = go.Figure()
+                
+                # Colors/Names Mapping
+                colors = {target_id: '#1f77b4', country_code: '#ff7f0e', 'LATAM': '#2ca02c'}
+                names = {target_id: selected_journal_name, country_code: f'País: {country_code}', 'LATAM': 'Iberoamérica (Ref.)'}
+                
+                # Plot each entity
+                for entity_id in subset_df['id'].unique():
+                    entity_data = subset_df[subset_df['id'] == entity_id].sort_values('year')
+                    if entity_data.empty: continue
+                    
+                    color = colors.get(entity_id, '#7f7f7f') 
+                    name = names.get(entity_id, entity_id)
+                    
+                    # Line + Markers (Spline)
+                    fig_traj.add_trace(go.Scatter(
+                        x=entity_data['x'], 
+                        y=entity_data['y'],
+                        mode='lines+markers+text',
+                        name=name,
+                        text=entity_data['year'].astype(str).str[-2:], # '19, '20
+                        textposition="top center",
+                        line=dict(shape='spline', width=3, color=color), 
+                        marker=dict(size=6, color=color)
+                    ))
+                
+                fig_traj.update_layout(
+                    title="Evolución de la Trayectoria (UMAP)",
+                    xaxis_title="Dimensión 1",
+                    yaxis_title="Dimensión 2",
+                    template="plotly_white",
+                    hovermode="closest",
+                    height=650,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                
+                st.plotly_chart(fig_traj, use_container_width=True)
+                
+                # Data Tables Expander
+                with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
+                    tab1, tab2, tab3 = st.tabs(["Datos Crudos", "Suavizado (w=3)", "Suavizado (w=5)"])
+                    
+                    cols_to_show = ['name', 'type', 'year', 'num_documents', 'fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1']
+                    
+                    # RAW DATA
+                    if os.path.exists(traj_raw_file):
+                        raw_df = pd.read_parquet(traj_raw_file)
+                        raw_subset = raw_df[raw_df['id'].isin([target_id, country_code, 'LATAM'])].sort_values(['id', 'year'])
+                        existing_cols = [c for c in cols_to_show if c in raw_subset.columns]
+                        tab1.dataframe(raw_subset[existing_cols], use_container_width=True, hide_index=True)
+                    else:
+                        tab1.warning("Archivo de datos crudos no encontrado.")
+                        
+                    # SMOOTHED DATA (w=3)
+                    if os.path.exists(traj_smooth_file):
+                        smooth_df = pd.read_parquet(traj_smooth_file)
+                        smooth_subset = smooth_df[smooth_df['id'].isin([target_id, country_code, 'LATAM'])].sort_values(['id', 'year'])
+                        existing_cols_s = [c for c in cols_to_show if c in smooth_subset.columns]
+                        tab2.dataframe(smooth_subset[existing_cols_s], use_container_width=True, hide_index=True)
+                        tab2.caption("Media móvil exponencial (window=3, tau=1).")
+                    else:
+                        tab2.warning("Archivo w=3 no encontrado.")
+                        
+                    # SMOOTHED DATA (w=5)
+                    traj_smooth_w5_file = os.path.join(base_path, 'data', 'cache', 'trajectory_data_smoothed_w5.parquet')
+                    if os.path.exists(traj_smooth_w5_file):
+                        smooth_w5_df = pd.read_parquet(traj_smooth_w5_file)
+                        smooth_w5_subset = smooth_w5_df[smooth_w5_df['id'].isin([target_id, country_code, 'LATAM'])].sort_values(['id', 'year'])
+                        existing_cols_w5 = [c for c in cols_to_show if c in smooth_w5_subset.columns]
+                        tab3.dataframe(smooth_w5_subset[existing_cols_w5], use_container_width=True, hide_index=True)
+                        tab3.caption("Media móvil exponencial (window=5, tau=1).")
+                    else:
+                        tab3.warning("Archivo w=5 no encontrado.")
+                        
+            else:
+                st.info("No hay suficientes datos anuales para proyectar la trayectoria de esta revista.")
+                
+        except Exception as e:
+            st.error(f"Error procesando visualización de trayectorias: {e}")
+            
+    else:
+        st.info("ℹ️ Para ver el Análisis de Trayectorias, por favor ejecuta el pipeline completo.")
 
 # Footer
 st.markdown("---")
