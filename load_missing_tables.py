@@ -490,42 +490,68 @@ def load_works_open_access(latam_source_ids):
 
 
 if __name__ == "__main__":
+    import argparse
+    import psycopg2
+    
+    parser = argparse.ArgumentParser(description='Cargar tablas faltantes de OpenAlex a PostgreSQL')
+    parser.add_argument('--only-sources', action='store_true', help='Cargar solo la tabla sources')
+    parser.add_argument('--only-institutions', action='store_true', help='Cargar solo la tabla institutions')
+    parser.add_argument('--only-locations', action='store_true', help='Cargar solo works_primary_location')
+    parser.add_argument('--only-oa', action='store_true', help='Cargar solo works_open_access')
+    
+    args = parser.parse_args()
+    
+    # Si no se especifica ninguna bandera, cargar todo (comportamiento por defecto)
+    load_all = not (args.only_sources or args.only_institutions or args.only_locations or args.only_oa)
+    
     print("="*70)
     print("COMPLETANDO BASE DE DATOS OPENALEX")
     print("="*70)
-    print("\nEste script carga las tablas faltantes:")
-    print("  1. sources (revistas)")
-    print("  2. institutions (instituciones)")
-    print("  3. works_primary_location")
-    print("  4. works_open_access")
-    print("\nAsegúrate de haber ejecutado load2.py primero para cargar works.")
-    print("="*70)
     
-    input("\nPresiona Enter para continuar...")
+    latam_source_ids = set()
+
+    # Paso 1: Cargar sources (o recuperar IDs si no se carga)
+    if load_all or args.only_sources:
+        print(">> Cargando Sources (Revistas)...")
+        latam_source_ids = load_sources()
+        if not latam_source_ids and (load_all or args.only_sources):
+             print("❌ Error cargando sources o conjunto vacío.")
     
-    # Paso 1: Cargar sources y obtener IDs
-    latam_source_ids = load_sources()
-    
-    if not latam_source_ids:
-        print("\n✗ Error: No se pudieron cargar sources. Abortando.")
-        exit(1)
-    
+    # Recuperar IDs de DB si no los cargamos pero los necesitamos para filtrar otras tablas
+    if not latam_source_ids and (args.only_locations or args.only_oa):
+        print("Recuperando IDs de revistas LATAM existentes en DB...")
+        try:
+            conn = psycopg2.connect(**DB_PARAMS)
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM openalex.sources WHERE country_code IS NOT NULL")
+            rows = cur.fetchall()
+            latam_source_ids = set(row[0] for row in rows)
+            conn.close()
+            print(f"✓ Recuperados {len(latam_source_ids)} IDs de revistas LATAM")
+        except Exception as e:
+            print(f"⚠️ Error recuperando IDs: {e}")
+
     # Paso 2: Cargar institutions
-    latam_inst_ids = load_institutions()
+    if load_all or args.only_institutions:
+        print("\n>> Cargando Institutions...")
+        load_institutions()
     
     # Paso 3: Cargar works_primary_location
-    load_works_primary_location(latam_source_ids)
+    if load_all or args.only_locations:
+        print("\n>> Cargando Works Primary Location...")
+        if latam_source_ids:
+            load_works_primary_location(latam_source_ids)
+        else:
+            print("⚠️ Saltando locations: Se requieren IDs de revistas LATAM.")
     
     # Paso 4: Cargar works_open_access
-    load_works_open_access(latam_source_ids)
+    if load_all or args.only_oa:
+        print("\n>> Cargando Works Open Access...")
+        if latam_source_ids:
+            load_works_open_access(latam_source_ids)
+        else:
+            print("⚠️ Saltando Open Access: Se requieren IDs de revistas LATAM.")
     
     print("\n" + "="*70)
     print("PROCESO COMPLETADO")
     print("="*70)
-    print("\nResumen:")
-    print(f"  ✓ Sources LATAM: {len(latam_source_ids):,}")
-    if latam_inst_ids:
-        print(f"  ✓ Institutions LATAM: {len(latam_inst_ids):,}")
-    print("\nAhora puedes ejecutar:")
-    print("  python diagnose_postgres.py")
-    print("  python data_collector_postgres.py")
