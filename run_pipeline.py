@@ -49,14 +49,6 @@ if __name__ == "__main__":
     
     total_start = time.time()
 
-    # PASO 0: Extracción de Metadatos
-    step0_success = run_step(
-        "pipeline/extract_metadata.py", 
-        "Extracción de Metadatos de Referencia (Topics -> Metadata)"
-    )
-    if not step0_success:
-        print("⚠️ Advertencia: No se pudieron extraer metadatos de topics. Algunos gráficos podrían no verse.")
-
     # PASO 1: Extracción de datos (PostgreSQL)
     step1_success = run_step(
         "pipeline/extract_postgres.py", 
@@ -66,6 +58,16 @@ if __name__ == "__main__":
     if not step1_success:
         print("🛑 Deteniendo el pipeline debido a error en la extracción.")
         sys.exit(1)
+
+    # PASO 1.5: Consolidación de archivos Parquet
+    # Une los archivos parciales generados por extract_postgres.py en un solo archivo maestro
+    step15_success = run_step(
+        "pipeline/consolidate_files.py", 
+        "Consolidación de Archivos Parquet (Unir partes -> Works Completo)"
+    )
+    
+    if not step15_success:
+        print("⚠️ Advertencia: La consolidación falló. El cálculo de métricas podría usar datos incompletos.")
 
     # PASO 2: Enriquecimiento con API (Topics para Sunburst)
     print("\n" + "="*70)
