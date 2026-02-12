@@ -166,13 +166,42 @@ def fetch_works_for_journal(journal_id, journal_name, conn):
         w.cited_by_api_url,
         w.abstract_inverted_index,
         w.language,
+        w.fwci,
+        w.citation_normalized_percentile,
         wpl.source_id as journal_id
     FROM openalex.works w
     INNER JOIN openalex.works_primary_location wpl ON wpl.work_id = w.id
     WHERE wpl.source_id = %s;
     """
     
-    works_df = pd.read_sql_query(query, conn, params=(journal_id,))
+    try:
+        works_df = pd.read_sql_query(query, conn, params=(journal_id,))
+    except Exception as e:
+        print(f"  ⚠️ Error querying columns (fwci/percentile missing?): {e}")
+        # Fallback query without new columns IF database schema is old
+        query_fallback = """
+        SELECT 
+            w.id,
+            w.doi,
+            w.title,
+            w.display_name,
+            w.publication_year,
+            w.publication_date,
+            w.type,
+            w.cited_by_count,
+            w.is_retracted,
+            w.is_paratext,
+            w.cited_by_api_url,
+            w.abstract_inverted_index,
+            w.language,
+            wpl.source_id as journal_id
+        FROM openalex.works w
+        INNER JOIN openalex.works_primary_location wpl ON wpl.work_id = w.id
+        WHERE wpl.source_id = %s;
+        """
+        works_df = pd.read_sql_query(query_fallback, conn, params=(journal_id,))
+        works_df['fwci'] = 0.0
+        works_df['citation_normalized_percentile'] = 0.0
     
     if len(works_df) == 0:
         print(f"  No works found for {journal_name}")
@@ -180,6 +209,19 @@ def fetch_works_for_journal(journal_id, journal_name, conn):
     
     # Add journal name
     works_df['journal_name'] = journal_name
+    
+    # Compute derived metrics locally (since they might not be in DB explicit columns)
+    if 'citation_normalized_percentile' in works_df.columns:
+        # Check if it was extracted as decimal (0-100) or we need to handle it
+        # Ensure numeric type strictly as per guide
+        pct_col = pd.to_numeric(works_df['citation_normalized_percentile'], errors='coerce').fillna(0.0)
+        
+        # Calculate boolean flags
+        # Top 10%: Percentile >= 90.0
+        works_df['is_in_top_10_percent'] = pct_col >= 90.0
+        
+        # Top 1%: Percentile >= 99.0
+        works_df['is_in_top_1_percent'] = pct_col >= 99.0
     
     # Fetch additional data for each work
     print(f"  Fetching additional data for {len(works_df)} works...")
