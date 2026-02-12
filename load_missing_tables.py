@@ -103,7 +103,8 @@ def load_sources():
                                     data.get('works_api_url'),
                                     data.get('updated_date'),
                                     data.get('country_code'),  # Agregado country_code
-                                    bool((data.get('ids') or {}).get('scopus'))  # Agregado is_scopus
+                                    bool((data.get('ids') or {}).get('scopus')),  # Agregado is_scopus
+                                    clean_json(data.get('summary_stats'))  # Agregado summary_stats
                                 ]
                                 
                                 buffer.write('\t'.join([clean(i) for i in row]) + '\n')
@@ -133,7 +134,8 @@ def load_sources():
                 works_api_url text,
                 updated_date timestamp without time zone,
                 country_code text,
-                is_scopus boolean
+                is_scopus boolean,
+                summary_stats json
             );
         """)
         conn.commit()
@@ -148,7 +150,8 @@ def load_sources():
         columns = (
             'id', 'issn_l', 'issn', 'display_name', 'publisher', 
             'works_count', 'cited_by_count', 'is_oa', 'is_in_doaj', 
-            'homepage_url', 'works_api_url', 'updated_date', 'country_code', 'is_scopus'
+            'works_count', 'cited_by_count', 'is_oa', 'is_in_doaj', 
+            'homepage_url', 'works_api_url', 'updated_date', 'country_code', 'is_scopus', 'summary_stats'
         )
         # Especificar encoding UTF-8 explícitamente
         cur.execute("SET client_encoding TO 'UTF8';")

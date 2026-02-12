@@ -61,7 +61,8 @@ def fetch_latin_american_journals():
             works_api_url,
             updated_date,
             country_code,
-            is_scopus
+            is_scopus,
+            summary_stats
         FROM openalex.sources
         ORDER BY works_count DESC;
         """
@@ -97,6 +98,36 @@ def fetch_latin_american_journals():
         # Add download metadata
         df['download_date'] = datetime.datetime.now().isoformat()
         
+        print(f"Found {len(df)} Latin American journals.")
+        
+        # Procesar métricas adicionales desde summary_stats (si existen)
+        if 'summary_stats' in df.columns:
+            print("Extrayendo métricas de summary_stats (h-index, i10, impacto)...")
+            
+            def extract_metric(row, metric, default=0):
+                stats = row.get('summary_stats')
+                if not isinstance(stats, dict) and pd.notna(stats):
+                    # Intentar parsear si es string
+                    try: stats = json.loads(stats)
+                    except: pass
+                
+                if isinstance(stats, dict):
+                    val = stats.get(metric, default)
+                    return val if val is not None else default
+                return default
+
+            df['h_index'] = df.apply(lambda row: extract_metric(row, 'h_index', 0), axis=1)
+            df['i10_index'] = df.apply(lambda row: extract_metric(row, 'i10_index', 0), axis=1)
+            df['2yr_mean_citedness'] = df.apply(lambda row: extract_metric(row, '2yr_mean_citedness', 0.0), axis=1)
+            
+            # Limpiar columna raw para ahorrar espacio
+            df = df.drop(columns=['summary_stats'])
+        else:
+            print("Warning: summary_stats column not found. Metrics will be 0.")
+            df['h_index'] = 0
+            df['i10_index'] = 0 
+            df['2yr_mean_citedness'] = 0.0
+
         print(f"Found {len(df)} Latin American journals.")
         
         return df
