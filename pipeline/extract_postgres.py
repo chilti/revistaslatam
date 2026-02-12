@@ -19,7 +19,7 @@ DB_CONFIG = {
 }
 
 # Data directory
-DATA_DIR = Path(__file__).parent / 'data'
+DATA_DIR = Path(__file__).parent.parent / 'data'
 JOURNALS_FILE = DATA_DIR / 'latin_american_journals.parquet'
 WORKS_FILE = DATA_DIR / 'latin_american_works.parquet'
 
