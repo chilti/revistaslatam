@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import time
 
-DATA_DIR = Path(__file__).parent / 'data'
+DATA_DIR = Path(__file__).parent.parent / 'data'
 PARTS_DIR = DATA_DIR / 'works_parts'
 OUTPUT_FILE = DATA_DIR / 'latin_american_works_consolidated.parquet'
 ORIGINAL_FILE = DATA_DIR / 'latin_american_works.parquet'

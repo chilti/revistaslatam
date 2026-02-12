@@ -519,6 +519,49 @@ elif level == "Revista":
                 # Show annual data table
                 with st.expander("📊 Ver Tabla de Datos Anuales"):
                     st.dataframe(recent_years, use_container_width=True, hide_index=True)
+                
+                # --- SUNBURST ---
+                st.markdown("---")
+                st.subheader("Análisis Temático (Sunburst)")
+                
+                sunburst_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'journals_topics_sunburst.parquet')
+                
+                if os.path.exists(sunburst_file):
+                    try:
+                        topics_df = pd.read_parquet(sunburst_file)
+                        # Filter by journal ID
+                        journal_topics = topics_df[topics_df['journal_id'] == journal_data['id']]
+                        
+                        if not journal_topics.empty:
+                            # Asegurar que conteos sean enteros
+                            journal_topics['count'] = journal_topics['count'].fillna(0).astype(int)
+                            
+                            fig_sun = px.sunburst(
+                                journal_topics,
+                                path=['domain', 'field', 'topic_name'],
+                                values='count',
+                                title=f'Distribución Temática: {selected_journal_name}',
+                                height=700,
+                                color='domain', 
+                                color_discrete_sequence=px.colors.qualitative.Prism
+                            )
+                            # Mejorar tooltip y etiquetas
+                            fig_sun.update_traces(textinfo='label+percent entry')
+                            
+                            st.plotly_chart(fig_sun, use_container_width=True)
+                            
+                            with st.expander("📊 Ver Detalle de Tópicos"):
+                                show_cols = ['domain', 'field', 'topic_name', 'count', 'share']
+                                # Filtrar columnas que existan
+                                valid_cols = [c for c in show_cols if c in journal_topics.columns]
+                                st.dataframe(journal_topics[valid_cols].sort_values('count', ascending=False), 
+                                            use_container_width=True, hide_index=True)
+                        else:
+                            st.info("ℹ️ No hay datos temáticos enriquecidos para esta revista. (Ejecute el script de enriquecimiento API)")
+                    except Exception as e:
+                        st.error(f"Error cargando datos temáticos: {e}")
+                else:
+                    st.info("ℹ️ Archivo de tópicos no encontrado. Ejecute el pipeline de enriquecimiento.")
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 

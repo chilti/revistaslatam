@@ -1,7 +1,7 @@
-
 import subprocess
 import sys
 import time
+import os
 from datetime import datetime
 
 def run_step(script_name, description):
@@ -13,13 +13,12 @@ def run_step(script_name, description):
     
     start_time = time.time()
     
-    # Ejecuta el script usando el mismo intérprete de Python actual
     try:
-        # check=True lanza una excepción si el subproceso devuelve error
+        # Usa el mismo ejecutable de python
         process = subprocess.run(
             [sys.executable, script_name], 
             check=True,
-            text=True  # Manejo de texto para stdout/stderr
+            text=True
         )
         
         elapsed_time = time.time() - start_time
@@ -45,30 +44,55 @@ def run_step(script_name, description):
         return False
 
 if __name__ == "__main__":
-    print(f"Iniciando Pipeline de Actualización de Datos y Métricas")
+    print(f"Iniciando Pipeline de Actualización de Datos y Métricas v2.0")
     print(f"Fecha/Hora: {datetime.now().isoformat()}")
     
     total_start = time.time()
 
-    # PASO 1: Extracción de datos desde PostgreSQL
-    # Este script genera los archivos Parquet base en data/
+    # PASO 0: Extracción de Metadatos
+    step0_success = run_step(
+        "pipeline/extract_metadata.py", 
+        "Extracción de Metadatos de Referencia (Topics -> Metadata)"
+    )
+    if not step0_success:
+        print("⚠️ Advertencia: No se pudieron extraer metadatos de topics. Algunos gráficos podrían no verse.")
+
+    # PASO 1: Extracción de datos (PostgreSQL)
     step1_success = run_step(
-        "data_collector_postgres.py", 
+        "pipeline/extract_postgres.py", 
         "Extracción de Datos de Revistas y Trabajos (PostgreSQL -> Parquet)"
     )
     
     if not step1_success:
         print("🛑 Deteniendo el pipeline debido a error en la extracción.")
         sys.exit(1)
-        
-    # PASO 2: Cálculo de métricas
-    # Este script lee los Parquet generados y calcula métricas complejas
-    step2_success = run_step(
-        "precompute_metrics_parallel_optimized.py", 
+
+    # PASO 2: Enriquecimiento con API (Topics para Sunburst)
+    print("\n" + "="*70)
+    print("PASO EXTRA: Enriquecimiento de Revistas (API OpenAlex)")
+    print("="*70)
+    
+    email = os.environ.get('OPENALEX_EMAIL')
+    api_args = [sys.executable, "pipeline/enrich_journals_api.py"]
+    if email:
+        print(f"Usando email de variable de entorno: {email}")
+        api_args.extend(['--email', email])
+    else:
+        print("No se detectó variable OPENALEX_EMAIL (usando modo lento)")
+
+    try:
+        subprocess.run(api_args, check=True)
+        print("✅ Enriquecimiento completado")
+    except Exception as e:
+        print(f"⚠️ Falló el enriquecimiento API (no crítico): {e}")
+
+    # PASO 3: Cálculo de métricas
+    step3_success = run_step(
+        "pipeline/transform_metrics.py", 
         "Precomputación de Métricas de Desempeño (Parquet -> Métricas)"
     )
     
-    if not step2_success:
+    if not step3_success:
         print("🛑 Deteniendo el pipeline debido a error en el cálculo de métricas.")
         sys.exit(1)
 
