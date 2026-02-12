@@ -65,11 +65,14 @@ def process_and_update():
     
     setup_database_schema(cur)
     
-    # Obtener IDs de trabajos que ya tenemos en la DB para no procesar todo el universo
-    print("Cargando IDs de trabajos existentes en la DB...")
-    cur.execute("SELECT id FROM openalex.works")
-    existing_ids = set(row[0] for row in cur.fetchall())
-    print(f"Total trabajos a actualizar: {len(existing_ids):,}")
+    # OPTIMIZACIÓN DE MEMORIA:
+    # En lugar de cargar 3.4 millones de IDs de trabajos (que consume mucha RAM),
+    # cargamos los IDs de las Fuentes (Revistas) que ya tenemos.
+    # Como solo guardamos trabajos de revistas LATAM, filtrar por revista es equivalente y mucho más ligero.
+    print("Cargando IDs de revistas (sources) existentes en la DB para filtrar...")
+    cur.execute("SELECT DISTINCT id FROM openalex.sources")
+    existing_source_ids = set(row[0] for row in cur.fetchall())
+    print(f"Total revistas para filtrar: {len(existing_source_ids):,}")
     
     print("\nIniciando escaneo de archivos GZ...")
     start_time = time.time()
@@ -82,7 +85,6 @@ def process_and_update():
         for file in files:
             if file.endswith(".gz"):
                 file_path = os.path.join(root, file)
-                # print(f"Escaneando {file}...", end='\r')
                 
                 rows_in_file = 0
                 
@@ -91,11 +93,15 @@ def process_and_update():
                         for line in f:
                             try:
                                 # Lectura rápida: buscamos el ID primero
-                                # Parsear todo el JSON es lento, pero es lo más seguro
                                 work = json.loads(line)
-                                work_id = work.get('id')
                                 
-                                if work_id in existing_ids:
+                                # Filtro eficiente por Revista (Source)
+                                primary_loc = work.get('primary_location') or {}
+                                source = primary_loc.get('source') or {}
+                                source_id = source.get('id')
+                                
+                                if source_id in existing_source_ids:
+                                    work_id = work.get('id')
                                     # Extraer métricas
                                     fwci = work.get('fwci')
                                     
@@ -104,6 +110,9 @@ def process_and_update():
                                     percentile = None
                                     if isinstance(percentile_obj, dict):
                                         percentile = percentile_obj.get('value')
+                                    else:
+                                        # A veces viene como número directo en versiones viejas
+                                        percentile = percentile_obj if isinstance(percentile_obj, (int, float)) else None
                                     
                                     # Solo guardar si tenemos algún dato nuevo
                                     if fwci is not None or percentile is not None:
@@ -121,9 +130,6 @@ def process_and_update():
                         buffer.seek(0)
                         buffer.truncate(0)
                         updated_count += rows_in_file
-                        
-                        # Commit intermedio para tabla temp? No, temp table vive en la sesión.
-                        # Seguir llenando temp table.
                         
                 except Exception as e:
                     print(f"\nError procesando archivo {file}: {e}")
