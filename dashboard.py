@@ -8,22 +8,6 @@ import sys
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 
-import streamlit.components.v1 as components
-
-def st_mermaid(code: str, height=350):
-    components.html(
-        f"""
-        <div class="mermaid">
-            {code}
-        </div>
-        <script type="module">
-            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-            mermaid.initialize({{ startOnLoad: true, theme: 'default' }});
-        </script>
-        """,
-        height=height,
-    )
-
 from data_collector import update_data
 from data_processor import load_data as collector_load_data
 from performance_metrics import compute_and_cache_all_metrics, load_cached_metrics, get_cache_dir
@@ -43,9 +27,7 @@ st.sidebar.markdown("---")
 # Navigation
 level = st.sidebar.radio(
     "Nivel de Análisis",
-    ["Region (Latinoamérica)", "País"
-    
-    , "Revista"]
+    ["Region (Latinoamérica)", "País", "Revista"]
 )
 
 st.sidebar.markdown("---")
@@ -61,46 +43,8 @@ if latam_cache.exists():
 else:
     st.sidebar.warning("⚠️ Sin caché de métricas")
 
-
-
 # --- Main Content ---
 st.title("Sistema de Información Bibliométrica")
-
-with st.expander("🏗️ Arquitectura del Sistema"):
-    st_mermaid("""
-    graph TD
-        PG[(Postgres)]:::db
-        API[OpenAlex API]:::db
-        
-        subgraph ETL [Pipeline de Datos]
-            EP(Extract):::script
-            CF(Consolidate):::script
-            EA(Enrich API):::script
-            TM(Transform):::script
-        end
-        
-        subgraph Data [Archivos Parquet]
-            J[Journals]:::data
-            WP[Parts]:::data
-            W[Works]:::data
-            SB[Sunburst]:::data
-            M[Metrics]:::data
-        end
-        
-        PG --> EP
-        EP --> J & WP
-        WP --> CF --> W
-        J --> EA --> SB
-        API -.-> EA
-        J & W --> TM --> M
-        
-        J & SB & M -.-> DB[Dashboard]:::app
-
-        classDef db fill:#e1f5fe,stroke:#01579b,color:black;
-        classDef script fill:#f3e5f5,stroke:#7b1fa2,color:black;
-        classDef data fill:#fff3e0,stroke:#e65100,color:black;
-        classDef app fill:#e8f5e9,stroke:#2e7d32,color:black;
-    """, height=500)
 
 # Load Data
 @st.cache_data
@@ -505,23 +449,6 @@ elif level == "Revista":
                                title='Distribución por Tipo de Acceso Abierto',
                                color_discrete_sequence=px.colors.qualitative.Set3)
                 st.plotly_chart(fig_oa, use_container_width=True)
-                
-                # Indexing status
-                st.markdown("#### Indexación de la Revista")
-                
-                # Create badges for indexing
-                indexing_badges = []
-                if period_data.get('is_scopus', False):
-                    indexing_badges.append("🔵 **Scopus**")
-                if period_data.get('is_core', False):
-                    indexing_badges.append("🟢 **CORE**")
-                if period_data.get('is_doaj', False):
-                    indexing_badges.append("🟡 **DOAJ**")
-                
-                if indexing_badges:
-                    st.markdown(" | ".join(indexing_badges))
-                else:
-                    st.markdown("⚪ No indexada en bases de datos principales")
         
         if journal_annual is not None:
             journal_annual_data = journal_annual[journal_annual['journal_id'] == journal_data['id']]
@@ -575,55 +502,8 @@ elif level == "Revista":
                 # Show annual data table
                 with st.expander("📊 Ver Tabla de Datos Anuales"):
                     st.dataframe(recent_years, use_container_width=True, hide_index=True)
-                
-
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
-
-    # --- SUNBURST (Independiente de métricas) ---
-    st.markdown("---")
-    st.subheader("Análisis Temático (Sunburst)")
-    
-    sunburst_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'journals_topics_sunburst.parquet')
-    
-    if os.path.exists(sunburst_file):
-        try:
-            topics_df = pd.read_parquet(sunburst_file)
-            
-            # Filter by journal ID
-            target_id = journal_data['id']
-            journal_topics = topics_df[topics_df['journal_id'] == target_id]
-            
-            if not journal_topics.empty:
-                # Asegurar que conteos sean enteros
-                journal_topics['count'] = journal_topics['count'].fillna(0).astype(int)
-                
-                fig_sun = px.sunburst(
-                    journal_topics,
-                    path=['domain', 'field', 'topic_name'],
-                    values='count',
-                    title=f'Distribución Temática: {selected_journal_name}',
-                    height=700,
-                    color='domain', 
-                    color_discrete_sequence=px.colors.qualitative.Prism
-                )
-                fig_sun.update_traces(textinfo='label+percent entry')
-                
-                st.plotly_chart(fig_sun, use_container_width=True)
-                
-                with st.expander("📊 Ver Detalle de Tópicos"):
-                    show_cols = ['domain', 'field', 'topic_name', 'count', 'share']
-                    valid_cols = [c for c in show_cols if c in journal_topics.columns]
-                    st.dataframe(journal_topics[valid_cols].sort_values('count', ascending=False), 
-                                use_container_width=True, hide_index=True)
-            else:
-                 # Debug simple
-                 st.info(f"ℹ️ No hay datos temáticos para esta revista (ID: {target_id})")
-        except Exception as e:
-            st.error(f"Error cargando Sunburst: {e}")
-    else:
-        # Fallback silencioso o warning leve
-        st.warning(f"No se encontró el archivo de tópicos: {sunburst_file}")
 
 # Footer
 st.markdown("---")
