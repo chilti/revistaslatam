@@ -135,7 +135,7 @@ def process_country_worker(country_code):
     country_works = _works_df[_works_df['journal_id'].isin(journal_ids)].copy()
     
     if len(country_works) == 0:
-        return None, None, None
+        return None, None, None, None
     
     # Journal indexing metrics
     pct_scopus = (country_journals.apply(lambda x: safe_get(x, 'is_indexed_in_scopus', default=False), axis=1).sum() / num_journals) * 100
@@ -192,7 +192,7 @@ def process_journal_worker(journal_id):
     journal_info = _journals_df[_journals_df['id'] == journal_id]
     
     if len(journal_info) == 0:
-        return None, None
+        return None, None, None, None
     
     journal_info = journal_info.iloc[0]
     
@@ -211,7 +211,7 @@ def process_journal_worker(journal_id):
     journal_works = _works_df[_works_df['journal_id'] == journal_id].copy()
     
     if len(journal_works) == 0:
-        return None, None
+        return None, None, None, None
     
     # Annual metrics
     annual_data = []
@@ -251,7 +251,9 @@ def process_journal_worker(journal_id):
     # Add indexing info to recent period metrics
     period_recent_metrics.update(journal_indexing)
     
-    return annual_metrics_df, period_metrics, period_recent_metrics
+    return journal_id, annual_metrics_df, period_metrics, period_recent_metrics
+    
+
 
 def process_in_chunks(items, worker_func, num_cores, chunk_size, desc="items"):
     """Process items in chunks to control memory usage."""
