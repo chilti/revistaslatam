@@ -1,0 +1,11 @@
+Scanning C:\Users\jlja\Documents\Proyectos\revistaslatam\data\latin_american_works.parquet...
+Values found in 'oa_status' column:
+oa_status
+diamond    239331
+green       81330
+closed      42503
+gold        38102
+bronze      10908
+hybrid       8358
+Name: count, dtype: int64
+CONFIRMATION: 'diamond' found in data!

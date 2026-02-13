@@ -164,7 +164,9 @@ if level == "Region (Latinoamérica)":
         
         # Load cached metrics
         latam_annual = load_cached_metrics('latam', 'annual')
+        latam_annual = load_cached_metrics('latam', 'annual')
         latam_period = load_cached_metrics('latam', 'period')
+        latam_period_recent = load_cached_metrics('latam', 'period_2021_2025')
         
         if latam_period is not None and len(latam_period) > 0:
             period_data = latam_period.iloc[0]
@@ -179,12 +181,24 @@ if level == "Region (Latinoamérica)":
             col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
             col5.metric("Percentil Prom.", f"{period_data.get('avg_percentile', 0):.1f}")
             
+            # Recent Period
+            if latam_period_recent is not None and len(latam_period_recent) > 0:
+                rec_data = latam_period_recent.iloc[0]
+                st.markdown(f"### Periodo Reciente: 2021-2025")
+                c1, c2, c3, c4, c5 = st.columns(5)
+                c1.metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
+                c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
+                c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
+                c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
+                c5.metric("Percentil Prom.", f"{rec_data.get('avg_percentile', 0):.1f}")
+            
             # Open Access breakdown
             st.markdown("#### Distribución de Acceso Abierto")
             oa_data = {
-                'Tipo': ['Gold', 'Green', 'Hybrid', 'Bronze', 'Closed'],
+                'Tipo': ['Gold', 'Diamond', 'Green', 'Hybrid', 'Bronze', 'Closed'],
                 'Porcentaje': [
                     period_data.get('pct_oa_gold', 0),
+                    period_data.get('pct_oa_diamond', 0),
                     period_data.get('pct_oa_green', 0),
                     period_data.get('pct_oa_hybrid', 0),
                     period_data.get('pct_oa_bronze', 0),
@@ -255,6 +269,128 @@ if level == "Region (Latinoamérica)":
             # Show annual data table
             with st.expander("📊 Ver Tabla de Datos Anuales"):
                 st.dataframe(recent_years, use_container_width=True, hide_index=True)
+
+        # Tablas de Países
+        st.markdown("---")
+        st.subheader("Comparativa por País")
+        
+        tab_countries_1, tab_countries_2 = st.tabs(["Periodo Completo", "Periodo Reciente (2021-2025)"])
+        
+        # Columns to display
+        cols_display = [
+            'country_code', 'num_journals', 'num_documents', 'fwci_avg', 'avg_percentile', 
+            'pct_top_10', 'pct_top_1', 'pct_oa_gold', 'pct_oa_diamond', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed'
+        ]
+        
+        with tab_countries_1:
+            st.markdown("**Indicadores por País (Periodo Completo)**")
+            country_period = load_cached_metrics('country', 'period')
+            if country_period is not None and not country_period.empty:
+                # Sort by num_documents
+                display_df = country_period.sort_values('num_documents', ascending=False)
+                # Filter columns that exist
+                valid_cols = [c for c in cols_display if c in display_df.columns]
+                st.dataframe(display_df[valid_cols], use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay datos de países disponibles.")
+                
+        with tab_countries_2:
+            st.markdown("**Indicadores por País (2021-2025)**")
+            country_period_recent = load_cached_metrics('country', 'period_2021_2025')
+            if country_period_recent is not None and not country_period_recent.empty:
+                # Sort by num_documents
+                display_df_recent = country_period_recent.sort_values('num_documents', ascending=False)
+                # Filter columns
+                valid_cols = [c for c in cols_display if c in display_df_recent.columns]
+                st.dataframe(display_df_recent[valid_cols], use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay datos recientes de países disponibles (es necesario ejecutar pre-cálculo v2).")
+
+        # --- Radar Analysis ---
+        st.markdown("---")
+        if st.checkbox("Mostrar Análisis de Radar (Todos los Países)"):
+            st.subheader("Perfiles de Desempeño Relativo (Radar)")
+            st.info("Nota: Los valores están normalizados (0-1) respecto al máximo regional de cada indicador para permitir la comparación geométrica del perfil.")
+            
+            if country_period is not None and not country_period.empty:
+                # Indicators
+                radar_vars = ['fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 'pct_oa_diamond']
+                radar_labels = ['FWCI', 'Percentil', 'Top 10%', 'Top 1%', 'OA Diamante']
+                
+                # Normalize Function
+                def normalize_minmax(df, columns):
+                    df_norm = df.copy()
+                    for col in columns:
+                        if col in df.columns:
+                            max_val = df[col].max()
+                            if max_val > 0:
+                                df_norm[col] = df[col] / max_val
+                            else:
+                                df_norm[col] = 0
+                    return df_norm
+
+                # Prepare Normalized DFs
+                df_full_norm = normalize_minmax(country_period, radar_vars)
+                
+                df_recent_norm = None
+                if country_period_recent is not None and not country_period_recent.empty:
+                    df_recent_norm = normalize_minmax(country_period_recent, radar_vars)
+                
+                # Grid Layout
+                countries_list = sorted(country_period['country_code'].unique())
+                
+                # Use columns
+                cols = st.columns(3)
+                
+                for i, country in enumerate(countries_list):
+                    with cols[i % 3]:
+                        fig = go.Figure()
+                        
+                        # Full Period Trace
+                        row_full = df_full_norm[df_full_norm['country_code'] == country]
+                        labels_closed = radar_labels + [radar_labels[0]]
+                        
+                        if not row_full.empty:
+                            values_full = [row_full[v].iloc[0] if v in row_full else 0 for v in radar_vars]
+                            values_full += [values_full[0]]
+                            
+                            fig.add_trace(go.Scatterpolar(
+                                r=values_full,
+                                theta=labels_closed,
+                                fill='toself',
+                                name='Periodo Completo',
+                                line_color='blue',
+                                opacity=0.4
+                            ))
+                        
+                        # Recent Period Trace
+                        if df_recent_norm is not None:
+                            row_recent = df_recent_norm[df_recent_norm['country_code'] == country]
+                            if not row_recent.empty:
+                                values_recent = [row_recent[v].iloc[0] if v in row_recent else 0 for v in radar_vars]
+                                values_recent += [values_recent[0]]
+                                
+                                fig.add_trace(go.Scatterpolar(
+                                    r=values_recent,
+                                    theta=labels_closed,
+                                    fill='toself',
+                                    name='2021-2025',
+                                    line_color='red',
+                                    opacity=0.4
+                                ))
+                        
+                        fig.update_layout(
+                            polar=dict(
+                                radialaxis=dict(visible=True, range=[0, 1.05], showticklabels=False),
+                            ),
+                            margin=dict(t=30, b=20, l=30, r=30),
+                            height=250,
+                            title=dict(text=country, y=0.95),
+                            showlegend=False
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                
+                st.caption("🔵 Azul: Periodo Completo | 🔴 Rojo: Periodo Reciente (2021-2025)")
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
@@ -275,16 +411,39 @@ elif level == "País":
     # Top Journals Table
     st.markdown("### Top Revistas por Citas")
     top_journals = country_df.sort_values('cited_by_count', ascending=False).head(10)
-    st.dataframe(
-        top_journals[['display_name', 'issn_l', 'works_count', 'cited_by_count', '2yr_mean_citedness', 'is_oa']],
-        use_container_width=True,
-        hide_index=True
-    )
+    
+    # Try to enhance with performance metrics
+    journal_period = load_cached_metrics('journal', 'period')
+    
+    cols_basic = ['display_name', 'issn_l', 'works_count', 'cited_by_count']
+    cols_advanced = [
+        'fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 
+        'pct_oa_gold', 'pct_oa_diamond', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed'
+    ]
+    
+    if journal_period is not None:
+        # Merge on ID
+        merged = pd.merge(top_journals, journal_period, left_on='id', right_on='journal_id', how='left')
+        
+        # Check which columns are available
+        available_cols = [c for c in cols_advanced if c in merged.columns]
+        final_cols = cols_basic + available_cols
+        
+        st.dataframe(merged[final_cols], use_container_width=True, hide_index=True)
+    else:
+        # Fallback
+        st.dataframe(
+            top_journals[['display_name', 'issn_l', 'works_count', 'cited_by_count', '2yr_mean_citedness', 'is_oa']],
+            use_container_width=True,
+            hide_index=True
+        )
     
     if has_cached_metrics:
         # Load country metrics
         country_annual = load_cached_metrics('country', 'annual')
+        country_annual = load_cached_metrics('country', 'annual')
         country_period = load_cached_metrics('country', 'period')
+        country_period_recent = load_cached_metrics('country', 'period_2021_2025')
         
         if country_period is not None:
             country_data = country_period[country_period['country_code'] == selected_country]
@@ -301,6 +460,19 @@ elif level == "País":
                 col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
                 col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
                 col5.metric("Percentil Prom.", f"{period_data.get('avg_percentile', 0):.1f}")
+
+                # Recent Period
+                if country_period_recent is not None:
+                    country_rec_data = country_period_recent[country_period_recent['country_code'] == selected_country]
+                    if len(country_rec_data) > 0:
+                        rec_data = country_rec_data.iloc[0]
+                        st.markdown(f"### Periodo Reciente: 2021-2025")
+                        c1, c2, c3, c4, c5 = st.columns(5)
+                        c1.metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
+                        c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
+                        c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
+                        c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
+                        c5.metric("Percentil Prom.", f"{rec_data.get('avg_percentile', 0):.1f}")
                 # Data Tables Expander
                 with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
                     tab1, tab2, tab3 = st.tabs(["Datos Crudos", "Suavizado (w=3)", "Suavizado (w=5)"])
@@ -342,9 +514,10 @@ elif level == "País":
                 # Open Access breakdown
                 st.markdown("#### Distribución de Acceso Abierto")
                 oa_data = {
-                    'Tipo': ['Gold', 'Green', 'Hybrid', 'Bronze', 'Closed'],
+                    'Tipo': ['Gold', 'Diamond', 'Green', 'Hybrid', 'Bronze', 'Closed'],
                     'Porcentaje': [
                         period_data.get('pct_oa_gold', 0),
+                        period_data.get('pct_oa_diamond', 0),
                         period_data.get('pct_oa_green', 0),
                         period_data.get('pct_oa_hybrid', 0),
                         period_data.get('pct_oa_bronze', 0),
@@ -405,6 +578,8 @@ elif level == "País":
                 fig_oa_trend = go.Figure()
                 fig_oa_trend.add_trace(go.Scatter(x=recent_years['year'], y=recent_years['pct_oa_gold'],
                                                  mode='lines+markers', name='Gold'))
+                fig_oa_trend.add_trace(go.Scatter(x=recent_years['year'], y=recent_years['pct_oa_diamond'],
+                                                 mode='lines+markers', name='Diamond'))
                 fig_oa_trend.add_trace(go.Scatter(x=recent_years['year'], y=recent_years['pct_oa_green'],
                                                  mode='lines+markers', name='Green'))
                 fig_oa_trend.add_trace(go.Scatter(x=recent_years['year'], y=recent_years['pct_oa_hybrid'],
@@ -450,7 +625,9 @@ elif level == "Revista":
     if has_cached_metrics:
         # Load journal metrics
         journal_annual = load_cached_metrics('journal', 'annual')
+        journal_annual = load_cached_metrics('journal', 'annual')
         journal_period = load_cached_metrics('journal', 'period')
+        journal_period_recent = load_cached_metrics('journal', 'period_2021_2025')
         
         if journal_period is not None:
             journal_period_data = journal_period[journal_period['journal_id'] == journal_data['id']]
@@ -467,13 +644,27 @@ elif level == "Revista":
                 col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
                 col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
                 col5.metric("Percentil Prom.", f"{period_data.get('avg_percentile', 0):.1f}")
+
+                # Recent Period
+                if journal_period_recent is not None:
+                    journal_rec_data = journal_period_recent[journal_period_recent['journal_id'] == journal_data['id']]
+                    if len(journal_rec_data) > 0:
+                        rec_data = journal_rec_data.iloc[0]
+                        st.markdown(f"### Periodo Reciente: 2021-2025")
+                        c1, c2, c3, c4, c5 = st.columns(5)
+                        c1.metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
+                        c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
+                        c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
+                        c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
+                        c5.metric("Percentil Prom.", f"{rec_data.get('avg_percentile', 0):.1f}")
                 
                 # Open Access breakdown
                 st.markdown("#### Distribución de Acceso Abierto")
                 oa_data = {
-                    'Tipo': ['Gold', 'Green', 'Hybrid', 'Bronze', 'Closed'],
+                    'Tipo': ['Gold', 'Diamond', 'Green', 'Hybrid', 'Bronze', 'Closed'],
                     'Porcentaje': [
                         period_data.get('pct_oa_gold', 0),
+                        period_data.get('pct_oa_diamond', 0),
                         period_data.get('pct_oa_green', 0),
                         period_data.get('pct_oa_hybrid', 0),
                         period_data.get('pct_oa_bronze', 0),
@@ -487,6 +678,61 @@ elif level == "Revista":
                                color_discrete_sequence=px.colors.qualitative.Set3)
                 st.plotly_chart(fig_oa, use_container_width=True)
         
+                # --- RADAR RECIENTE (2021-2025) ---
+                if journal_period_recent is not None and not journal_period_recent.empty:
+                    rec_row = journal_period_recent[journal_period_recent['journal_id'] == journal_data['id']]
+                    if not rec_row.empty:
+                        st.markdown("---")
+                        st.subheader("Perfil de Desempeño Reciente (Radar 2021-2025)")
+                        st.info("Nota: Valores normalizados (0-1) respecto al máximo observado en todas las revistas.")
+                        
+                        row_rec = rec_row.iloc[0]
+                        
+                        # Indicators to plot
+                        radar_indicators = ['fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 'pct_oa_diamond']
+                        radar_labels = ['FWCI', 'Percentil', 'Top 10%', 'Top 1%', 'OA Diamante']
+                        
+                        valid_ind = []
+                        valid_lbl = []
+                        max_vals = []
+                        
+                        # Find max values for normalization
+                        for i, col in enumerate(radar_indicators):
+                            if col in journal_period_recent.columns:
+                                valid_ind.append(col)
+                                valid_lbl.append(radar_labels[i])
+                                m = journal_period_recent[col].max()
+                                max_vals.append(m if m > 0 else 1.0)
+                        
+                        if len(valid_ind) >= 3:
+                            # Normalize
+                            values = [row_rec.get(col, 0) / mx for col, mx in zip(valid_ind, max_vals)]
+                            
+                            # Close logic loop
+                            values += [values[0]]
+                            labels_closed = valid_lbl + [valid_lbl[0]]
+                            
+                            fig_radar = go.Figure()
+                            fig_radar.add_trace(go.Scatterpolar(
+                                r=values, 
+                                theta=labels_closed, 
+                                fill='toself',
+                                name='2021-2025',
+                                line_color='red', 
+                                opacity=0.5
+                            ))
+                            
+                            fig_radar.update_layout(
+                                polar=dict(
+                                    radialaxis=dict(visible=True, range=[0, 1.05], showticklabels=False),
+                                ),
+                                showlegend=False, 
+                                title='Perfil de Desempeño Relativo',
+                                height=400,
+                                margin=dict(t=40, b=40, l=40, r=40)
+                            )
+                            st.plotly_chart(fig_radar, use_container_width=True)
+                            
         if journal_annual is not None:
             journal_annual_data = journal_annual[journal_annual['journal_id'] == journal_data['id']]
             
@@ -527,6 +773,8 @@ elif level == "Revista":
                 fig_oa_trend = go.Figure()
                 fig_oa_trend.add_trace(go.Scatter(x=recent_years['year'], y=recent_years['pct_oa_gold'],
                                                  mode='lines+markers', name='Gold'))
+                fig_oa_trend.add_trace(go.Scatter(x=recent_years['year'], y=recent_years['pct_oa_diamond'],
+                                                 mode='lines+markers', name='Diamond'))
                 fig_oa_trend.add_trace(go.Scatter(x=recent_years['year'], y=recent_years['pct_oa_green'],
                                                  mode='lines+markers', name='Green'))
                 fig_oa_trend.add_trace(go.Scatter(x=recent_years['year'], y=recent_years['pct_oa_hybrid'],
@@ -653,4 +901,4 @@ elif level == "Revista":
 
 # Footer
 st.markdown("---")
-st.markdown("Desarrollado con ❤️ para el análisis bibliométrico latinoamericano.")
+st.markdown("Desarrollado por ...")

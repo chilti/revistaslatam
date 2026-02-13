@@ -45,6 +45,7 @@ class MetricsAccumulator:
         self.top_1_count = 0
         self.oa_counts = {
             'gold': 0,
+            'diamond': 0,
             'green': 0,
             'hybrid': 0,
             'bronze': 0,
@@ -92,6 +93,7 @@ class MetricsAccumulator:
                 'pct_top_1': 0.0,
                 'avg_percentile': 0.0,
                 'pct_oa_gold': 0.0,
+                'pct_oa_diamond': 0.0,
                 'pct_oa_green': 0.0,
                 'pct_oa_hybrid': 0.0,
                 'pct_oa_bronze': 0.0,
@@ -105,6 +107,7 @@ class MetricsAccumulator:
             'pct_top_1': round((self.top_1_count / self.count) * 100, 2),
             'avg_percentile': round(self.percentile_sum / self.count, 2),
             'pct_oa_gold': round((self.oa_counts['gold'] / self.count) * 100, 2),
+            'pct_oa_diamond': round((self.oa_counts['diamond'] / self.count) * 100, 2),
             'pct_oa_green': round((self.oa_counts['green'] / self.count) * 100, 2),
             'pct_oa_hybrid': round((self.oa_counts['hybrid'] / self.count) * 100, 2),
             'pct_oa_bronze': round((self.oa_counts['bronze'] / self.count) * 100, 2),

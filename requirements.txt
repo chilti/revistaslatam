@@ -4,3 +4,10 @@ pandas
 plotly
 pyarrow
 numpy
+scipy
+umap-learn
+psycopg2-binary
+metric_learn
+scikit-learn
+openpyxl
+requests
