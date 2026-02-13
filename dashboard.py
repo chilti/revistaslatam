@@ -72,6 +72,15 @@ if df.empty:
 # Check if cached metrics exist
 has_cached_metrics = latam_cache.exists()
 
+def load_and_scale(entity_type, period_key):
+    """Wrapper to load metrics and auto-scale avg_percentile to 0-100."""
+    df = load_cached_metrics(entity_type, period_key)
+    if df is not None and not df.empty and 'avg_percentile' in df.columns:
+        # If max value is <= 1.0 (e.g. 0.45), assume 0-1 scale and multiply by 100
+        if df['avg_percentile'].max() <= 1.05 and df['avg_percentile'].max() > 0:
+            df['avg_percentile'] = df['avg_percentile'] * 100
+    return df
+
 # Filter by Level
 if level == "Region (Latinoamérica)":
     st.header("Panorama Regional")
@@ -87,7 +96,7 @@ if level == "Region (Latinoamérica)":
         st.subheader("Mapa Regional por Indicador")
         
         # Load country metrics for map
-        country_period = load_cached_metrics('country', 'period')
+        country_period = load_and_scale('country', 'period')
         
         if country_period is not None and len(country_period) > 0:
             # Indicator selector
@@ -172,10 +181,10 @@ if level == "Region (Latinoamérica)":
         st.subheader("Indicadores de Desempeño")
         
         # Load cached metrics
-        latam_annual = load_cached_metrics('latam', 'annual')
-        latam_annual = load_cached_metrics('latam', 'annual')
-        latam_period = load_cached_metrics('latam', 'period')
-        latam_period_recent = load_cached_metrics('latam', 'period_2021_2025')
+        latam_annual = load_and_scale('latam', 'annual')
+        latam_annual = load_and_scale('latam', 'annual')
+        latam_period = load_and_scale('latam', 'period')
+        latam_period_recent = load_and_scale('latam', 'period_2021_2025')
         
         if latam_period is not None and len(latam_period) > 0:
             period_data = latam_period.iloc[0]
@@ -188,7 +197,7 @@ if level == "Region (Latinoamérica)":
             col2.metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
             col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
             col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
-            col5.metric("Percentil Prom.", f"{period_data.get('avg_percentile', 0):.1f}")
+            col5.metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
             
             # Recent Period
             if latam_period_recent is not None and len(latam_period_recent) > 0:
@@ -199,7 +208,7 @@ if level == "Region (Latinoamérica)":
                 c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
                 c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
                 c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
-                c5.metric("Percentil Prom.", f"{rec_data.get('avg_percentile', 0):.1f}")
+                c5.metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
             
             # Open Access breakdown
             st.markdown("#### Distribución de Acceso Abierto")
@@ -293,25 +302,27 @@ if level == "Region (Latinoamérica)":
         
         with tab_countries_1:
             st.markdown("**Indicadores por País (Periodo Completo)**")
-            country_period = load_cached_metrics('country', 'period')
+            country_period = load_and_scale('country', 'period')
             if country_period is not None and not country_period.empty:
                 # Sort by num_documents
                 display_df = country_period.sort_values('num_documents', ascending=False)
                 # Filter columns that exist
                 valid_cols = [c for c in cols_display if c in display_df.columns]
-                st.dataframe(display_df[valid_cols], use_container_width=True, hide_index=True)
+                final_df = display_df[valid_cols].rename(columns={'avg_percentile': 'Percentil Prom. Norm.'})
+                st.dataframe(final_df, use_container_width=True, hide_index=True)
             else:
                 st.info("No hay datos de países disponibles.")
                 
         with tab_countries_2:
             st.markdown("**Indicadores por País (2021-2025)**")
-            country_period_recent = load_cached_metrics('country', 'period_2021_2025')
+            country_period_recent = load_and_scale('country', 'period_2021_2025')
             if country_period_recent is not None and not country_period_recent.empty:
                 # Sort by num_documents
                 display_df_recent = country_period_recent.sort_values('num_documents', ascending=False)
                 # Filter columns
                 valid_cols = [c for c in cols_display if c in display_df_recent.columns]
-                st.dataframe(display_df_recent[valid_cols], use_container_width=True, hide_index=True)
+                final_df = display_df_recent[valid_cols].rename(columns={'avg_percentile': 'Percentil Prom. Norm.'})
+                st.dataframe(final_df, use_container_width=True, hide_index=True)
             else:
                 st.info("No hay datos recientes de países disponibles (es necesario ejecutar pre-cálculo v2).")
 
@@ -324,7 +335,7 @@ if level == "Region (Latinoamérica)":
             if country_period is not None and not country_period.empty:
                 # Indicators
                 radar_vars = ['fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 'pct_oa_diamond']
-                radar_labels = ['FWCI', 'Percentil', 'Top 10%', 'Top 1%', 'OA Diamante']
+                radar_labels = ['FWCI', 'Percentil Norm.', 'Top 10%', 'Top 1%', 'OA Diamante']
                 
                 # Normalize Function
                 def normalize_minmax(df, columns):
@@ -422,7 +433,7 @@ elif level == "País":
     top_journals = country_df.sort_values('cited_by_count', ascending=False).head(10)
     
     # Try to enhance with performance metrics
-    journal_period = load_cached_metrics('journal', 'period')
+    journal_period = load_and_scale('journal', 'period')
     
     cols_basic = ['display_name', 'issn_l', 'works_count', 'cited_by_count']
     cols_advanced = [
@@ -449,10 +460,10 @@ elif level == "País":
     
     if has_cached_metrics:
         # Load country metrics
-        country_annual = load_cached_metrics('country', 'annual')
-        country_annual = load_cached_metrics('country', 'annual')
-        country_period = load_cached_metrics('country', 'period')
-        country_period_recent = load_cached_metrics('country', 'period_2021_2025')
+        country_annual = load_and_scale('country', 'annual')
+        country_annual = load_and_scale('country', 'annual')
+        country_period = load_and_scale('country', 'period')
+        country_period_recent = load_and_scale('country', 'period_2021_2025')
         
         if country_period is not None:
             country_data = country_period[country_period['country_code'] == selected_country]
@@ -468,7 +479,7 @@ elif level == "País":
                 col2.metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
                 col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
                 col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
-                col5.metric("Percentil Prom.", f"{period_data.get('avg_percentile', 0):.1f}")
+                col5.metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
 
                 # Recent Period
                 if country_period_recent is not None:
@@ -481,7 +492,7 @@ elif level == "País":
                         c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
                         c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
                         c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
-                        c5.metric("Percentil Prom.", f"{rec_data.get('avg_percentile', 0):.1f}")
+                        c5.metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
                 
                 # --- TRAYECTORIA DE DESEMPEÑO (UMAP PAÍS - MAPA GLOBAL) ---
                 if os.path.exists(MAP_COUNTRIES_FILE):
@@ -683,10 +694,10 @@ elif level == "Revista":
     
     if has_cached_metrics:
         # Load journal metrics
-        journal_annual = load_cached_metrics('journal', 'annual')
-        journal_annual = load_cached_metrics('journal', 'annual')
-        journal_period = load_cached_metrics('journal', 'period')
-        journal_period_recent = load_cached_metrics('journal', 'period_2021_2025')
+        journal_annual = load_and_scale('journal', 'annual')
+        journal_annual = load_and_scale('journal', 'annual')
+        journal_period = load_and_scale('journal', 'period')
+        journal_period_recent = load_and_scale('journal', 'period_2021_2025')
         
         if journal_period is not None:
             journal_period_data = journal_period[journal_period['journal_id'] == journal_data['id']]
@@ -704,7 +715,7 @@ elif level == "Revista":
                 col2.metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
                 col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
                 col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
-                col5.metric("Percentil Prom.", f"{period_data.get('avg_percentile', 0):.1f}")
+                col5.metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
 
                 # Recent Period
                 if journal_period_recent is not None:
@@ -717,7 +728,7 @@ elif level == "Revista":
                         c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
                         c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
                         c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
-                        c5.metric("Percentil Prom.", f"{rec_data.get('avg_percentile', 0):.1f}")
+                        c5.metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
                 
                 # Open Access breakdown
                 st.markdown("#### Distribución de Acceso Abierto")
@@ -751,7 +762,7 @@ elif level == "Revista":
                         
                         # Indicators to plot
                         radar_indicators = ['fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 'pct_oa_diamond']
-                        radar_labels = ['FWCI', 'Percentil', 'Top 10%', 'Top 1%', 'OA Diamante']
+                        radar_labels = ['FWCI', 'Percentil Norm.', 'Top 10%', 'Top 1%', 'OA Diamante']
                         
                         valid_ind = []
                         valid_lbl = []

@@ -66,10 +66,11 @@ def calculate_performance_metrics_from_df(works_df):
     else:
         fwci_avg = 0.0
     
-    # % Top 10% and Top 1%
-    # We prioritize 'citation_normalized_percentile' because 'is_in_top_10_percent' boolean cols are often all False in the dataset.
+    # % Metrics based on Citation Percentiles (Top 10%, Top 1%, Avg)
+    # We prioritize 'citation_normalized_percentile' because 'is_in_top_10_percent' boolean cols are often all False.
     pct_top_10 = 0.0
     pct_top_1 = 0.0
+    avg_percentile = 0.0
 
     if 'citation_normalized_percentile' in works_df.columns:
         # Convert to numeric, handle errors
@@ -77,32 +78,27 @@ def calculate_performance_metrics_from_df(works_df):
         
         # Detect scale (0-1 vs 0-100)
         # If max value > 1.0, assume 0-100 scale. Otherwise 0-1.
-        # Be careful if max is exactly 1.0 (ambiguous but 0-1 is standard for normalized).
-        # However, to be safe, we check if ANY value is > 1.0.
         is_scale_100 = percentiles.max() > 1.0
         
+        # Thresholds
         thresh_10 = 90.0 if is_scale_100 else 0.90
         thresh_1 = 99.0 if is_scale_100 else 0.99
         
         pct_top_10 = ((percentiles >= thresh_10).sum() / num_documents) * 100
         pct_top_1 = ((percentiles >= thresh_1).sum() / num_documents) * 100
         
+        # Average Percentile (Force 0-100 scale for consistency)
+        avg_val = percentiles.mean()
+        avg_percentile = avg_val if is_scale_100 else (avg_val * 100)
+        
     elif 'is_in_top_10_percent' in works_df.columns:
+        # Fallback to boolean columns
         top_10_values = works_df['is_in_top_10_percent'].fillna(False).astype(bool)
         pct_top_10 = (top_10_values.sum() / num_documents) * 100
         
         if 'is_in_top_1_percent' in works_df.columns:
             top_1_values = works_df['is_in_top_1_percent'].fillna(False).astype(bool)
             pct_top_1 = (top_1_values.sum() / num_documents) * 100
-
-    
-    # Average Percentile - convert to numeric, fillna(0), then calculate mean
-    # This matches MetricsAccumulator logic: sum(fillna(0)) / count
-    if 'citation_normalized_percentile' in works_df.columns:
-        percentile_values = pd.to_numeric(works_df['citation_normalized_percentile'], errors='coerce').fillna(0)
-        avg_percentile = percentile_values.sum() / num_documents
-    else:
-        avg_percentile = 0.0
     
     # OA percentages by type
     if 'oa_status' in works_df.columns:
