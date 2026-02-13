@@ -552,7 +552,7 @@ def main():
         journal_period_list = []
         journal_period_recent_list = []
         
-        for annual, period, period_recent in results:
+        for _, annual, period, period_recent in results:
             if annual is not None and len(annual) > 0:
                 journal_annual_list.append(annual)
             if period is not None:
