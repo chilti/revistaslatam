@@ -1,0 +1,35 @@
+Inspecting columns of latin_american_works.parquet:
+['id', 'doi', 'title', 'display_name', 'publication_year', 'publication_date', 'type', 'cited_by_count', 'is_retracted', 'is_paratext', 'cited_by_api_url', 'abstract_inverted_index', 'language', 'fwci', 'citation_normalized_percentile', 'journal_id', 'journal_name', 'is_in_top_10_percent', 'is_in_top_1_percent', 'work_id', 'authorships', 'work_id_concepts', 'concepts', 'work_id_oa', 'is_oa', 'oa_status', 'oa_url', 'download_date']
+
+'is_in_top_10_percent' Value Counts:
+is_in_top_10_percent
+False    420532
+Name: count, dtype: int64
+'is_in_top_1_percent' Value Counts:
+is_in_top_1_percent
+False    420532
+Name: count, dtype: int64
+
+'citation_normalized_percentile' Head:
+0    0.414762
+1    0.414762
+2    0.414762
+3    0.295037
+4    0.772309
+5    0.163240
+6    0.103675
+7    0.133373
+8    0.198593
+9    0.483779
+Name: citation_normalized_percentile, dtype: float64
+Type: float64
+Stats:
+count    367046.000000
+mean          0.447771
+std           0.294948
+min           0.000000
+25%           0.167020
+50%           0.437423
+75%           0.718804
+max           1.000000
+Name: citation_normalized_percentile, dtype: float64
