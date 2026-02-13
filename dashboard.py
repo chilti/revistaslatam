@@ -695,6 +695,8 @@ elif level == "Revista":
                 st.markdown("---")
                 st.subheader("Indicadores de Desempeño")
                 
+                # Full Period
+                st.markdown("### Periodo Completo")
                 period_data = journal_period_data.iloc[0]
                 
                 col1, col2, col3, col4, col5 = st.columns(5)
