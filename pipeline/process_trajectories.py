@@ -106,6 +106,8 @@ def load_and_prep_data():
     if j_meta_path.exists():
         journals_meta = pd.read_parquet(j_meta_path)[['id', 'display_name']]
         df_j = df_j.merge(journals_meta, left_on='journal_id', right_on='id', how='left')
+        if 'id' in df_j.columns:
+            df_j = df_j.drop(columns=['id'])
         df_j['type'] = 'journal'
         df_j = df_j.rename(columns={'journal_id': 'id', 'display_name': 'name'})
     else:
