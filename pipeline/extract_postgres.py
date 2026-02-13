@@ -461,7 +461,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='Fetch OpenAlex data from PostgreSQL')
-    parser.add_argument('--journals-only', action='store_true', help='Only fetch journals, not works')
+    parser.add_argument('--journals-only'cd data, action='store_true', help='Only fetch journals, not works')
     parser.add_argument('--works-only', action='store_true', help='Only fetch works, not journals')
     
     args = parser.parse_args()

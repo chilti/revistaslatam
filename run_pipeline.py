@@ -62,15 +62,21 @@ if __name__ == "__main__":
     # PASO 1.5: Consolidación de archivos Parquet
     # Une los archivos parciales generados por extract_postgres.py en un solo archivo maestro
     # (Si consolidated_files.py no existe, esto fallará pero no es crítico si extract_postgres hizo su trabajo)
-    if os.path.exists("pipeline/consolidate_files.py"):
+    # PASO 1.5: Consolidación de archivos Parquet
+    # Priorizar versión streaming (bajo consumo RAM) si existe
+    consolidation_script = "pipeline/consolidate_files_stream.py"
+    if not os.path.exists(consolidation_script):
+        consolidation_script = "pipeline/consolidate_files.py"
+
+    if os.path.exists(consolidation_script):
         step15_success = run_step(
-            "pipeline/consolidate_files.py", 
-            "Consolidación de Archivos Parquet (Unir partes -> Works Completo)"
+            consolidation_script, 
+            f"Consolidación de Archivos Parquet ({consolidation_script})"
         )
         if not step15_success:
             print("⚠️ Advertencia: La consolidación falló. El cálculo de métricas podría usar datos incompletos.")
     else:
-        print("ℹ️ Paso 1.5 omitido: consolidate_files.py no encontrado.")
+        print("ℹ️ Paso 1.5 omitido: Script de consolidación no encontrado.")
 
     # PASO 2: Enriquecimiento con API (Topics para Sunburst)
     print("\n" + "="*70)
