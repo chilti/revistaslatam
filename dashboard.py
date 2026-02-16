@@ -53,6 +53,10 @@ if latam_cache.exists():
 else:
     st.sidebar.warning("⚠️ Sin caché de métricas")
 
+# Snapshot info
+st.sidebar.caption("📅 Datos base: OpenAlex Snapshot 2025-10-27")
+st.sidebar.caption("ℹ️ Métricas como `2yr_mean_citedness` reflejan el estado en esa fecha")
+
 # --- Main Content ---
 st.title("Sistema de Información Bibliométrica")
 
