@@ -84,88 +84,145 @@ try:
     conn = psycopg2.connect(**DB_CONFIG)
     cursor = conn.cursor()
     
-    # Contar total en PostgreSQL
-    query_count = """
-        SELECT COUNT(*) 
-        FROM openalex.works 
-        WHERE primary_location->>'source' = %s
-    """
-    cursor.execute(query_count, (JOURNAL_ID,))
-    count_postgres = cursor.fetchone()[0]
-    print(f"Trabajos en PostgreSQL: {count_postgres}")
+    # Primero, verificar qué columnas tiene la tabla works
+    print("Verificando esquema de openalex.works...")
+    cursor.execute("""
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_schema = 'openalex' 
+        AND table_name = 'works'
+        AND column_name LIKE '%location%' OR column_name LIKE '%source%' OR column_name = 'journal_id'
+        ORDER BY ordinal_position;
+    """)
     
-    # Distribución por año en PostgreSQL
-    query_years = """
-        SELECT publication_year, COUNT(*) as count
-        FROM openalex.works 
-        WHERE primary_location->>'source' = %s
-        GROUP BY publication_year
-        ORDER BY publication_year
-    """
-    cursor.execute(query_years, (JOURNAL_ID,))
-    years_pg = cursor.fetchall()
+    columns = cursor.fetchall()
+    print(f"Columnas relacionadas con journal/source:")
+    for col_name, col_type in columns:
+        print(f"  - {col_name} ({col_type})")
     
-    print(f"\nDistribución por año en PostgreSQL (primeros 10):")
-    for year, count in years_pg[:10]:
-        print(f"  {year}: {count}")
-    print(f"  ...")
-    for year, count in years_pg[-5:]:
-        print(f"  {year}: {count}")
+    # Intentar diferentes formas de filtrar por journal
+    count_postgres = None
     
-    # Comparar con parquet
-    print(f"\n4️⃣ COMPARACIÓN POSTGRESQL vs PARQUET")
-    print("-"*70)
-    
-    if count_parquet > 0:
-        years_parquet = works_in_parquet['publication_year'].value_counts().to_dict()
-        
-        missing_by_year = {}
-        for year, count_pg in years_pg:
-            count_pq = years_parquet.get(year, 0)
-            diff = count_pg - count_pq
-            if diff > 0:
-                missing_by_year[year] = diff
-        
-        if missing_by_year:
-            print(f"Años con trabajos faltantes:")
-            for year in sorted(missing_by_year.keys()):
-                diff = missing_by_year[year]
-                print(f"  {year}: {diff} trabajos faltantes")
-            
-            print(f"\nTotal faltante: {sum(missing_by_year.values())} trabajos")
-        else:
-            print(f"✅ No hay discrepancias por año")
-    
-    # Buscar IDs de trabajos faltantes (primeros 10)
-    print(f"\n5️⃣ MUESTRA DE TRABAJOS FALTANTES")
-    print("-"*70)
-    
-    if count_parquet > 0:
-        # Obtener IDs en parquet
-        ids_parquet = set(works_in_parquet['id'].tolist())
-        
-        # Obtener IDs en PostgreSQL (limitado a 1000 para no saturar)
-        query_ids = """
-            SELECT id, publication_year, display_name
+    # Opción 1: journal_id directo
+    try:
+        query_count = """
+            SELECT COUNT(*) 
             FROM openalex.works 
-            WHERE primary_location->>'source' = %s
-            LIMIT 2000
+            WHERE journal_id = %s
         """
-        cursor.execute(query_ids, (JOURNAL_ID,))
-        works_pg = cursor.fetchall()
+        cursor.execute(query_count, (JOURNAL_ID,))
+        count_postgres = cursor.fetchone()[0]
+        print(f"\n✅ Usando journal_id: {count_postgres} trabajos")
+        filter_column = 'journal_id'
+    except Exception as e1:
+        print(f"⚠️ journal_id no funciona: {e1}")
         
-        missing_works = []
-        for work_id, year, title in works_pg:
-            if work_id not in ids_parquet:
-                missing_works.append((work_id, year, title))
+        # Opción 2: host_venue_id
+        try:
+            query_count = """
+                SELECT COUNT(*) 
+                FROM openalex.works 
+                WHERE host_venue_id = %s
+            """
+            cursor.execute(query_count, (JOURNAL_ID,))
+            count_postgres = cursor.fetchone()[0]
+            print(f"\n✅ Usando host_venue_id: {count_postgres} trabajos")
+            filter_column = 'host_venue_id'
+        except Exception as e2:
+            print(f"⚠️ host_venue_id no funciona: {e2}")
+            
+            # Opción 3: Listar todas las columnas para diagnóstico
+            print("\n⚠️ No se pudo determinar la columna correcta")
+            print("Listando TODAS las columnas de openalex.works:")
+            cursor.execute("""
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_schema = 'openalex' 
+                AND table_name = 'works'
+                ORDER BY ordinal_position
+                LIMIT 30;
+            """)
+            all_cols = cursor.fetchall()
+            for col_name, col_type in all_cols:
+                print(f"  - {col_name} ({col_type})")
+            
+            filter_column = None
+    
+    if count_postgres and filter_column:
+        # Distribución por año en PostgreSQL
+        query_years = f"""
+            SELECT publication_year, COUNT(*) as count
+            FROM openalex.works 
+            WHERE {filter_column} = %s
+            GROUP BY publication_year
+            ORDER BY publication_year
+        """
+        cursor.execute(query_years, (JOURNAL_ID,))
+        years_pg = cursor.fetchall()
         
-        if missing_works:
-            print(f"Primeros 10 trabajos faltantes:")
-            for work_id, year, title in missing_works[:10]:
-                print(f"  {year} | {work_id}")
-                print(f"       {title[:80]}...")
-        else:
-            print(f"✅ Todos los trabajos de la muestra están en el parquet")
+        print(f"\nDistribución por año en PostgreSQL (primeros 10):")
+        for year, count in years_pg[:10]:
+            print(f"  {year}: {count}")
+        print(f"  ...")
+        for year, count in years_pg[-5:]:
+            print(f"  {year}: {count}")
+        
+        # Comparar con parquet
+        print(f"\n4️⃣ COMPARACIÓN POSTGRESQL vs PARQUET")
+        print("-"*70)
+        
+        if count_parquet > 0:
+            years_parquet = works_in_parquet['publication_year'].value_counts().to_dict()
+            
+            missing_by_year = {}
+            for year, count_pg in years_pg:
+                count_pq = years_parquet.get(year, 0)
+                diff = count_pg - count_pq
+                if diff > 0:
+                    missing_by_year[year] = diff
+            
+            if missing_by_year:
+                print(f"Años con trabajos faltantes:")
+                for year in sorted(missing_by_year.keys()):
+                    diff = missing_by_year[year]
+                    print(f"  {year}: {diff} trabajos faltantes")
+                
+                print(f"\nTotal faltante: {sum(missing_by_year.values())} trabajos")
+            else:
+                print(f"✅ No hay discrepancias por año")
+        
+        # Buscar IDs de trabajos faltantes (primeros 10)
+        print(f"\n5️⃣ MUESTRA DE TRABAJOS FALTANTES")
+        print("-"*70)
+        
+        if count_parquet > 0:
+            # Obtener IDs en parquet
+            ids_parquet = set(works_in_parquet['id'].tolist())
+            
+            # Obtener IDs en PostgreSQL (limitado a 2000 para no saturar)
+            query_ids = f"""
+                SELECT id, publication_year, display_name
+                FROM openalex.works 
+                WHERE {filter_column} = %s
+                LIMIT 2000
+            """
+            cursor.execute(query_ids, (JOURNAL_ID,))
+            works_pg = cursor.fetchall()
+            
+            missing_works = []
+            for work_id, year, title in works_pg:
+                if work_id not in ids_parquet:
+                    missing_works.append((work_id, year, title))
+            
+            if missing_works:
+                print(f"Primeros 10 trabajos faltantes:")
+                for work_id, year, title in missing_works[:10]:
+                    print(f"  {year} | {work_id}")
+                    print(f"       {title[:80] if title else 'Sin título'}...")
+            else:
+                print(f"✅ Todos los trabajos de la muestra están en el parquet")
+    else:
+        print("\n⚠️ No se pudo verificar PostgreSQL (columna de filtro no encontrada)")
     
     conn.close()
     
