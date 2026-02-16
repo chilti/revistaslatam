@@ -30,7 +30,7 @@ print("\n1️⃣ UMAP for Countries")
 print("-"*70)
 
 # Load country metrics for recent period (2021-2025)
-country_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet
+country_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet'
 
 if not country_file.exists():
     print(f"⚠️ {country_file} not found. Skipping country UMAP.")
