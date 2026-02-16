@@ -462,7 +462,7 @@ if level == "Region (Latinoamérica)":
         # UMAP Visualization for Countries
         st.markdown("---")
         st.subheader("Mapa de Similitud entre Países (UMAP)")
-        st.caption("Visualización 2D basada en: Documentos, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio (2021-2025)")
+        st.caption("Visualización 2D basada en: Revistas, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio (2021-2025)")
         
         umap_countries_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_countries_recent.parquet')
         
@@ -479,7 +479,7 @@ if level == "Region (Latinoamérica)":
                         text='country_code',
                         hover_data={
                             'country_code': True,
-                            'num_documents': ':,',
+                            'num_journals': ':,',
                             'fwci_avg': ':.2f',
                             'avg_percentile': ':.1f',
                             'pct_top_10': ':.1f',
@@ -511,6 +511,25 @@ if level == "Region (Latinoamérica)":
                     st.plotly_chart(fig_umap, use_container_width=True)
                     
                     st.info("💡 Los países cercanos en el mapa tienen perfiles bibliométricos similares. La distancia refleja diferencias en producción, impacto y acceso abierto.")
+                    
+                    with st.expander("📊 Ver tabla de datos UMAP (Países)"):
+                        # Select and rename columns for display
+                        cols_to_show = {
+                            'country_code': 'País',
+                            'num_journals': 'Revistas',
+                            'pct_oa_diamond': '% OA Diamante',
+                            'fwci_avg': 'FWCI Promedio',
+                            'pct_top_10': '% Top 10%',
+                            'pct_top_1': '% Top 1%',
+                            'avg_percentile': 'Percentil Promedio'
+                        }
+                        # Filter only existing columns
+                        available_cols = [c for c in cols_to_show.keys() if c in df_umap_countries.columns]
+                        st.dataframe(
+                            df_umap_countries[available_cols].rename(columns=cols_to_show),
+                            use_container_width=True,
+                            hide_index=True
+                        )
                 else:
                     st.warning("⚠️ Archivo UMAP encontrado pero sin coordenadas. Ejecuta el pipeline completo.")
             except Exception as e:
@@ -891,6 +910,25 @@ elif level == "País":
                             st.plotly_chart(fig_umap_j, use_container_width=True)
                             
                             st.info("💡 Las revistas cercanas en el mapa tienen perfiles bibliométricos similares. La distancia refleja diferencias en producción, impacto y acceso abierto.")
+                            
+                            with st.expander("📊 Ver tabla de datos UMAP (Revistas)"):
+                                # Select and rename columns for display
+                                cols_to_show_j = {
+                                    'display_name': 'Revista',
+                                    'num_documents': 'Documentos',
+                                    'pct_oa_diamond': '% OA Diamante',
+                                    'fwci_avg': 'FWCI Promedio',
+                                    'pct_top_10': '% Top 10%',
+                                    'pct_top_1': '% Top 1%',
+                                    'avg_percentile': 'Percentil Promedio'
+                                }
+                                # Filter only existing columns
+                                available_cols_j = [c for c in cols_to_show_j.keys() if c in df_country_journals.columns]
+                                st.dataframe(
+                                    df_country_journals[available_cols_j].rename(columns=cols_to_show_j),
+                                    use_container_width=True,
+                                    hide_index=True
+                                )
                         elif len(df_country_journals) < 3:
                             st.warning(f"⚠️ {selected_country} tiene menos de 3 revistas con datos. Se necesitan al menos 3 para UMAP.")
                         else:
