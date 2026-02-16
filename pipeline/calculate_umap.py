@@ -155,9 +155,9 @@ else:
         for country in countries:
             country_journals = df_journal[df_journal['country_code'] == country].copy()
             
-            # Need at least 3 journals for UMAP
-            if len(country_journals) < 3:
-                print(f"  {country}: Only {len(country_journals)} journals, skipping")
+            # Need at least 5 journals for stable UMAP
+            if len(country_journals) < 5:
+                print(f"  {country}: Only {len(country_journals)} journals, skipping (need at least 5)")
                 continue
             
             # Prepare data
@@ -169,18 +169,21 @@ else:
             X_filtered = X[mask]
             journals_filtered = country_journals[mask].copy()
             
-            if len(journals_filtered) < 3:
-                print(f"  {country}: Only {len(journals_filtered)} journals with data, skipping")
+            if len(journals_filtered) < 5:
+                print(f"  {country}: Only {len(journals_filtered)} journals with data, skipping (need at least 5)")
                 continue
             
             # Standardize features
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X_filtered)
             
-            # Calculate UMAP
+            # Calculate UMAP with appropriate n_neighbors
+            # n_neighbors must be >= 2 and < n_samples
+            n_neighbors = min(15, max(2, len(journals_filtered) - 1))
+            
             umap_model = UMAP(
                 n_components=2,
-                n_neighbors=min(15, len(journals_filtered) - 1),
+                n_neighbors=n_neighbors,
                 min_dist=0.1,
                 metric='euclidean',
                 random_state=42
