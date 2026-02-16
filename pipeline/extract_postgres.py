@@ -62,7 +62,11 @@ def fetch_latin_american_journals():
             updated_date,
             country_code,
             is_scopus,
-            summary_stats
+            summary_stats,
+            oa_works_count,
+            is_in_scielo,
+            is_ojs,
+            is_core
         FROM openalex.sources
         ORDER BY works_count DESC;
         """
@@ -89,7 +93,11 @@ def fetch_latin_american_journals():
                 works_api_url,
                 updated_date,
                 'UNKNOWN' as country_code,
-                False as is_scopus
+                False as is_scopus,
+                0 as oa_works_count,
+                False as is_in_scielo,
+                False as is_ojs,
+                False as is_core
             FROM openalex.sources
             ORDER BY works_count DESC;
             """

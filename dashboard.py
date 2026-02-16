@@ -44,6 +44,7 @@ traj_smooth_file = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_data_smo
 traj_smooth_w5_file = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_data_smoothed_w5.parquet')
 MAP_COUNTRIES_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_countries_coords.parquet')
 MAP_JOURNALS_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_journals_coords.parquet')
+TOPICS_FILE = os.path.join(BASE_PATH, 'data', 'journals_topics_sunburst.parquet')
 if latam_cache.exists():
     import datetime
     mtime = os.path.getmtime(latam_cache)
@@ -175,6 +176,7 @@ if level == "Region (Latinoamérica)":
             top_countries.columns = ['País', selected_indicator, 'Revistas', 'Artículos']
             st.dataframe(top_countries, use_container_width=True, hide_index=True)
     
+
 
     if has_cached_metrics:
         st.markdown("---")
@@ -681,17 +683,68 @@ elif level == "Revista":
     # Get Journal Data
     journal_data = df[df['display_name'] == selected_journal_name].iloc[0]
     
-    # Header Info
+    # Header Info with OpenAlex Link
     st.subheader(journal_data['display_name'])
-    st.caption(f"ISSN: {journal_data['issn_l']} | URL: {journal_data['homepage_url']}")
+    openalex_url = journal_data['id']
+    st.caption(f"ISSN: {journal_data['issn_l']} | [Ver en OpenAlex]({openalex_url}) | Homepage: {journal_data.get('homepage_url', 'N/A')}")
     
-    # Metrics
+    # Metrics - Primera Fila: Producción y Citación
+    st.markdown("#### 📊 Producción y Citación")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Documentos", journal_data['works_count'])
-    m2.metric("Total Citas", journal_data['cited_by_count'])
-    m3.metric("Impacto (2yr)", f"{journal_data['2yr_mean_citedness']:.2f}")
-    m4.metric("Índice H", journal_data['h_index'])
+    m1.metric("Total Documentos (OpenAlex)", f"{journal_data['works_count']:,}")
+    m2.metric("Total Citas", f"{journal_data['cited_by_count']:,}")
+    m3.metric("Impacto (2yr)", f"{journal_data.get('2yr_mean_citedness', 0):.3f}")
+    m4.metric("Índice H", journal_data.get('h_index', 0))
     
+    # Metrics - Segunda Fila: Índices y Acceso Abierto
+    st.markdown("#### 📈 Índices y Acceso Abierto")
+    m5, m6, m7, m8 = st.columns(4)
+    m5.metric("Índice i10", journal_data.get('i10_index', 0))
+    m6.metric("Trabajos OA", f"{journal_data.get('oa_works_count', 0):,}")
+    m7.metric("Es OA", "✅ Sí" if journal_data.get('is_oa', False) else "❌ No")
+    m8.metric("En DOAJ", "✅ Sí" if journal_data.get('is_in_doaj', False) else "❌ No")
+    
+    # Metrics - Tercera Fila: Indexación
+    st.markdown("#### 🔍 Indexación")
+    m9, m10, m11, m12 = st.columns(4)
+    m9.metric("En SciELO", "✅ Sí" if journal_data.get('is_in_scielo', False) else "❌ No")
+    m10.metric("Usa OJS", "✅ Sí" if journal_data.get('is_ojs', False) else "❌ No")
+    m11.metric("En CORE", "✅ Sí" if journal_data.get('is_core', False) else "❌ No")
+    m12.metric("En Scopus", "✅ Sí" if journal_data.get('is_scopus', False) else "❌ No")
+    
+    # --- Sunburst de Temáticas (Journal Level) ---
+    if os.path.exists(TOPICS_FILE):
+        try:
+            # Carga optimizada filtrando por journal_id
+            jid = journal_data['id']
+            try:
+                topics_j = pd.read_parquet(TOPICS_FILE, filters=[('journal_id', '==', jid)])
+            except:
+                # Fallback si falla el filtro (versiones antiguas pandas/pyarrow)
+                topics_full = pd.read_parquet(TOPICS_FILE)
+                topics_j = topics_full[topics_full['journal_id'] == jid]
+            
+            if not topics_j.empty:
+                st.markdown("---")
+                st.subheader("Temáticas de Investigación (Sunburst)")
+                
+                # Filtrar tópicos con 0 relevancia
+                topics_j = topics_j[topics_j['count'] > 0]
+                
+                if not topics_j.empty:
+                    fig_sun = px.sunburst(
+                        topics_j,
+                        path=['domain', 'field', 'topic_name'],
+                        values='count',
+                        color='domain',
+                        color_discrete_sequence=px.colors.qualitative.Prism
+                    )
+                    fig_sun.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
+                    st.plotly_chart(fig_sun, use_container_width=True)
+                    st.caption("Jerarquía: Dominio -> Campo -> Tópico. Tamaño basado en volumen de documentos.")
+        except Exception as e:
+            st.warning(f"No se pudieron cargar los temas: {e}")
+
     if has_cached_metrics:
         # Load journal metrics
         journal_annual = load_and_scale('journal', 'annual')
