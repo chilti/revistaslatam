@@ -45,7 +45,7 @@ else:
         'fwci_avg',           # FWCI Promedio
         'pct_top_10',         # % Top 10%
         'pct_top_1',          # % Top 1%
-        'percentile_avg'      # Percentil Promedio
+        'avg_percentile'      # Percentil Promedio (corregido)
     ]
     
     # Check which features exist
@@ -132,7 +132,7 @@ else:
         'fwci_avg',           # FWCI Promedio
         'pct_top_10',         # % Top 10%
         'pct_top_1',          # % Top 1%
-        'percentile_avg'      # Percentil Promedio
+        'avg_percentile'      # Percentil Promedio (corregido)
     ]
     
     # Check which features exist
