@@ -110,6 +110,15 @@ if __name__ == "__main__":
         print("🛑 Deteniendo el pipeline debido a error en el cálculo de métricas.")
         sys.exit(1)
 
+    # PASO 3.5: Cálculo de UMAP para países y revistas
+    step35_success = run_step(
+        "pipeline/calculate_umap.py", 
+        "Cálculo de Embeddings UMAP (Países y Revistas)"
+    )
+    
+    if not step35_success:
+        print("⚠️ Advertencia: Falló el cálculo de UMAP. Las visualizaciones UMAP no estarán disponibles.")
+
     # PASO 4: Cálculo de Trayectorias y Suavizado (UMAP)
     step4_success = run_step(
         "pipeline/process_trajectories.py", 

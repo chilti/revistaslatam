@@ -109,13 +109,14 @@ if level == "Region (Latinoamérica)":
                 'Número de Revistas': 'num_journals',
                 'Artículos': 'num_documents',
                 'FWCI Promedio': 'fwci_avg',
+                '% Top 10%': 'pct_top_10',
+                '% Top 1%': 'pct_top_1',
                 '% Acceso Abierto': 'pct_oa_total',
                 '% Cerrado': 'pct_oa_closed',
                 '% Gold': 'pct_oa_gold',
                 '% Green': 'pct_oa_green',
                 '% Hybrid': 'pct_oa_hybrid',
-                '% Bronze': 'pct_oa_bronze',
-                '% Top 10%': 'pct_top_10'
+                '% Bronze': 'pct_oa_bronze'
             }
             
             selected_indicator = st.selectbox(
@@ -136,49 +137,89 @@ if level == "Region (Latinoamérica)":
             # Get the column name for the selected indicator
             indicator_col = indicator_options[selected_indicator]
             
-            # Create choropleth map
-            fig_map = px.choropleth(
-                country_period,
-                locations='country_code',
-                locationmode='ISO-3',
-                color=indicator_col,
-                hover_name='country_code',
-                hover_data={
-                    'country_code': True,
-                    indicator_col: ':.2f',
-                    'num_journals': ':,',
-                    'num_documents': ':,'
-                },
-                color_continuous_scale='Viridis',
-                labels={indicator_col: selected_indicator},
-                title=f'{selected_indicator} por País'
-            )
+            # Validar que la columna existe y tiene datos
+            if indicator_col not in country_period.columns:
+                st.warning(f"⚠️ La columna '{indicator_col}' no existe en los datos.")
+                st.write("Columnas disponibles:", list(country_period.columns))
+            elif country_period[indicator_col].isna().all():
+                st.warning(f"⚠️ No hay datos para '{selected_indicator}'")
+            else:
+                # Filtrar solo países con datos válidos
+                map_data = country_period[country_period[indicator_col].notna()].copy()
+                
+                if len(map_data) == 0:
+                    st.warning(f"⚠️ No hay países con datos válidos para '{selected_indicator}'")
+                else:
+                    # Detectar formato de código de país y convertir si es necesario
+                    sample_code = str(map_data['country_code'].iloc[0])
+                    
+                    if len(sample_code) == 2:
+                        # Códigos ISO-2 (MX, BR, AR) - necesitan conversión a ISO-3
+                        # Mapeo manual de los principales países latinoamericanos
+                        iso2_to_iso3 = {
+                            'AR': 'ARG', 'BO': 'BOL', 'BR': 'BRA', 'CL': 'CHL', 'CO': 'COL',
+                            'CR': 'CRI', 'CU': 'CUB', 'DO': 'DOM', 'EC': 'ECU', 'SV': 'SLV',
+                            'GT': 'GTM', 'HN': 'HND', 'MX': 'MEX', 'NI': 'NIC', 'PA': 'PAN',
+                            'PY': 'PRY', 'PE': 'PER', 'UY': 'URY', 'VE': 'VEN', 'PR': 'PRI'
+                        }
+                        map_data['country_code_iso3'] = map_data['country_code'].map(iso2_to_iso3)
+                        location_col = 'country_code_iso3'
+                    else:
+                        # Ya son ISO-3
+                        location_col = 'country_code'
+                    
+                    # Create choropleth map
+                    fig_map = px.choropleth(
+                        map_data,
+                        locations=location_col,
+                        locationmode='ISO-3',
+                        color=indicator_col,
+                        hover_name='country_code',
+                        hover_data={
+                            location_col: False,  # No mostrar el código ISO-3
+                            'country_code': True,
+                            indicator_col: ':.2f',
+                            'num_journals': ':,',
+                            'num_documents': ':,'
+                        },
+                        color_continuous_scale='Viridis',
+                        labels={
+                            indicator_col: selected_indicator,
+                            'country_code': 'País',
+                            'num_journals': 'Revistas',
+                            'num_documents': 'Artículos'
+                        },
+                        title=f'{selected_indicator} por País'
+                    )
             
-            # Focus on Latin America
-            fig_map.update_geos(
-                scope='south america',
-                showcountries=True,
-                countrycolor="lightgray",
-                showcoastlines=True,
-                coastlinecolor="gray",
-                projection_type='natural earth',
-                center=dict(lat=-10, lon=-60),
-                lataxis_range=[-60, 35],
-                lonaxis_range=[-120, -30]
-            )
-            
-            fig_map.update_layout(
-                height=600,
-                margin=dict(l=0, r=0, t=40, b=0)
-            )
-            
-            st.plotly_chart(fig_map, use_container_width=True)
-            
-            # Show top 5 countries for selected indicator
-            st.markdown(f"**Top 5 Países - {selected_indicator}**")
-            top_countries = country_period.nlargest(5, indicator_col)[['country_code', indicator_col, 'num_journals', 'num_documents']]
-            top_countries.columns = ['País', selected_indicator, 'Revistas', 'Artículos']
-            st.dataframe(top_countries, use_container_width=True, hide_index=True)
+                    # Configurar el mapa para mostrar toda Latinoamérica
+                    # No usar scope para evitar restricciones, en su lugar usar geo settings
+                    fig_map.update_geos(
+                        showcountries=True,
+                        countrycolor="lightgray",
+                        showcoastlines=True,
+                        coastlinecolor="gray",
+                        showland=True,
+                        landcolor="white",
+                        showocean=True,
+                        oceancolor="lightblue",
+                        projection_type='natural earth',
+                        # Centrar en Latinoamérica completa (México a Argentina)
+                        center=dict(lat=-5, lon=-70),
+                        # Ajustar el rango para mostrar desde México hasta el sur de Argentina
+                        lataxis_range=[-60, 35],
+                        lonaxis_range=[-120, -30]
+                    )
+                    
+                    fig_map.update_layout(
+                        height=600,
+                        margin=dict(l=0, r=0, t=40, b=0),
+                        geo=dict(
+                            bgcolor='rgba(0,0,0,0)',
+                        )
+                    )
+                    
+                    st.plotly_chart(fig_map, use_container_width=True)
     
 
 
@@ -417,6 +458,248 @@ if level == "Region (Latinoamérica)":
                         st.plotly_chart(fig, use_container_width=True)
                 
                 st.caption("🔵 Azul: Periodo Completo | 🔴 Rojo: Periodo Reciente (2021-2025)")
+        
+        # UMAP Visualization for Countries
+        st.markdown("---")
+        st.subheader("Mapa de Similitud entre Países (UMAP)")
+        st.caption("Visualización 2D basada en: Documentos, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio (2021-2025)")
+        
+        umap_countries_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_countries_recent.parquet')
+        
+        if os.path.exists(umap_countries_file):
+            try:
+                df_umap_countries = pd.read_parquet(umap_countries_file)
+                
+                if 'umap_x' in df_umap_countries.columns and 'umap_y' in df_umap_countries.columns:
+                    # Create scatter plot
+                    fig_umap = px.scatter(
+                        df_umap_countries,
+                        x='umap_x',
+                        y='umap_y',
+                        text='country_code',
+                        hover_data={
+                            'country_code': True,
+                            'num_documents': ':,',
+                            'fwci_avg': ':.2f',
+                            'pct_top_10': ':.1f',
+                            'pct_top_1': ':.1f',
+                            'umap_x': False,
+                            'umap_y': False
+                        },
+                        labels={
+                            'umap_x': 'UMAP Dimensión 1',
+                            'umap_y': 'UMAP Dimensión 2',
+                            'country_code': 'País'
+                        },
+                        title='Países Latinoamericanos - Espacio de Similitud'
+                    )
+                    
+                    fig_umap.update_traces(
+                        textposition='top center',
+                        marker=dict(size=12, line=dict(width=1, color='white'))
+                    )
+                    
+                    fig_umap.update_layout(
+                        height=500,
+                        showlegend=False,
+                        xaxis=dict(showgrid=True, zeroline=True),
+                        yaxis=dict(showgrid=True, zeroline=True)
+                    )
+                    
+                    st.plotly_chart(fig_umap, use_container_width=True)
+                    
+                    st.info("💡 Los países cercanos en el mapa tienen perfiles bibliométricos similares. La distancia refleja diferencias en producción, impacto y acceso abierto.")
+                else:
+                    st.warning("⚠️ Archivo UMAP encontrado pero sin coordenadas. Ejecuta el pipeline completo.")
+            except Exception as e:
+                st.error(f"❌ Error cargando visualización UMAP: {e}")
+        else:
+            st.info("💡 Ejecuta el pipeline completo (`python run_pipeline.py`) para generar la visualización UMAP.")
+        
+        # Dynamic Scatter Plot for All Journals
+        st.markdown("---")
+        st.subheader("Explorador de Revistas - Scatter Plot Dinámico")
+        st.caption("Visualiza la relación entre diferentes indicadores bibliométricos para todas las revistas latinoamericanas")
+        
+        # Period selector
+        period_option = st.radio(
+            "Selecciona el período:",
+            options=["Período Reciente (2021-2025)", "Período Completo"],
+            index=0,  # Default: Recent period
+            horizontal=True
+        )
+        
+        # Load appropriate data based on period selection
+        if period_option == "Período Reciente (2021-2025)":
+            journal_data = load_and_scale('journal', 'period_2021_2025')
+            period_label = "2021-2025"
+        else:
+            journal_data = load_and_scale('journal', 'period')
+            period_label = "Período Completo"
+        
+        if journal_data is not None and len(journal_data) > 0:
+            # Merge with journal metadata to get names and countries
+            journals_meta = df[['id', 'display_name', 'country_code']].copy()
+            scatter_data = journal_data.merge(
+                journals_meta,
+                left_on='journal_id',
+                right_on='id',
+                how='left'
+            )
+            
+            # Map country codes to full names
+            country_names = {
+                'AR': 'Argentina',
+                'BO': 'Bolivia',
+                'BR': 'Brasil',
+                'CL': 'Chile',
+                'CO': 'Colombia',
+                'CR': 'Costa Rica',
+                'CU': 'Cuba',
+                'DO': 'República Dominicana',
+                'EC': 'Ecuador',
+                'SV': 'El Salvador',
+                'GT': 'Guatemala',
+                'HN': 'Honduras',
+                'MX': 'México',
+                'NI': 'Nicaragua',
+                'PA': 'Panamá',
+                'PY': 'Paraguay',
+                'PE': 'Perú',
+                'PR': 'Puerto Rico',
+                'UY': 'Uruguay',
+                'VE': 'Venezuela',
+                'ES': 'España',
+                'PT': 'Portugal'
+            }
+            
+            # Add country name column
+            scatter_data['country_name'] = scatter_data['country_code'].map(country_names).fillna(scatter_data['country_code'])
+            
+            # Define available indicators
+            indicator_options = {
+                'Documentos': 'num_documents',
+                'FWCI Promedio': 'fwci_avg',
+                '% Top 10%': 'pct_top_10',
+                '% Top 1%': 'pct_top_1',
+                'Percentil Promedio': 'avg_percentile',
+                '% OA Total': 'pct_oa_total',
+                '% OA Gold': 'pct_oa_gold',
+                '% OA Diamond': 'pct_oa_diamond',
+                '% OA Green': 'pct_oa_green',
+                '% OA Hybrid': 'pct_oa_hybrid',
+                '% OA Bronze': 'pct_oa_bronze',
+                '% Cerrado': 'pct_oa_closed'
+            }
+            
+            # Filter to only available columns
+            available_indicators = {
+                k: v for k, v in indicator_options.items() 
+                if v in scatter_data.columns
+            }
+            
+            if len(available_indicators) >= 2:
+                # Axis selectors in columns
+                col_x, col_y = st.columns(2)
+                
+                with col_x:
+                    x_indicator = st.selectbox(
+                        "Indicador Eje X:",
+                        options=list(available_indicators.keys()),
+                        index=0  # Default: Documentos
+                    )
+                
+                with col_y:
+                    y_indicator = st.selectbox(
+                        "Indicador Eje Y:",
+                        options=list(available_indicators.keys()),
+                        index=1  # Default: FWCI Promedio
+                    )
+                
+                x_col = available_indicators[x_indicator]
+                y_col = available_indicators[y_indicator]
+                
+                # Filter out rows with missing data for selected indicators
+                plot_data = scatter_data[
+                    scatter_data[x_col].notna() & 
+                    scatter_data[y_col].notna()
+                ].copy()
+                
+                if len(plot_data) > 0:
+                    # Create scatter plot
+                    fig_scatter = px.scatter(
+                        plot_data,
+                        x=x_col,
+                        y=y_col,
+                        color='country_name',
+                        hover_data={
+                            'display_name': True,
+                            'country_name': True,
+                            'country_code': False,
+                            x_col: ':.2f',
+                            y_col: ':.2f',
+                            'num_documents': ':,' if 'num_documents' in plot_data.columns else False
+                        },
+                        labels={
+                            x_col: x_indicator,
+                            y_col: y_indicator,
+                            'country_name': 'País',
+                            'display_name': 'Revista'
+                        },
+                        title=f'{y_indicator} vs {x_indicator} ({period_label})',
+                        opacity=0.7
+                    )
+                    
+                    fig_scatter.update_traces(
+                        marker=dict(size=8, line=dict(width=0.5, color='white'))
+                    )
+                    
+                    fig_scatter.update_layout(
+                        height=600,
+                        xaxis=dict(showgrid=True, zeroline=True),
+                        yaxis=dict(showgrid=True, zeroline=True),
+                        legend=dict(
+                            title="País",
+                            orientation="v",
+                            yanchor="top",
+                            y=1,
+                            xanchor="left",
+                            x=1.02
+                        )
+                    )
+                    
+                    st.plotly_chart(fig_scatter, use_container_width=True)
+                    
+                    # Summary statistics
+                    with st.expander("📊 Ver estadísticas descriptivas"):
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown(f"**{x_indicator}**")
+                            st.write(f"Media: {plot_data[x_col].mean():.2f}")
+                            st.write(f"Mediana: {plot_data[x_col].median():.2f}")
+                            st.write(f"Desv. Est.: {plot_data[x_col].std():.2f}")
+                            st.write(f"Min: {plot_data[x_col].min():.2f}")
+                            st.write(f"Max: {plot_data[x_col].max():.2f}")
+                        
+                        with col2:
+                            st.markdown(f"**{y_indicator}**")
+                            st.write(f"Media: {plot_data[y_col].mean():.2f}")
+                            st.write(f"Mediana: {plot_data[y_col].median():.2f}")
+                            st.write(f"Desv. Est.: {plot_data[y_col].std():.2f}")
+                            st.write(f"Min: {plot_data[y_col].min():.2f}")
+                            st.write(f"Max: {plot_data[y_col].max():.2f}")
+                        
+                        # Correlation
+                        correlation = plot_data[x_col].corr(plot_data[y_col])
+                        st.markdown(f"**Correlación de Pearson:** {correlation:.3f}")
+                else:
+                    st.warning("⚠️ No hay datos disponibles para los indicadores seleccionados.")
+            else:
+                st.warning("⚠️ No hay suficientes indicadores disponibles para el scatter plot.")
+        else:
+            st.info(f"💡 No hay datos disponibles para {period_label}. Ejecuta el pipeline completo.")
+    
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
@@ -548,6 +831,225 @@ elif level == "País":
                             st.plotly_chart(fig_traj, use_container_width=True)
                     except Exception as e:
                         st.error(f"Error visualizando trayectoria: {e}")
+                
+                # UMAP Visualization for Journals in this Country
+                st.markdown("---")
+                st.subheader("Mapa de Similitud entre Revistas (UMAP)")
+                st.caption("Visualización 2D basada en: Documentos, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio (2021-2025)")
+                
+                umap_journals_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_journals_recent.parquet')
+                
+                if os.path.exists(umap_journals_file):
+                    try:
+                        df_umap_journals = pd.read_parquet(umap_journals_file)
+                        
+                        # Filter for selected country
+                        df_country_journals = df_umap_journals[df_umap_journals['country_code'] == selected_country]
+                        
+                        if len(df_country_journals) >= 3 and 'umap_x' in df_country_journals.columns:
+                            # Create scatter plot
+                            fig_umap_j = px.scatter(
+                                df_country_journals,
+                                x='umap_x',
+                                y='umap_y',
+                                text='display_name',
+                                hover_data={
+                                    'display_name': True,
+                                    'num_documents': ':,',
+                                    'fwci_avg': ':.2f',
+                                    'pct_top_10': ':.1f',
+                                    'pct_top_1': ':.1f',
+                                    'pct_oa_diamond': ':.1f',
+                                    'umap_x': False,
+                                    'umap_y': False
+                                },
+                                labels={
+                                    'umap_x': 'UMAP Dimensión 1',
+                                    'umap_y': 'UMAP Dimensión 2',
+                                    'display_name': 'Revista',
+                                    'pct_oa_diamond': '% OA Diamante'
+                                },
+                                title=f'Revistas de {selected_country} - Espacio de Similitud'
+                            )
+                            
+                            fig_umap_j.update_traces(
+                                textposition='top center',
+                                textfont=dict(size=8),
+                                marker=dict(size=10, line=dict(width=1, color='white'))
+                            )
+                            
+                            fig_umap_j.update_layout(
+                                height=500,
+                                showlegend=False,
+                                xaxis=dict(showgrid=True, zeroline=True),
+                                yaxis=dict(showgrid=True, zeroline=True)
+                            )
+                            
+                            st.plotly_chart(fig_umap_j, use_container_width=True)
+                            
+                            st.info("💡 Las revistas cercanas en el mapa tienen perfiles bibliométricos similares. La distancia refleja diferencias en producción, impacto y acceso abierto.")
+                        elif len(df_country_journals) < 3:
+                            st.warning(f"⚠️ {selected_country} tiene menos de 3 revistas con datos. Se necesitan al menos 3 para UMAP.")
+                        else:
+                            st.warning("⚠️ Archivo UMAP encontrado pero sin coordenadas para este país.")
+                    except Exception as e:
+                        st.error(f"❌ Error cargando visualización UMAP: {e}")
+                else:
+                    st.info("💡 Ejecuta el pipeline completo (`python run_pipeline.py`) para generar la visualización UMAP.")
+                
+                # Dynamic Scatter Plot for Journals in this Country
+                st.markdown("---")
+                st.subheader("Explorador de Revistas - Scatter Plot Dinámico")
+                st.caption(f"Visualiza la relación entre diferentes indicadores bibliométricos para las revistas de {selected_country}")
+                
+                # Period selector
+                period_option_country = st.radio(
+                    "Selecciona el período:",
+                    options=["Período Reciente (2021-2025)", "Período Completo"],
+                    index=0,  # Default: Recent period
+                    horizontal=True,
+                    key="country_period_selector"  # Unique key to avoid conflicts
+                )
+                
+                # Load appropriate data based on period selection
+                if period_option_country == "Período Reciente (2021-2025)":
+                    journal_data_country = load_and_scale('journal', 'period_2021_2025')
+                    period_label_country = "2021-2025"
+                else:
+                    journal_data_country = load_and_scale('journal', 'period')
+                    period_label_country = "Período Completo"
+                
+                if journal_data_country is not None and len(journal_data_country) > 0:
+                    # Merge with journal metadata
+                    journals_meta_country = df[['id', 'display_name', 'country_code']].copy()
+                    scatter_data_country = journal_data_country.merge(
+                        journals_meta_country,
+                        left_on='journal_id',
+                        right_on='id',
+                        how='left'
+                    )
+                    
+                    # Filter for selected country
+                    scatter_data_country = scatter_data_country[
+                        scatter_data_country['country_code'] == selected_country
+                    ].copy()
+                    
+                    if len(scatter_data_country) >= 3:
+                        # Define available indicators
+                        indicator_options_country = {
+                            'Documentos': 'num_documents',
+                            'FWCI Promedio': 'fwci_avg',
+                            '% Top 10%': 'pct_top_10',
+                            '% Top 1%': 'pct_top_1',
+                            'Percentil Promedio': 'avg_percentile',
+                            '% OA Total': 'pct_oa_total',
+                            '% OA Gold': 'pct_oa_gold',
+                            '% OA Diamond': 'pct_oa_diamond',
+                            '% OA Green': 'pct_oa_green',
+                            '% OA Hybrid': 'pct_oa_hybrid',
+                            '% OA Bronze': 'pct_oa_bronze',
+                            '% Cerrado': 'pct_oa_closed'
+                        }
+                        
+                        # Filter to only available columns
+                        available_indicators_country = {
+                            k: v for k, v in indicator_options_country.items() 
+                            if v in scatter_data_country.columns
+                        }
+                        
+                        if len(available_indicators_country) >= 2:
+                            # Axis selectors in columns
+                            col_x_c, col_y_c = st.columns(2)
+                            
+                            with col_x_c:
+                                x_indicator_c = st.selectbox(
+                                    "Indicador Eje X:",
+                                    options=list(available_indicators_country.keys()),
+                                    index=0,  # Default: Documentos
+                                    key="country_x_indicator"
+                                )
+                            
+                            with col_y_c:
+                                y_indicator_c = st.selectbox(
+                                    "Indicador Eje Y:",
+                                    options=list(available_indicators_country.keys()),
+                                    index=1,  # Default: FWCI Promedio
+                                    key="country_y_indicator"
+                                )
+                            
+                            x_col_c = available_indicators_country[x_indicator_c]
+                            y_col_c = available_indicators_country[y_indicator_c]
+                            
+                            # Filter out rows with missing data
+                            plot_data_country = scatter_data_country[
+                                scatter_data_country[x_col_c].notna() & 
+                                scatter_data_country[y_col_c].notna()
+                            ].copy()
+                            
+                            if len(plot_data_country) > 0:
+                                # Create scatter plot
+                                fig_scatter_c = px.scatter(
+                                    plot_data_country,
+                                    x=x_col_c,
+                                    y=y_col_c,
+                                    hover_data={
+                                        'display_name': True,
+                                        x_col_c: ':.2f',
+                                        y_col_c: ':.2f',
+                                        'num_documents': ':,' if 'num_documents' in plot_data_country.columns else False
+                                    },
+                                    labels={
+                                        x_col_c: x_indicator_c,
+                                        y_col_c: y_indicator_c,
+                                        'display_name': 'Revista'
+                                    },
+                                    title=f'{y_indicator_c} vs {x_indicator_c} - {selected_country} ({period_label_country})'
+                                )
+                                
+                                fig_scatter_c.update_traces(
+                                    marker=dict(size=10, line=dict(width=0.5, color='white'), color='#1f77b4')
+                                )
+                                
+                                fig_scatter_c.update_layout(
+                                    height=600,
+                                    xaxis=dict(showgrid=True, zeroline=True),
+                                    yaxis=dict(showgrid=True, zeroline=True),
+                                    showlegend=False
+                                )
+                                
+                                st.plotly_chart(fig_scatter_c, use_container_width=True)
+                                
+                                # Summary statistics
+                                with st.expander("📊 Ver estadísticas descriptivas"):
+                                    col1_c, col2_c = st.columns(2)
+                                    
+                                    with col1_c:
+                                        st.markdown(f"**{x_indicator_c}**")
+                                        st.write(f"Media: {plot_data_country[x_col_c].mean():.2f}")
+                                        st.write(f"Mediana: {plot_data_country[x_col_c].median():.2f}")
+                                        st.write(f"Desv. Est.: {plot_data_country[x_col_c].std():.2f}")
+                                        st.write(f"Min: {plot_data_country[x_col_c].min():.2f}")
+                                        st.write(f"Max: {plot_data_country[x_col_c].max():.2f}")
+                                    
+                                    with col2_c:
+                                        st.markdown(f"**{y_indicator_c}**")
+                                        st.write(f"Media: {plot_data_country[y_col_c].mean():.2f}")
+                                        st.write(f"Mediana: {plot_data_country[y_col_c].median():.2f}")
+                                        st.write(f"Desv. Est.: {plot_data_country[y_col_c].std():.2f}")
+                                        st.write(f"Min: {plot_data_country[y_col_c].min():.2f}")
+                                        st.write(f"Max: {plot_data_country[y_col_c].max():.2f}")
+                                    
+                                    # Correlation
+                                    correlation_c = plot_data_country[x_col_c].corr(plot_data_country[y_col_c])
+                                    st.markdown(f"**Correlación de Pearson:** {correlation_c:.3f}")
+                            else:
+                                st.warning("⚠️ No hay datos disponibles para los indicadores seleccionados.")
+                        else:
+                            st.warning("⚠️ No hay suficientes indicadores disponibles para el scatter plot.")
+                    else:
+                        st.info(f"💡 {selected_country} tiene menos de 3 revistas con datos para el período seleccionado.")
+                else:
+                    st.info(f"💡 No hay datos disponibles para {period_label_country}. Ejecuta el pipeline completo.")
 
                 # Data Tables Expander
                 with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
@@ -1031,6 +1533,173 @@ elif level == "Revista":
             
     else:
         st.info("ℹ️ Para ver el Análisis de Trayectorias, por favor ejecuta el pipeline completo.")
+    
+    # --- SCATTER PLOT DE ARTÍCULOS ---
+    st.markdown("---")
+    st.subheader("Explorador de Artículos - Scatter Plot Dinámico")
+    st.caption(f"Visualiza la relación entre diferentes indicadores bibliométricos para los artículos de {journal_data['display_name']}")
+    
+    # Checkbox to control loading
+    show_works_scatter = st.checkbox(
+        "📊 Cargar y mostrar explorador de artículos",
+        value=False,
+        help="Activa esta opción para cargar los datos de artículos y visualizar el scatter plot. Puede tardar unos segundos."
+    )
+    
+    if show_works_scatter:
+        # Load works data
+        works_file = os.path.join(BASE_PATH, 'data', 'latin_american_works.parquet')
+        
+        if os.path.exists(works_file):
+            try:
+                with st.spinner("Cargando datos de artículos..."):
+                    # Load works for this journal only
+                    works_df = pd.read_parquet(
+                        works_file,
+                        filters=[('journal_id', '=', journal_data['id'])]
+                    )
+                
+                if len(works_df) > 0:
+                    st.success(f"✅ Cargados {len(works_df):,} artículos")
+                    
+                    # Define available indicators for works
+                    works_indicator_options = {
+                        'FWCI': 'fwci',
+                        'Percentil': 'percentile',
+                        'Citas': 'cited_by_count',
+                        'Top 1%': 'is_top_1',
+                        'Top 10%': 'is_top_10'
+                    }
+                    
+                    # Filter to only available columns
+                    available_works_indicators = {
+                        k: v for k, v in works_indicator_options.items() 
+                        if v in works_df.columns
+                    }
+                    
+                    if len(available_works_indicators) >= 2:
+                        # Axis selectors in columns
+                        col_x_w, col_y_w = st.columns(2)
+                        
+                        with col_x_w:
+                            x_indicator_w = st.selectbox(
+                                "Indicador Eje X:",
+                                options=list(available_works_indicators.keys()),
+                                index=0,  # Default: FWCI
+                                key="works_x_indicator"
+                            )
+                        
+                        with col_y_w:
+                            y_indicator_w = st.selectbox(
+                                "Indicador Eje Y:",
+                                options=list(available_works_indicators.keys()),
+                                index=2 if len(available_works_indicators) > 2 else 1,  # Default: Citas
+                                key="works_y_indicator"
+                            )
+                        
+                        x_col_w = available_works_indicators[x_indicator_w]
+                        y_col_w = available_works_indicators[y_indicator_w]
+                        
+                        # Filter out rows with missing data
+                        plot_data_works = works_df[
+                            works_df[x_col_w].notna() & 
+                            works_df[y_col_w].notna()
+                        ].copy()
+                        
+                        if len(plot_data_works) > 0:
+                            # Limit to reasonable number for performance
+                            if len(plot_data_works) > 1000:
+                                st.info(f"ℹ️ Mostrando una muestra de 1000 artículos de {len(plot_data_works):,} totales para mejor rendimiento.")
+                                plot_data_works = plot_data_works.sample(n=1000, random_state=42)
+                            
+                            # Prepare hover data
+                            hover_cols = {
+                                'title': True,
+                                x_col_w: ':.2f' if x_col_w not in ['is_top_1', 'is_top_10'] else True,
+                                y_col_w: ':.2f' if y_col_w not in ['is_top_1', 'is_top_10'] else True,
+                            }
+                            
+                            # Add publication year if available
+                            if 'publication_year' in plot_data_works.columns:
+                                hover_cols['publication_year'] = True
+                            
+                            # Create scatter plot
+                            fig_scatter_w = px.scatter(
+                                plot_data_works,
+                                x=x_col_w,
+                                y=y_col_w,
+                                hover_data=hover_cols,
+                                labels={
+                                    x_col_w: x_indicator_w,
+                                    y_col_w: y_indicator_w,
+                                    'title': 'Título',
+                                    'publication_year': 'Año'
+                                },
+                                title=f'{y_indicator_w} vs {x_indicator_w} - Artículos de {journal_data["display_name"]}',
+                                opacity=0.6
+                            )
+                            
+                            fig_scatter_w.update_traces(
+                                marker=dict(size=8, line=dict(width=0.3, color='white'), color='#2ca02c')
+                            )
+                            
+                            fig_scatter_w.update_layout(
+                                height=600,
+                                xaxis=dict(showgrid=True, zeroline=True),
+                                yaxis=dict(showgrid=True, zeroline=True),
+                                showlegend=False
+                            )
+                            
+                            st.plotly_chart(fig_scatter_w, use_container_width=True)
+                            
+                            # Summary statistics
+                            with st.expander("📊 Ver estadísticas descriptivas"):
+                                col1_w, col2_w = st.columns(2)
+                                
+                                with col1_w:
+                                    st.markdown(f"**{x_indicator_w}**")
+                                    if x_col_w not in ['is_top_1', 'is_top_10']:
+                                        st.write(f"Media: {plot_data_works[x_col_w].mean():.2f}")
+                                        st.write(f"Mediana: {plot_data_works[x_col_w].median():.2f}")
+                                        st.write(f"Desv. Est.: {plot_data_works[x_col_w].std():.2f}")
+                                        st.write(f"Min: {plot_data_works[x_col_w].min():.2f}")
+                                        st.write(f"Max: {plot_data_works[x_col_w].max():.2f}")
+                                    else:
+                                        # Boolean indicator
+                                        count_true = plot_data_works[x_col_w].sum()
+                                        pct_true = (count_true / len(plot_data_works)) * 100
+                                        st.write(f"Artículos: {int(count_true):,} ({pct_true:.1f}%)")
+                                
+                                with col2_w:
+                                    st.markdown(f"**{y_indicator_w}**")
+                                    if y_col_w not in ['is_top_1', 'is_top_10']:
+                                        st.write(f"Media: {plot_data_works[y_col_w].mean():.2f}")
+                                        st.write(f"Mediana: {plot_data_works[y_col_w].median():.2f}")
+                                        st.write(f"Desv. Est.: {plot_data_works[y_col_w].std():.2f}")
+                                        st.write(f"Min: {plot_data_works[y_col_w].min():.2f}")
+                                        st.write(f"Max: {plot_data_works[y_col_w].max():.2f}")
+                                    else:
+                                        # Boolean indicator
+                                        count_true = plot_data_works[y_col_w].sum()
+                                        pct_true = (count_true / len(plot_data_works)) * 100
+                                        st.write(f"Artículos: {int(count_true):,} ({pct_true:.1f}%)")
+                                
+                                # Correlation (only for numeric indicators)
+                                if x_col_w not in ['is_top_1', 'is_top_10'] and y_col_w not in ['is_top_1', 'is_top_10']:
+                                    correlation_w = plot_data_works[x_col_w].corr(plot_data_works[y_col_w])
+                                    st.markdown(f"**Correlación de Pearson:** {correlation_w:.3f}**")
+                        else:
+                            st.warning("⚠️ No hay datos disponibles para los indicadores seleccionados.")
+                    else:
+                        st.warning("⚠️ No hay suficientes indicadores disponibles en los datos de artículos.")
+                else:
+                    st.info(f"💡 No se encontraron artículos para esta revista en el archivo de datos.")
+            except Exception as e:
+                st.error(f"❌ Error cargando datos de artículos: {e}")
+        else:
+            st.info("💡 Archivo de artículos no encontrado. Ejecuta el pipeline de extracción.")
+
+
 
 # Footer
 st.markdown("---")
