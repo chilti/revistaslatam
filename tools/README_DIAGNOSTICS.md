@@ -13,7 +13,7 @@ python tools/search_in_snapshot.py
 ```
 
 **Qué hace**:
-- Busca en los archivos `.gz` del snapshot
+- Busca recursivamente en todas las particiones (`updated_date=YYYY-MM-DD`)
 - Muestra TODOS los campos disponibles en el registro original
 - Permite verificar si campos como `is_in_scielo`, `is_ojs`, etc. existen en el snapshot
 - Útil para confirmar que los datos originales son correctos
@@ -23,6 +23,8 @@ Edita la variable `SNAPSHOT_BASE` en el script para apuntar a tu snapshot:
 ```python
 SNAPSHOT_BASE = Path('/mnt/expansion/openalex-snapshot/data')
 ```
+
+**Nota**: El snapshot de OpenAlex está particionado en carpetas con nombres como `updated_date=2025-09-16`. El script busca automáticamente en todas las particiones.
 
 ---
 

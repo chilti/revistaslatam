@@ -20,6 +20,7 @@ TARGET_ISSN = "0186-7210"  # ISSN-L conocido de esta revista
 def search_in_snapshot():
     """
     Busca la revista en los archivos .gz del snapshot.
+    El snapshot está particionado en carpetas updated_date=YYYY-MM-DD
     """
     print("="*70)
     print("BÚSQUEDA EN SNAPSHOT DE OPENALEX")
@@ -35,14 +36,27 @@ def search_in_snapshot():
         print("  - ~/openalex-snapshot/data/sources")
         return
     
-    # Listar archivos .gz
-    gz_files = list(SOURCES_DIR.glob('*.gz'))
+    # Buscar archivos .gz recursivamente en todas las particiones
+    print("\nBuscando archivos .gz en particiones...")
+    gz_files = list(SOURCES_DIR.rglob('*.gz'))  # Búsqueda recursiva
     
     if not gz_files:
         print(f"\n❌ No se encontraron archivos .gz en {SOURCES_DIR}")
+        print("\nVerificando estructura de directorios...")
+        
+        # Listar subdirectorios para ayudar al diagnóstico
+        subdirs = [d for d in SOURCES_DIR.iterdir() if d.is_dir()]
+        if subdirs:
+            print(f"Encontradas {len(subdirs)} carpetas:")
+            for subdir in sorted(subdirs)[:5]:
+                print(f"  - {subdir.name}")
+                # Contar .gz en cada carpeta
+                gz_in_subdir = len(list(subdir.glob('*.gz')))
+                if gz_in_subdir > 0:
+                    print(f"    ({gz_in_subdir} archivos .gz)")
         return
     
-    print(f"\nEncontrados {len(gz_files)} archivos .gz para procesar...")
+    print(f"Encontrados {len(gz_files)} archivos .gz en total")
     print(f"Buscando: '{TARGET_JOURNAL_NAME}' o ISSN-L '{TARGET_ISSN}'")
     print("-"*70)
     
@@ -70,7 +84,7 @@ def search_in_snapshot():
                             issn_l == TARGET_ISSN):
                             
                             found = True
-                            print(f"\n\n✅ ¡ENCONTRADO en {gz_file.name} (línea {line_num})!")
+                            print(f"\n\n✅ ¡ENCONTRADO en {gz_file.relative_to(SOURCES_DIR)} (línea {line_num})!")
                             print("="*70)
                             
                             # Extraer campos relevantes

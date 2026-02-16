@@ -17,6 +17,7 @@ DEFAULT_SNAPSHOT_BASE = Path('/mnt/expansion/openalex-snapshot/data')
 def search_journal(search_term, search_type='name', snapshot_dir=None):
     """
     Busca una revista en el snapshot.
+    El snapshot está particionado en carpetas updated_date=YYYY-MM-DD
     
     Args:
         search_term: Término de búsqueda (nombre, ISSN, o ID)
@@ -40,13 +41,25 @@ def search_journal(search_term, search_type='name', snapshot_dir=None):
         print("\nIntenta especificar la ruta con --snapshot-dir")
         return None
     
-    gz_files = list(sources_dir.glob('*.gz'))
+    # Búsqueda recursiva en todas las particiones
+    print("Buscando archivos .gz en particiones...")
+    gz_files = list(sources_dir.rglob('*.gz'))
     
     if not gz_files:
         print(f"❌ No hay archivos .gz en {sources_dir}")
+        
+        # Diagnóstico: mostrar estructura
+        subdirs = [d for d in sources_dir.iterdir() if d.is_dir()]
+        if subdirs:
+            print(f"\nEncontradas {len(subdirs)} carpetas de partición:")
+            for subdir in sorted(subdirs)[:5]:
+                gz_count = len(list(subdir.glob('*.gz')))
+                print(f"  - {subdir.name} ({gz_count} archivos .gz)")
+        
         return None
     
-    print(f"Procesando {len(gz_files)} archivos...")
+    print(f"Encontrados {len(gz_files)} archivos .gz en total")
+    print(f"Procesando...")
     
     search_term_lower = search_term.lower()
     files_processed = 0
@@ -85,7 +98,7 @@ def search_journal(search_term, search_type='name', snapshot_dir=None):
                                    openalex_id.endswith(search_term))
                         
                         if match:
-                            print(f"\n\n✅ ENCONTRADO en {gz_file.name} (línea {line_num})")
+                            print(f"\n\n✅ ENCONTRADO en {gz_file.relative_to(sources_dir)} (línea {line_num})")
                             print_journal_details(record)
                             return record
                     
