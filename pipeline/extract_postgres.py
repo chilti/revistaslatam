@@ -112,29 +112,62 @@ def fetch_latin_american_journals():
         if 'summary_stats' in df.columns:
             print("Extrayendo métricas de summary_stats (h-index, i10, impacto)...")
             
-            def extract_metric(row, metric, default=0):
-                stats = row.get('summary_stats')
-                if not isinstance(stats, dict) and pd.notna(stats):
-                    # Intentar parsear si es string
-                    try: stats = json.loads(stats)
-                    except: pass
+            def extract_metric(stats, metric, default=0):
+                """Extrae una métrica del JSON summary_stats"""
+                # Si es None o NaN, retornar default
+                if pd.isna(stats):
+                    return default
                 
+                # Si es string, parsear a dict
+                if isinstance(stats, str):
+                    try:
+                        stats = json.loads(stats)
+                    except:
+                        return default
+                
+                # Si es dict, extraer el valor
                 if isinstance(stats, dict):
                     val = stats.get(metric, default)
                     return val if val is not None else default
+                
                 return default
 
-            df['h_index'] = df.apply(lambda row: extract_metric(row, 'h_index', 0), axis=1)
-            df['i10_index'] = df.apply(lambda row: extract_metric(row, 'i10_index', 0), axis=1)
-            df['2yr_mean_citedness'] = df.apply(lambda row: extract_metric(row, '2yr_mean_citedness', 0.0), axis=1)
+            # Aplicar extracción a cada métrica
+            df['h_index'] = df['summary_stats'].apply(lambda x: extract_metric(x, 'h_index', 0))
+            df['i10_index'] = df['summary_stats'].apply(lambda x: extract_metric(x, 'i10_index', 0))
+            df['2yr_mean_citedness'] = df['summary_stats'].apply(lambda x: extract_metric(x, '2yr_mean_citedness', 0.0))
             
             # Limpiar columna raw para ahorrar espacio
             df = df.drop(columns=['summary_stats'])
+            
+            print(f"  ✅ Extraídos: h_index, i10_index, 2yr_mean_citedness")
         else:
             print("Warning: summary_stats column not found. Metrics will be 0.")
             df['h_index'] = 0
             df['i10_index'] = 0 
             df['2yr_mean_citedness'] = 0.0
+        
+        # Añadir campos que no existen en PostgreSQL pero sí en el snapshot
+        # Estos campos se añadirán con valores por defecto
+        if 'oa_works_count' not in df.columns:
+            print("⚠️ Campo 'oa_works_count' no existe en PostgreSQL. Usando works_count como aproximación.")
+            # Aproximación: si is_oa=True, entonces oa_works_count ≈ works_count
+            df['oa_works_count'] = df.apply(
+                lambda row: row['works_count'] if row.get('is_oa', False) else 0, 
+                axis=1
+            )
+        
+        if 'is_in_scielo' not in df.columns:
+            print("⚠️ Campo 'is_in_scielo' no existe en PostgreSQL. Usando False por defecto.")
+            df['is_in_scielo'] = False
+        
+        if 'is_ojs' not in df.columns:
+            print("⚠️ Campo 'is_ojs' no existe en PostgreSQL. Usando False por defecto.")
+            df['is_ojs'] = False
+        
+        if 'is_core' not in df.columns:
+            print("⚠️ Campo 'is_core' no existe en PostgreSQL. Usando False por defecto.")
+            df['is_core'] = False
 
         print(f"Found {len(df)} Latin American journals.")
         
