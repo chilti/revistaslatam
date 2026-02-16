@@ -108,7 +108,7 @@ print("\n2️⃣ UMAP for Journals by Country")
 print("-"*70)
 
 # Load journal metrics for recent period (2021-2025)
-journal_file = CACHE_DIR / 'metrics_journal_period_2021_2025.parquet
+journal_file = CACHE_DIR / 'metrics_journal_period_2021_2025.parquet'
 
 if not journal_file.exists():
     print(f"⚠️ {journal_file} not found. Skipping journal UMAP.")
