@@ -102,6 +102,7 @@ try:
     
     # Intentar diferentes formas de filtrar por journal
     count_postgres = None
+    filter_column = None
     
     # Opción 1: journal_id directo
     try:
@@ -115,6 +116,7 @@ try:
         print(f"\n✅ Usando journal_id: {count_postgres} trabajos")
         filter_column = 'journal_id'
     except Exception as e1:
+        conn.rollback()  # Importante: resetear transacción
         print(f"⚠️ journal_id no funciona: {e1}")
         
         # Opción 2: host_venue_id
@@ -129,22 +131,29 @@ try:
             print(f"\n✅ Usando host_venue_id: {count_postgres} trabajos")
             filter_column = 'host_venue_id'
         except Exception as e2:
+            conn.rollback()  # Importante: resetear transacción
             print(f"⚠️ host_venue_id no funciona: {e2}")
             
-            # Opción 3: Listar todas las columnas para diagnóstico
-            print("\n⚠️ No se pudo determinar la columna correcta")
-            print("Listando TODAS las columnas de openalex.works:")
-            cursor.execute("""
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_schema = 'openalex' 
-                AND table_name = 'works'
-                ORDER BY ordinal_position
-                LIMIT 30;
-            """)
-            all_cols = cursor.fetchall()
-            for col_name, col_type in all_cols:
-                print(f"  - {col_name} ({col_type})")
+            # Opción 3: Buscar en el parquet cómo se descargaron
+            print(f"\n⚠️ No se encontró columna estándar. Verificando cómo se descargaron los datos...")
+            
+            # Ver qué columnas tiene realmente la tabla works
+            try:
+                cursor.execute("""
+                    SELECT column_name, data_type 
+                    FROM information_schema.columns 
+                    WHERE table_schema = 'openalex' 
+                    AND table_name = 'works'
+                    ORDER BY ordinal_position
+                    LIMIT 50;
+                """)
+                all_cols = cursor.fetchall()
+                print("Columnas de openalex.works:")
+                for col_name, col_type in all_cols:
+                    print(f"  - {col_name} ({col_type})")
+            except:
+                conn.rollback()
+                pass
             
             filter_column = None
     
