@@ -463,6 +463,15 @@ def update_data_from_postgres(update_journals=True, update_works=True):
                     print(f"\n  → Saving batch {batch_count} to {batch_filename}...")
                     try:
                         batch_df = pd.concat(all_works, ignore_index=True)
+                        
+                        # Rename columns to match dashboard expectations
+                        column_mapping = {
+                            'citation_normalized_percentile': 'percentile',
+                            'is_in_top_1_percent': 'is_top_1',
+                            'is_in_top_10_percent': 'is_top_10'
+                        }
+                        batch_df = batch_df.rename(columns=column_mapping)
+                        
                         batch_df.to_parquet(batch_path, index=False)
                         print(f"  ✓ Saved {len(batch_df)} works")
                         all_works = [] # Clear memory
@@ -479,6 +488,15 @@ def update_data_from_postgres(update_journals=True, update_works=True):
                 batch_path = PARTS_DIR / batch_filename
                 
                 batch_df = pd.concat(all_works, ignore_index=True)
+                
+                # Rename columns to match dashboard expectations
+                column_mapping = {
+                    'citation_normalized_percentile': 'percentile',
+                    'is_in_top_1_percent': 'is_top_1',
+                    'is_in_top_10_percent': 'is_top_10'
+                }
+                batch_df = batch_df.rename(columns=column_mapping)
+                
                 batch_df.to_parquet(batch_path, index=False)
                 print(f"✓ Saved {len(batch_df)} works")
             
