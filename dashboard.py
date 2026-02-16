@@ -27,7 +27,7 @@ st.sidebar.markdown("---")
 # Navigation
 level = st.sidebar.radio(
     "Nivel de Análisis",
-    ["Region (Latinoamérica)", "País", "Revista"]
+    ["Region (Latinoamérica)", "País", "Revista", "Acerca de..."]
 )
 
 st.sidebar.markdown("---")
@@ -58,7 +58,8 @@ st.sidebar.caption("📅 Datos base: OpenAlex Snapshot 2025-10-27")
 st.sidebar.caption("ℹ️ Métricas como `2yr_mean_citedness` reflejan el estado en esa fecha")
 
 # --- Main Content ---
-st.title("Sistema de Información Bibliométrica")
+st.title("Revistas Científicas de Latinoamérica")
+st.caption("OpenAlex Snapshot 2025-10-27")
 
 # Load Data
 @st.cache_data
@@ -721,6 +722,86 @@ if level == "Region (Latinoamérica)":
         else:
             st.info(f"💡 No hay datos disponibles para {period_label}. Ejecuta el pipeline completo.")
     
+        # --- TRAYECTORIAS GLOBALES (NUEVO) ---
+        if os.path.exists(MAP_COUNTRIES_FILE):
+            st.markdown("---")
+            st.subheader("Trayectorias de Desempeño Latam (Global)")
+            st.caption("Evolución comparativa de todos los países y Latinoamérica (2000-2025) en el espacio UMAP.")
+            
+            try:
+                coords_df = pd.read_parquet(MAP_COUNTRIES_FILE)
+                # Filter years: 2000 to 2025
+                mask = (coords_df['year'] >= 2000) & (coords_df['year'] <= 2025)
+                df_traj_global = coords_df[mask].copy()
+                
+                if not df_traj_global.empty:
+                    fig_traj_global = go.Figure()
+                    
+                    # Get unique entities sorted so LATAM is last and plotted on top
+                    entities = sorted(df_traj_global['id'].unique())
+                    if 'LATAM' in entities:
+                        entities.remove('LATAM')
+                        entities.append('LATAM')
+                    
+                    # Countries to hide by default (outliers or small scale)
+                    excluded_countries = ['BB', 'BS', 'BZ', 'DO', 'EC', 'GY', 'HN', 'NI', 'PA', 'PE', 'PY']
+                    
+                    for entity_id in entities:
+                        entity_data = df_traj_global[df_traj_global['id'] == entity_id].sort_values('year')
+                        if entity_data.empty: continue
+                        
+                        visible_status = True
+                        if entity_id in excluded_countries:
+                            visible_status = 'legendonly'
+                        
+                        if entity_id == 'LATAM':
+                            line_color = '#2ca02c' # Green
+                            line_width = 5
+                            marker_size = 6
+                            opacity = 1.0
+                            name = 'Iberoamérica (Ref.)'
+                            visible_status = True # Always visible
+                        else:
+                            line_color = None # Auto
+                            line_width = 2
+                            marker_size = 4
+                            opacity = 0.6
+                            name = entity_id
+                        
+                        fig_traj_global.add_trace(go.Scatter(
+                            x=entity_data['x'], 
+                            y=entity_data['y'],
+                            mode='lines+markers',
+                            name=name,
+                            text=entity_data['year'],
+                            hovertemplate=f"<b>{name}</b><br>Año: %{{text}}<br>X: %{{x:.2f}}<br>Y: %{{y:.2f}}",
+                            line=dict(shape='spline', width=line_width, color=line_color), 
+                            marker=dict(size=marker_size),
+                            opacity=opacity,
+                            visible=visible_status
+                        ))
+                    
+                    fig_traj_global.update_layout(
+                        height=650,
+                        title="Evolución de Trayectorias (2000-2025)",
+                        xaxis_title="Dimensión 1",
+                        yaxis_title="Dimensión 2",
+                        template="plotly_white",
+                        hovermode="closest",
+                        legend=dict(title="Entidad")
+                    )
+                    
+                    st.plotly_chart(fig_traj_global, use_container_width=True)
+                    
+                    st.info("💡 Cada línea representa la evolución del perfil bibliométrico a lo largo del tiempo. La línea verde gruesa representa a Iberoamérica como conjunto de referencia.")
+                    
+                    with st.expander("📊 Ver datos de trayectorias (Global)"):
+                        st.dataframe(df_traj_global, use_container_width=True)
+                else:
+                    st.warning("⚠️ No hay datos de trayectorias para el periodo 2000-2025.")
+            except Exception as e:
+                st.error(f"❌ Error visualizando trayectorias globales: {e}")
+
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
@@ -1741,6 +1822,202 @@ elif level == "Revista":
             st.info("💡 Archivo de artículos no encontrado. Ejecuta el pipeline de extracción.")
 
 
+
+    else:
+        st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
+
+elif level == "Acerca de...":
+    st.header("Acerca de...")
+    
+    st.subheader("Grupo de trabajo")
+    st.markdown("""
+    **Complejidad, Ciencienciometría y Ciencia de la Ciencia**
+    
+    *   Dr. Humberto Andrés Carrillo Calvet
+    *   Dr. Ricardo Arencibia Jorge
+    *   Dr. José Luis Jiménez Andrade
+    """)
+    
+    st.divider()
+    
+    st.subheader("Programación")
+    st.markdown("""
+    *   José Luis Jiménez Andrade
+    *   Antigravity con Gemini 3 Pro, Claude Sonnet 4.5
+    """)
+    
+    st.divider()
+    
+    st.subheader("Diagrama general del sistema")
+    
+    # Diagrama Mermaid visualizado con Graphviz para compatibilidad nativa
+    st.caption("Flujo de datos y arquitectura del sistema")
+    
+    st.graphviz_chart("""
+    digraph Pipeline {
+        rankdir=TB;
+        node [shape=box, style=filled, fillcolor="#f0f2f6", fontname="Sans-Serif"];
+        edge [fontname="Sans-Serif", fontsize=10];
+        
+        subgraph cluster_sources {
+            label = "Fuentes de Datos";
+            style=dashed;
+            color="#555555";
+            PostgreSQL [shape=cylinder, fillcolor="#ffeba0", label="PostgreSQL\n(OpenAlex Snapshot)"];
+            OpenAlex_API [shape=ellipse, fillcolor="#ffeba0", label="OpenAlex API\n(Enrichment)"];
+        }
+        
+        subgraph cluster_extraction {
+            label = "Extracción (ETL)";
+            color="#555555";
+            extract_postgres [label="extract_postgres.py", shape=component, fillcolor="#ffbd45"];
+        }
+        
+        subgraph cluster_data {
+            label = "Datos Crudos (Parquet)";
+            color="#555555";
+            journals_parquet [label="latin_american_journals.parquet", shape=note, fillcolor="#e8fdf5"];
+            works_parquet [label="latin_american_works.parquet", shape=note, fillcolor="#e8fdf5"];
+        }
+        
+        subgraph cluster_processing {
+            label = "Procesamiento";
+            color="#555555";
+            transform_metrics [label="transform_metrics.py", shape=component, fillcolor="#ffbd45"];
+            calculate_umap [label="calculate_umap.py", shape=component, fillcolor="#ffbd45"];
+            calculate_trajectory [label="calculate_trajectory.py", shape=component, fillcolor="#ffbd45"];
+        }
+        
+        subgraph cluster_cache {
+            label = "Datos Procesados (Cache)";
+            color="#555555";
+            metrics_parquet [label="metrics_*.parquet", shape=note, fillcolor="#e8fdf5"];
+            umap_parquet [label="umap_*.parquet", shape=note, fillcolor="#e8fdf5"];
+            trajectory_parquet [label="trajectory_*.parquet", shape=note, fillcolor="#e8fdf5"];
+        }
+        
+        Dashboard [label="dashboard.py\n(Streamlit App)", shape=rect, style=filled, fillcolor="#ff4b4b", fontcolor=white, fontsize=14];
+
+        # Edges
+        PostgreSQL -> extract_postgres;
+        OpenAlex_API -> extract_postgres [style=dotted];
+        
+        extract_postgres -> journals_parquet;
+        extract_postgres -> works_parquet;
+        
+        journals_parquet -> transform_metrics;
+        works_parquet -> transform_metrics;
+        
+        transform_metrics -> metrics_parquet;
+        
+        metrics_parquet -> calculate_umap;
+        calculate_umap -> umap_parquet;
+        
+        metrics_parquet -> calculate_trajectory;
+        calculate_trajectory -> trajectory_parquet;
+        
+        journals_parquet -> Dashboard;
+        metrics_parquet -> Dashboard;
+        umap_parquet -> Dashboard;
+        trajectory_parquet -> Dashboard;
+    }
+    """)
+    
+    with st.expander("Ver definición Mermaid"):
+        st.code("""
+graph TD
+    subgraph "Fuentes de Datos"
+        DB[(PostgreSQL\nOpenAlex Snapshot)]
+        API[OpenAlex API\n(Enrichment)]
+    end
+
+    subgraph "Extracción (ETL)"
+        E1[extract_postgres.py]
+        E1 -->|Consulta SQL| DB
+        E1 -->|Genera| P1
+        E1 -->|Genera| P2
+    end
+    
+    subgraph "Datos Crudos (Parquet)"
+        P1[latin_american_journals.parquet]
+        P2[latin_american_works.parquet]
+    end
+
+    subgraph "Procesamiento y Transformación"
+        T1[transform_metrics.py]
+        T1 -->|Lee| P1
+        T1 -->|Lee| P2
+        T1 -->|Calcula| P3
+        
+        UMAP[calculate_umap.py]
+        UMAP -->|Lee| P3
+        UMAP -->|Genera| P4
+        
+        TRAJ[calculate_trajectory.py]
+        TRAJ -->|Lee| P3
+        TRAJ -->|Genera| P5
+    end
+    
+    subgraph "Datos Procesados (Cache)"
+        P3[metrics_*.parquet]
+        P4[umap_*.parquet]
+        P5[trajectory_*.parquet]
+    end
+    
+    subgraph "Visualización"
+        D[dashboard.py]
+        D -->|Visualiza| P1
+        D -->|Visualiza| P3
+        D -->|Visualiza| P4
+        D -->|Visualiza| P5
+    end
+        """, language='mermaid')
+
+    st.markdown("---")
+    st.subheader("Descripción Detallada de Componentes del Sistema")
+    
+    st.markdown("""
+    El sistema implementa un flujo de trabajo de procesamiento de datos bibliométricos diseñado para analizar el desempeño de revistas científicas latinoamericanas utilizando grandes volúmenes de datos. A continuación se detalla cada módulo:
+
+    #### 1. Fuentes de Datos (Data Sources)
+    La base del sistema reside en la recolección de metadatos científicos robustos y actualizados.
+    *   **PostgreSQL (OpenAlex Snapshot)**: Se utiliza una instancia local de PostgreSQL cargada con el snapshot oficial de OpenAlex (2025). Esta base de datos relacional almacena terabytes de información sobre trabajos académicos, autores, instituciones y fuentes de publicación, permitiendo consultas SQL complejas de alto rendimiento sin depender de latencias de red externas.
+    *   **OpenAlex API**: Actúa como complemento dinámico. Aunque el snapshot es estático, la API permite enriquecer datos específicos en tiempo real, validando metadatos críticos o recuperando trabajos muy recientes que no se encuentren en la versión local.
+    
+    #### 2. Extracción (ETL - Extract, Transform, Load)
+    Esta fase es crítica para filtrar el universo de datos global y centrarse en el contexto regional.
+    *   **Script de Extracción (`extract_postgres.py`)**: Este componente ejecuta consultas SQL optimizadas para identificar y extraer exclusivamente las revistas publicadas en países de Latinoamérica y el Caribe.
+        *   *Funcionalidad*: Recupera metadatos de las revistas (ISSN, editorial, país) y descarga todos los trabajos (artículos) asociados a estas revistas.
+        *   *Manejo de Datos*: Implementa paginación eficiente para manejar millones de registros sin saturar la memoria RAM.
+    *   **Datos Crudos (`latin_american_*.parquet`)**: Los resultados se serializan en formato Parquet, un formato columnar de alta eficiencia que reduce el espacio en disco hasta un 80% comparado con CSV y permite lecturas ultrarrápidas para el procesamiento posterior.
+    
+    #### 3. Procesamiento y Análisis Avanzado
+    El núcleo analítico del sistema transforma los datos crudos en conocimiento accionable.
+    *   **Cálculo de Métricas (`transform_metrics.py`)**:
+        *   Procesa millones de artículos para calcular indicadores de desempeño a nivel de revista y país.
+        *   *Métricas Clave*: Calcula el **FWCI** (Impacto de Citas Ponderado por Campo), conteos de citas, percentiles de impacto (Top 1%, Top 10%), y desglose detallado de las modalidades de Acceso Abierto (Diamante, Dorado, Híbrido).
+        *   Genera series temporales anuales para analizar la evolución histórica.
+    *   **Proyección UMAP (`calculate_umap.py`)**:
+        *   Implementa algoritmos de aprendizaje no supervisado (**UMAP**: *Uniform Manifold Approximation and Projection*) para reducir la complejidad multidimensional de los datos.
+        *   Transforma 6+ dimensiones de desempeño (citas, producción, impacto, etc.) en un espacio 2D, permitiendo visualizar qué revistas o países tienen perfiles bibliométricos similares, revelando clústeres naturales por disciplina o calidad.
+    *   **Análisis de Trayectorias (`calculate_trajectory.py`)**:
+        *   Modela la evolución temporal de cada entidad en el espacio UMAP.
+        *   Permite trazar el "camino" que ha recorrido una revista o país a lo largo de los años, facilitando la identificación de tendencias de mejora, estancamiento o cambios en la política editorial.
+    
+    #### 4. Capa de Datos Procesados (Cache)
+    Para garantizar una experiencia de usuario fluida, el sistema no calcula métricas en tiempo real, sino que consume datos pre-procesados.
+    *   **Archivos Parquet Optimizados**: Almacenan los resultados finales de los procesos anteriores (`metrics_country_annual.parquet`, `metrics_journal_period.parquet`, etc.).
+    *   Esta arquitectura desacoplada permite que el dashboard responda en milisegundos, independientemente de la complejidad de los cálculos matemáticos subyacentes que pueden tomar horas en ejecutarse.
+    
+    #### 5. Visualización e Interacción (Dashboard)
+    El punto de contacto final con el usuario, desarrollado en **Streamlit**.
+    *   **Interfaz Dinámica**: Permite navegar entre niveles de análisis (Región, País, Revista).
+    *   **Visualizaciones Interactivas**: Utiliza **Plotly** para generar gráficos que responden al usuario (zoom, selección, tooltips).
+        *   *Mapas Coropléticos*: Para visualizar indicadores geográficos.
+        *   *Scatter Plots Dinámicos*: Para correlacionar variables a elección del usuario.
+        *   *Radares de Desempeño*: Para comparar el perfil de una revista contra el promedio regional.
+    *   **Transparencia de Datos**: Cada visualización permite acceder a los datos tabulares subyacentes, fomentando la reproducibilidad y el análisis detallado.
+    """)
 
 # Footer
 st.markdown("---")
