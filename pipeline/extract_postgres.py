@@ -62,11 +62,7 @@ def fetch_latin_american_journals():
             updated_date,
             country_code,
             is_scopus,
-            summary_stats,
-            oa_works_count,
-            is_in_scielo,
-            is_ojs,
-            is_core
+            summary_stats
         FROM openalex.sources
         ORDER BY works_count DESC;
         """
@@ -76,8 +72,8 @@ def fetch_latin_american_journals():
         try:
             df = pd.read_sql_query(query, conn)
         except Exception as e:
-            print(f"Warning: Could not query with country_code/is_scopus. Trying without them: {e}")
-            # Fallback if user didn't reload table with country_code
+            print(f"Warning: Could not query with all fields. Trying fallback: {e}")
+            # Fallback if some columns don't exist
             query_fallback = """
             SELECT 
                 id,
@@ -92,12 +88,9 @@ def fetch_latin_american_journals():
                 homepage_url,
                 works_api_url,
                 updated_date,
+                summary_stats,
                 'UNKNOWN' as country_code,
-                False as is_scopus,
-                0 as oa_works_count,
-                False as is_in_scielo,
-                False as is_ojs,
-                False as is_core
+                False as is_scopus
             FROM openalex.sources
             ORDER BY works_count DESC;
             """
