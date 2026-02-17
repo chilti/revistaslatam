@@ -33,6 +33,29 @@ level = st.sidebar.radio(
     ["Region (Latinoamérica)", "País", "Revista", "Acerca de..."]
 )
 
+# === SCROLL RESET LOGIC ===
+# Reset scroll position when switching sections
+if 'current_view_level' not in st.session_state:
+    st.session_state.current_view_level = level
+
+if st.session_state.current_view_level != level:
+    st.session_state.current_view_level = level
+    # Inject JavaScript to scroll to top
+    import streamlit.components.v1 as components
+    components.html(
+        """
+        <script>
+            // Target the main scrollable container in Streamlit
+            var scrollable = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
+            if (scrollable) {
+                scrollable.scrollTo({top: 0, behavior: 'instant'});
+            }
+        </script>
+        """,
+        height=0,
+        width=0
+    )
+
 st.sidebar.markdown("---")
 
 # Show cache status
@@ -48,6 +71,19 @@ traj_smooth_w5_file = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_data_
 MAP_COUNTRIES_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_countries_coords.parquet')
 MAP_JOURNALS_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_journals_coords.parquet')
 TOPICS_FILE = os.path.join(BASE_PATH, 'data', 'journals_topics_sunburst.parquet')
+
+# Country Names Mapping
+COUNTRY_NAMES = {
+    'AR': 'Argentina', 'BO': 'Bolivia', 'BR': 'Brasil', 'BS': 'Bahamas', 
+    'BZ': 'Belice', 'CL': 'Chile', 'CO': 'Colombia', 'CR': 'Costa Rica', 
+    'CU': 'Cuba', 'DO': 'Rep. Dominicana', 'EC': 'Ecuador', 'GT': 'Guatemala', 
+    'GY': 'Guyana', 'HN': 'Honduras', 'HT': 'Haití', 'JM': 'Jamaica', 
+    'MX': 'México', 'NI': 'Nicaragua', 'PA': 'Panamá', 'PE': 'Perú', 
+    'PR': 'Puerto Rico', 'PY': 'Paraguay', 'SV': 'El Salvador', 'UY': 'Uruguay', 
+    'VE': 'Venezuela', 'ES': 'España', 'PT': 'Portugal', 'LATAM': 'Latinoamérica',
+    'BB': 'Barbados', 'SR': 'Surinam', 'TT': 'Trinidad y Tobago'
+}
+
 if latam_cache.exists():
     import datetime
     mtime = os.path.getmtime(latam_cache)
@@ -358,9 +394,17 @@ if level == "Region (Latinoamérica)":
                 # Sort by num_documents
                 display_df = country_period.sort_values('num_documents', ascending=False)
                 # Filter columns that exist
+                # Filter columns that exist
                 valid_cols = [c for c in cols_display if c in display_df.columns]
-                final_df = display_df[valid_cols].rename(columns={'avg_percentile': 'Percentil Prom. Norm.'})
-                st.dataframe(final_df, use_container_width=True, hide_index=True)
+                display_df = display_df[valid_cols].copy()
+                
+                # Add Country Names
+                display_df.insert(1, 'country_name', display_df['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x)))
+                
+                final_df = display_df.rename(columns={'country_name': 'País', 'country_code': 'Código', 'avg_percentile': 'Percentil Prom. Norm.'})
+                cols_final_order = ['Código', 'País'] + [c for c in final_df.columns if c not in ['Código', 'País']]
+                
+                st.dataframe(final_df[cols_final_order], use_container_width=True, hide_index=True)
             else:
                 st.info("No hay datos de países disponibles.")
                 
@@ -371,11 +415,175 @@ if level == "Region (Latinoamérica)":
                 # Sort by num_documents
                 display_df_recent = country_period_recent.sort_values('num_documents', ascending=False)
                 # Filter columns
+                # Filter columns
                 valid_cols = [c for c in cols_display if c in display_df_recent.columns]
-                final_df = display_df_recent[valid_cols].rename(columns={'avg_percentile': 'Percentil Prom. Norm.'})
-                st.dataframe(final_df, use_container_width=True, hide_index=True)
+                display_df_recent = display_df_recent[valid_cols].copy()
+                
+                # Add Country Names
+                display_df_recent.insert(1, 'country_name', display_df_recent['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x)))
+                
+                final_df_recent = display_df_recent.rename(columns={'country_name': 'País', 'country_code': 'Código', 'avg_percentile': 'Percentil Prom. Norm.'})
+                cols_final_order = ['Código', 'País'] + [c for c in final_df_recent.columns if c not in ['Código', 'País']]
+                
+                st.dataframe(final_df_recent[cols_final_order], use_container_width=True, hide_index=True)
             else:
                 st.info("No hay datos recientes de países disponibles (es necesario ejecutar pre-cálculo v2).")
+
+        # --- TRAYECTORIAS GLOBALES (RESTAURADO) ---
+        if os.path.exists(MAP_COUNTRIES_FILE):
+            st.markdown("---")
+            st.subheader("Trayectorias de Desempeño Latam (Global)")
+            st.caption("Evolución comparativa de todos los países y Latinoamérica (2000-2025) en el espacio UMAP.")
+            
+            try:
+                coords_df = pd.read_parquet(MAP_COUNTRIES_FILE)
+                # Filter years: 2000 to 2025
+                mask = (coords_df['year'] >= 2000) & (coords_df['year'] <= 2025)
+                df_traj_global = coords_df[mask].copy()
+                
+                if not df_traj_global.empty:
+                    fig_traj_global = go.Figure()
+                    
+                    # Get unique entities sorted so LATAM is last and plotted on top
+                    entities = sorted(df_traj_global['id'].unique())
+                    if 'LATAM' in entities:
+                        entities.remove('LATAM')
+                        entities.append('LATAM')
+                    
+                    # Countries to hide by default (outliers or small scale)
+                    excluded_countries = ['BB', 'BS', 'BZ', 'DO', 'EC', 'GY', 'HN', 'NI', 'PA', 'PE', 'PY']
+                    
+                    for entity_id in entities:
+                        entity_data = df_traj_global[df_traj_global['id'] == entity_id].sort_values('year')
+                        if entity_data.empty: continue
+                        
+                        visible_status = True
+                        if entity_id in excluded_countries:
+                            visible_status = 'legendonly'
+                        
+                        # Get Name
+                        entity_name = COUNTRY_NAMES.get(entity_id, entity_id)
+                        
+                        if entity_id == 'LATAM':
+                            line_color = '#2ca02c' # Green
+                            line_width = 5
+                            marker_size = 6
+                            opacity = 1.0
+                            name = 'Iberoamérica (Ref.)'
+                            visible_status = True # Always visible
+                        else:
+                            line_color = None # Auto
+                            line_width = 2
+                            marker_size = 4
+                            opacity = 0.6
+                            name = entity_name
+                        
+                        fig_traj_global.add_trace(go.Scatter(
+                            x=entity_data['x'], 
+                            y=entity_data['y'],
+                            mode='lines+markers',
+                            name=name,
+                            text=entity_data['year'],
+                            hovertemplate=f"<b>{name}</b><br>Año: %{{text}}<br>X: %{{x:.2f}}<br>Y: %{{y:.2f}}",
+                            line=dict(width=line_width, color=line_color),
+                            marker=dict(size=marker_size, color=line_color),
+                            opacity=opacity,
+                            visible=visible_status
+                        ))
+                    
+                    fig_traj_global.update_layout(
+                        title="Evolución de Trayectorias (2000-2025)",
+                        xaxis_title="Dimensión 1",
+                        yaxis_title="Dimensión 2",
+                        template="plotly_white",
+                        height=600,
+                        hovermode="closest",
+                        legend=dict(itemclick="toggleothers", itemdoubleclick="toggle")
+                    )
+                    
+                    st.plotly_chart(fig_traj_global, use_container_width=True)
+                    
+                    st.info("💡 Cada línea representa la evolución del perfil bibliométrico a lo largo del tiempo. La línea verde gruesa representa a Iberoamérica como conjunto de referencia.")
+                    
+                    with st.expander("📊 Ver datos de trayectorias (Global)"):
+                        # Attempt to load original metrics to show instead of just coordinates
+                        try:
+                            # Load annual data
+                            country_annual = load_cached_metrics('country', 'annual')
+                            latam_annual = load_cached_metrics('latam', 'annual')
+                            
+                            metrics_data = []
+                            
+                            # Prepare Country Data
+                            if country_annual is not None and not country_annual.empty:
+                                c_df = country_annual.copy()
+                                # Ensure we have the ID column for merging
+                                if 'country_code' in c_df.columns:
+                                    c_df['id'] = c_df['country_code']
+                                metrics_data.append(c_df)
+                                
+                            # Prepare LATAM Data
+                            if latam_annual is not None and not latam_annual.empty:
+                                l_df = latam_annual.copy()
+                                l_df['id'] = 'LATAM'
+                                metrics_data.append(l_df)
+                            
+                            if metrics_data:
+                                all_metrics = pd.concat(metrics_data, ignore_index=True)
+                                
+                                # Merge with trajectory coordinates (left join to keep valid coords)
+                                # df_traj_global has 'id' and 'year'
+                                merged_df = pd.merge(
+                                    df_traj_global, 
+                                    all_metrics, 
+                                    on=['id', 'year'], 
+                                    how='left',
+                                    suffixes=('', '_orig')
+                                )
+                                
+                                # Add Full Name
+                                merged_df['name'] = merged_df['id'].map(lambda x: COUNTRY_NAMES.get(x, x))
+                                
+                                # Select columns to display
+                                cols_map = {
+                                    'id': 'Código',
+                                    'name': 'País/Región',
+                                    'year': 'Año',
+                                    'num_documents': 'Documentos',
+                                    'fwci_avg': 'FWCI',
+                                    'pct_oa_diamond': '% OA Diamante',
+                                    'pct_oa_gold': '% OA Gold',
+                                    'pct_top_10': '% Top 10',
+                                    'avg_percentile': 'Percentil Prom.',
+                                    'x': 'Coord. UMAP X',
+                                    'y': 'Coord. UMAP Y'
+                                }
+                                
+                                # Get available cols
+                                available_cols = [c for c in cols_map.keys() if c in merged_df.columns]
+                                
+                                # Rename
+                                final_view = merged_df[available_cols].rename(columns=cols_map)
+                                
+                                # Reorder
+                                desired_order = ['Código', 'País/Región', 'Año', 'Documentos', 'FWCI', '% OA Diamante', '% OA Gold', '% Top 10', 'Percentil Prom.', 'Coord. UMAP X', 'Coord. UMAP Y']
+                                final_order = [c for c in desired_order if c in final_view.columns]
+                                
+                                st.dataframe(final_view[final_order], use_container_width=True, hide_index=True)
+                            else:
+                                if 'name' not in df_traj_global.columns:
+                                    df_traj_global['name'] = df_traj_global['id'].map(lambda x: COUNTRY_NAMES.get(x, x))
+                                st.dataframe(df_traj_global, use_container_width=True)
+                                
+                        except Exception as e:
+                            st.warning(f"No se pudieron enriquecer los datos: {e}")
+                            if 'name' not in df_traj_global.columns:
+                                df_traj_global['name'] = df_traj_global['id'].map(lambda x: COUNTRY_NAMES.get(x, x))
+                            st.dataframe(df_traj_global, use_container_width=True)
+                else:
+                    st.warning("⚠️ No hay datos de trayectorias para el periodo 2000-2025.")
+            except Exception as e:
+                st.error(f"❌ Error visualizando trayectorias globales: {e}")
 
         # --- Radar Analysis ---
         st.markdown("---")
@@ -517,9 +725,14 @@ if level == "Region (Latinoamérica)":
                     st.info("💡 Los países cercanos en el mapa tienen perfiles bibliométricos similares. La distancia refleja diferencias en producción, impacto y acceso abierto.")
                     
                     with st.expander("📊 Ver tabla de datos UMAP (Países)"):
+                        # Add full country name
+                        if 'country_name' not in df_umap_countries.columns:
+                            df_umap_countries['country_name'] = df_umap_countries['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x))
+
                         # Select and rename columns for display
                         cols_to_show = {
-                            'country_code': 'País',
+                            'country_code': 'Código',
+                            'country_name': 'País',
                             'num_journals': 'Revistas',
                             'pct_oa_diamond': '% OA Diamante',
                             'fwci_avg': 'FWCI Promedio',
@@ -527,10 +740,13 @@ if level == "Region (Latinoamérica)":
                             'pct_top_1': '% Top 1%',
                             'avg_percentile': 'Percentil Promedio'
                         }
-                        # Filter only existing columns
-                        available_cols = [c for c in cols_to_show.keys() if c in df_umap_countries.columns]
+                        
+                        # Reorder columns to have Name first
+                        ordered_cols = ['country_code', 'country_name', 'num_journals', 'pct_oa_diamond', 'fwci_avg', 'pct_top_10', 'pct_top_1', 'avg_percentile']
+                        final_cols = [c for c in ordered_cols if c in df_umap_countries.columns]
+                        
                         st.dataframe(
-                            df_umap_countries[available_cols].rename(columns=cols_to_show),
+                            df_umap_countries[final_cols].rename(columns=cols_to_show),
                             use_container_width=True,
                             hide_index=True
                         )
@@ -654,10 +870,19 @@ if level == "Region (Latinoamérica)":
                 
                 if not df_bmus.empty:
                     with st.expander("📊 Ver detalles de asignación SOM"):
+                        # Add Names
+                        if 'country_name' not in df_bmus.columns:
+                            df_bmus['country_name'] = df_bmus['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x))
+                            
                         # Show useful cols
-                        cols_show = ['country_code', 'num_journals', 'fwci_avg', 'pct_oa_diamond', 'bmu_row', 'bmu_col']
+                        cols_show = ['country_code', 'country_name', 'num_journals', 'fwci_avg', 'pct_oa_diamond', 'bmu_row', 'bmu_col']
+                        rename_map = {'country_code': 'Código', 'country_name': 'País'}
+                        
                         existing = [c for c in cols_show if c in df_bmus.columns]
-                        st.dataframe(df_bmus[existing].sort_values('country_code'), use_container_width=True)
+                        st.dataframe(
+                            df_bmus[existing].rename(columns=rename_map).sort_values('País'), 
+                            use_container_width=True
+                        )
 
             except Exception as e:
                 st.error(f"❌ Error visualizando SOM: {e}")
@@ -846,85 +1071,7 @@ if level == "Region (Latinoamérica)":
         else:
             st.info(f"💡 No hay datos disponibles para {period_label}. Ejecuta el pipeline completo.")
     
-        # --- TRAYECTORIAS GLOBALES (NUEVO) ---
-        if os.path.exists(MAP_COUNTRIES_FILE):
-            st.markdown("---")
-            st.subheader("Trayectorias de Desempeño Latam (Global)")
-            st.caption("Evolución comparativa de todos los países y Latinoamérica (2000-2025) en el espacio UMAP.")
-            
-            try:
-                coords_df = pd.read_parquet(MAP_COUNTRIES_FILE)
-                # Filter years: 2000 to 2025
-                mask = (coords_df['year'] >= 2000) & (coords_df['year'] <= 2025)
-                df_traj_global = coords_df[mask].copy()
-                
-                if not df_traj_global.empty:
-                    fig_traj_global = go.Figure()
-                    
-                    # Get unique entities sorted so LATAM is last and plotted on top
-                    entities = sorted(df_traj_global['id'].unique())
-                    if 'LATAM' in entities:
-                        entities.remove('LATAM')
-                        entities.append('LATAM')
-                    
-                    # Countries to hide by default (outliers or small scale)
-                    excluded_countries = ['BB', 'BS', 'BZ', 'DO', 'EC', 'GY', 'HN', 'NI', 'PA', 'PE', 'PY']
-                    
-                    for entity_id in entities:
-                        entity_data = df_traj_global[df_traj_global['id'] == entity_id].sort_values('year')
-                        if entity_data.empty: continue
-                        
-                        visible_status = True
-                        if entity_id in excluded_countries:
-                            visible_status = 'legendonly'
-                        
-                        if entity_id == 'LATAM':
-                            line_color = '#2ca02c' # Green
-                            line_width = 5
-                            marker_size = 6
-                            opacity = 1.0
-                            name = 'Iberoamérica (Ref.)'
-                            visible_status = True # Always visible
-                        else:
-                            line_color = None # Auto
-                            line_width = 2
-                            marker_size = 4
-                            opacity = 0.6
-                            name = entity_id
-                        
-                        fig_traj_global.add_trace(go.Scatter(
-                            x=entity_data['x'], 
-                            y=entity_data['y'],
-                            mode='lines+markers',
-                            name=name,
-                            text=entity_data['year'],
-                            hovertemplate=f"<b>{name}</b><br>Año: %{{text}}<br>X: %{{x:.2f}}<br>Y: %{{y:.2f}}",
-                            line=dict(shape='spline', width=line_width, color=line_color), 
-                            marker=dict(size=marker_size),
-                            opacity=opacity,
-                            visible=visible_status
-                        ))
-                    
-                    fig_traj_global.update_layout(
-                        height=650,
-                        title="Evolución de Trayectorias (2000-2025)",
-                        xaxis_title="Dimensión 1",
-                        yaxis_title="Dimensión 2",
-                        template="plotly_white",
-                        hovermode="closest",
-                        legend=dict(title="Entidad")
-                    )
-                    
-                    st.plotly_chart(fig_traj_global, use_container_width=True)
-                    
-                    st.info("💡 Cada línea representa la evolución del perfil bibliométrico a lo largo del tiempo. La línea verde gruesa representa a Iberoamérica como conjunto de referencia.")
-                    
-                    with st.expander("📊 Ver datos de trayectorias (Global)"):
-                        st.dataframe(df_traj_global, use_container_width=True)
-                else:
-                    st.warning("⚠️ No hay datos de trayectorias para el periodo 2000-2025.")
-            except Exception as e:
-                st.error(f"❌ Error visualizando trayectorias globales: {e}")
+        
 
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
@@ -1078,6 +1225,43 @@ elif level == "País":
                             st.plotly_chart(fig_traj, use_container_width=True)
                     except Exception as e:
                         st.error(f"Error visualizando trayectoria: {e}")
+                with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
+                    tab1, tab2, tab3 = st.tabs(["Datos Crudos", "Suavizado (w=3)", "Suavizado (w=5)"])
+                    
+                    # RAW DATA
+                    if os.path.exists(traj_raw_file):
+                        raw_df = pd.read_parquet(traj_raw_file)
+                        raw_subset = raw_df[raw_df['id'].isin([selected_country, 'LATAM']) & (raw_df['year'] >= 2000) & (raw_df['year'] <= 2025)].sort_values(['id', 'year'])
+                        # Format for display
+                        cols_to_show = ['name', 'type', 'year', 'num_documents', 'fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1']
+                        existing_cols = [c for c in cols_to_show if c in raw_subset.columns]
+                        tab1.dataframe(raw_subset[existing_cols], use_container_width=True, hide_index=True)
+                    else:
+                        tab1.warning("Archivo de datos crudos no encontrado.")
+                        
+                    # SMOOTHED DATA (w=3)
+                    if os.path.exists(traj_smooth_file):
+                        smooth_df = pd.read_parquet(traj_smooth_file)
+                        smooth_subset = smooth_df[smooth_df['id'].isin([selected_country, 'LATAM']) & (smooth_df['year'] >= 2000) & (smooth_df['year'] <= 2025)].sort_values(['id', 'year'])
+                        # Format
+                        existing_cols_s = [c for c in cols_to_show if c in smooth_subset.columns]
+                        tab2.dataframe(smooth_subset[existing_cols_s], use_container_width=True, hide_index=True)
+                        tab2.caption("Nota: Datos suavizados (media móvil exponencial, window=3).")
+                    else:
+                        tab2.warning("Archivo de datos suavizados (w=3) no encontrado.")
+
+                    # SMOOTHED DATA (w=5)
+                    # SMOOTHED DATA (w=5)
+                    if os.path.exists(traj_smooth_w5_file):
+                        smooth_w5_df = pd.read_parquet(traj_smooth_w5_file)
+                        smooth_w5_subset = smooth_w5_df[smooth_w5_df['id'].isin([selected_country, 'LATAM']) & (smooth_w5_df['year'] >= 2000) & (smooth_w5_df['year'] <= 2025)].sort_values(['id', 'year'])
+                        # Format
+                        existing_cols_w5 = [c for c in cols_to_show if c in smooth_w5_subset.columns]
+                        tab3.dataframe(smooth_w5_subset[existing_cols_w5], use_container_width=True, hide_index=True)
+                        tab3.caption("Nota: Datos suavizados intensamente (media móvil exponencial, window=5).")
+                    else:
+                        tab3.warning("Archivo de datos suavizados (w=5) no encontrado.")
+                
                 
                 # UMAP Visualization for Journals in this Country
                 st.markdown("---")
@@ -1319,43 +1503,7 @@ elif level == "País":
                     st.info(f"💡 No hay datos disponibles para {period_label_country}. Ejecuta el pipeline completo.")
 
                 # Data Tables Expander
-                with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
-                    tab1, tab2, tab3 = st.tabs(["Datos Crudos", "Suavizado (w=3)", "Suavizado (w=5)"])
-                    
-                    # RAW DATA
-                    if os.path.exists(traj_raw_file):
-                        raw_df = pd.read_parquet(traj_raw_file)
-                        raw_subset = raw_df[raw_df['id'].isin([selected_country, 'LATAM']) & (raw_df['year'] >= 2000) & (raw_df['year'] <= 2025)].sort_values(['id', 'year'])
-                        # Format for display
-                        cols_to_show = ['name', 'type', 'year', 'num_documents', 'fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1']
-                        existing_cols = [c for c in cols_to_show if c in raw_subset.columns]
-                        tab1.dataframe(raw_subset[existing_cols], use_container_width=True, hide_index=True)
-                    else:
-                        tab1.warning("Archivo de datos crudos no encontrado.")
-                        
-                    # SMOOTHED DATA (w=3)
-                    if os.path.exists(traj_smooth_file):
-                        smooth_df = pd.read_parquet(traj_smooth_file)
-                        smooth_subset = smooth_df[smooth_df['id'].isin([selected_country, 'LATAM']) & (smooth_df['year'] >= 2000) & (smooth_df['year'] <= 2025)].sort_values(['id', 'year'])
-                        # Format
-                        existing_cols_s = [c for c in cols_to_show if c in smooth_subset.columns]
-                        tab2.dataframe(smooth_subset[existing_cols_s], use_container_width=True, hide_index=True)
-                        tab2.caption("Nota: Datos suavizados (media móvil exponencial, window=3).")
-                    else:
-                        tab2.warning("Archivo de datos suavizados (w=3) no encontrado.")
-
-                    # SMOOTHED DATA (w=5)
-                    # SMOOTHED DATA (w=5)
-                    if os.path.exists(traj_smooth_w5_file):
-                        smooth_w5_df = pd.read_parquet(traj_smooth_w5_file)
-                        smooth_w5_subset = smooth_w5_df[smooth_w5_df['id'].isin([selected_country, 'LATAM']) & (smooth_w5_df['year'] >= 2000) & (smooth_w5_df['year'] <= 2025)].sort_values(['id', 'year'])
-                        # Format
-                        existing_cols_w5 = [c for c in cols_to_show if c in smooth_w5_subset.columns]
-                        tab3.dataframe(smooth_w5_subset[existing_cols_w5], use_container_width=True, hide_index=True)
-                        tab3.caption("Nota: Datos suavizados intensamente (media móvil exponencial, window=5).")
-                    else:
-                        tab3.warning("Archivo de datos suavizados (w=5) no encontrado.")
-                
+               
                 # Open Access breakdown
                 st.markdown("#### Distribución de Acceso Abierto")
                 oa_data = {
