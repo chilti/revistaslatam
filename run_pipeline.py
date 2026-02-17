@@ -119,6 +119,15 @@ if __name__ == "__main__":
     if not step35_success:
         print("⚠️ Advertencia: Falló el cálculo de UMAP. Las visualizaciones UMAP no estarán disponibles.")
 
+    # PASO 3.6: Cálculo de SOM para países (Self-Organizing Map)
+    step36_success = run_step(
+        "pipeline/calculate_som.py", 
+        "Cálculo de Mapa Auto-Organizado (SOM) para Países"
+    )
+    
+    if not step36_success:
+        print("⚠️ Advertencia: Falló el cálculo de SOM. La visualización SOM no estará disponible.")
+
     # PASO 4: Cálculo de Trayectorias y Suavizado (UMAP)
     step4_success = run_step(
         "pipeline/process_trajectories.py", 

@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import os
+import numpy as np
+import somoclu  
 import sys
 
 # Add src to path
@@ -11,6 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 from data_collector import update_data
 from data_processor import load_data as collector_load_data
 from performance_metrics import compute_and_cache_all_metrics, load_cached_metrics, get_cache_dir
+from som_utils import hex_center, hex_polygon
 
 # Page config
 st.set_page_config(
@@ -538,6 +541,127 @@ if level == "Region (Latinoamérica)":
         else:
             st.info("💡 Ejecuta el pipeline completo (`python run_pipeline.py`) para generar la visualización UMAP.")
         
+        # --- MAPA SOM (NUEVO) ---
+        som_countries_umatrix = os.path.join(BASE_PATH, 'data', 'som', 'som_countries_umatrix.npy')
+        som_countries_bmus = os.path.join(BASE_PATH, 'data', 'som', 'som_countries_bmus.parquet')
+        
+        if os.path.exists(som_countries_umatrix):
+            st.markdown("---")
+            st.subheader("Mapa Auto-Organizado (SOM) - Países")
+            st.caption("Visualización hexagonal basada en perfiles de similitud. El color de fondo (U-Matrix) y las etiquetas muestran agrupamientos naturales.")
+            
+            try:
+                # Cargar datos
+                U = np.load(som_countries_umatrix)
+                
+                # Check for BMUs
+                if os.path.exists(som_countries_bmus):
+                    df_bmus = pd.read_parquet(som_countries_bmus)
+                else:
+                    df_bmus = pd.DataFrame() # Empty if not found
+                
+                n_rows, n_cols = U.shape
+                orientation = "pointy"
+                s = 1.0 # Radio del hexágono
+
+                # Mapa de colores invertido (Pinkyl)
+                colorscale = px.colors.sequential.Pinkyl[::-1]
+                val_flat = U.flatten()
+                vmin, vmax = float(np.nanmin(val_flat)), float(np.nanmax(val_flat))
+
+                def get_color(val):
+                    if vmax == vmin: return colorscale[0]
+                    t = (val - vmin) / (vmax - vmin)
+                    idx = int(np.clip(t*(len(colorscale)-1), 0, len(colorscale)-1))
+                    return colorscale[idx]
+
+                fig_som = go.Figure()
+
+                xmin, xmax, ymin, ymax = 1e9, -1e9, 1e9, -1e9
+
+                # 1. Dibujar celdas hexagonales
+                for r in range(n_rows):
+                    for c in range(n_cols):
+                        xc, yc = hex_center(r, c, s=s, orientation=orientation)
+                        hx, hy = hex_polygon(xc, yc, s=s, orientation=orientation)
+
+                        val = U[r, c]
+                        fill_color = get_color(val)
+                        
+                        fig_som.add_trace(go.Scatter(
+                            x=hx, y=hy,
+                            mode="lines",
+                            fill="toself",
+                            line=dict(width=0.5, color="#bbbbbb"),
+                            fillcolor=fill_color,
+                            hoverinfo="text",
+                            text=f"Celda ({r},{c})<br>U-Dist: {val:.3f}",
+                            showlegend=False
+                        ))
+                        
+                        xmin = min(xmin, np.min(hx))
+                        xmax = max(xmax, np.max(hx))
+                        ymin = min(ymin, np.min(hy))
+                        ymax = max(ymax, np.max(hy))
+
+                # 2. Dibujar etiquetas de países (BMUs)
+                if not df_bmus.empty:
+                    labels_by_neuron = {}
+                    for idx, row in df_bmus.iterrows():
+                        try:
+                            if 'bmu_row' in row and 'bmu_col' in row:
+                                r, c = int(row['bmu_row']), int(row['bmu_col'])
+                                country = row.get('country_code', 'UNK')
+                                labels_by_neuron.setdefault((r, c), []).append(country)
+                        except:
+                            continue
+
+                    text_x = []
+                    text_y = []
+                    text_labels = []
+
+                    for (r, c), countries in labels_by_neuron.items():
+                        xc, yc = hex_center(r, c, s=s, orientation=orientation)
+                        label = ", ".join(countries)
+                        text_x.append(xc)
+                        text_y.append(yc)
+                        text_labels.append(label)
+
+                    if text_x:
+                        fig_som.add_trace(go.Scatter(
+                            x=text_x, 
+                            y=text_y,
+                            text=text_labels,
+                            mode="text",
+                            textfont=dict(size=11, color="black", family="Arial Black"),
+                            hoverinfo="text",
+                            hovertext=[f"Países: {l}" for l in text_labels],
+                            showlegend=False
+                        ))
+
+                # Ajustar layout
+                pad = 1.0
+                fig_som.update_layout(
+                    title="Mapa Auto-Organizado (SOM 20x15) - Países",
+                    xaxis=dict(visible=False, range=[xmin - pad, xmax + pad], scaleanchor="y", scaleratio=1),
+                    yaxis=dict(visible=False, range=[ymax + pad, ymin - pad]), # Arriba = Fila 0
+                    plot_bgcolor="white",
+                    height=700,
+                    margin=dict(l=20, r=20, t=50, b=20)
+                )
+
+                st.plotly_chart(fig_som, use_container_width=True)
+                
+                if not df_bmus.empty:
+                    with st.expander("📊 Ver detalles de asignación SOM"):
+                        # Show useful cols
+                        cols_show = ['country_code', 'num_journals', 'fwci_avg', 'pct_oa_diamond', 'bmu_row', 'bmu_col']
+                        existing = [c for c in cols_show if c in df_bmus.columns]
+                        st.dataframe(df_bmus[existing].sort_values('country_code'), use_container_width=True)
+
+            except Exception as e:
+                st.error(f"❌ Error visualizando SOM: {e}")
+        
         # Dynamic Scatter Plot for All Journals
         st.markdown("---")
         st.subheader("Explorador de Revistas - Scatter Plot Dinámico")
@@ -809,7 +933,28 @@ elif level == "País":
     st.header("Análisis por País")
     
     countries = sorted(df['country_code'].unique())
-    selected_country = st.selectbox("Selecciona un País", countries)
+    
+    # Initialize session state for country selection
+    if 'selected_country' not in st.session_state:
+        # Set MX as default if available, otherwise first country
+        st.session_state.selected_country = 'MX' if 'MX' in countries else countries[0]
+    
+    # Get index for default value
+    try:
+        default_idx = countries.index(st.session_state.selected_country)
+    except ValueError:
+        default_idx = 0
+        st.session_state.selected_country = countries[0]
+    
+    selected_country = st.selectbox(
+        "Selecciona un País", 
+        countries,
+        index=default_idx,
+        key="country_selector"
+    )
+    
+    # Update session state
+    st.session_state.selected_country = selected_country
     
     # Filter data
     country_df = df[df['country_code'] == selected_country]
@@ -1300,13 +1445,56 @@ elif level == "Revista":
     
     # Filters
     countries = sorted(df['country_code'].unique())
+    
+    # Initialize session state for journal country selection
+    if 'selected_country_journal' not in st.session_state:
+        st.session_state.selected_country_journal = 'MX' if 'MX' in countries else countries[0]
+    
+    # Get index for country default
+    try:
+        country_idx = countries.index(st.session_state.selected_country_journal)
+    except ValueError:
+        country_idx = 0
+        st.session_state.selected_country_journal = countries[0]
+    
     col_filter1, col_filter2 = st.columns(2)
     with col_filter1:
-        selected_country_journal = st.selectbox("Filtrar por País", countries, key="journal_country_filter")
+        selected_country_journal = st.selectbox(
+            "Filtrar por País", 
+            countries, 
+            index=country_idx,
+            key="journal_country_filter"
+        )
+        # Update session state
+        st.session_state.selected_country_journal = selected_country_journal
     
     journals_list = df[df['country_code'] == selected_country_journal]['display_name'].sort_values().unique()
+    
+    # Initialize session state for journal selection
+    if 'selected_journal_name' not in st.session_state:
+        # Try to find "Estudios Demográficos y Urbanos" as default
+        default_journal = 'Estudios Demográficos y Urbanos'
+        if default_journal in journals_list:
+            st.session_state.selected_journal_name = default_journal
+        else:
+            st.session_state.selected_journal_name = journals_list[0] if len(journals_list) > 0 else None
+    
+    # Get index for journal default
+    if st.session_state.selected_journal_name in journals_list:
+        journal_idx = list(journals_list).index(st.session_state.selected_journal_name)
+    else:
+        journal_idx = 0
+        st.session_state.selected_journal_name = journals_list[0] if len(journals_list) > 0 else None
+    
     with col_filter2:
-        selected_journal_name = st.selectbox("Selecciona Revista", journals_list)
+        selected_journal_name = st.selectbox(
+            "Selecciona Revista", 
+            journals_list,
+            index=journal_idx,
+            key="journal_name_selector"
+        )
+        # Update session state
+        st.session_state.selected_journal_name = selected_journal_name
         
     # Get Journal Data
     journal_data = df[df['display_name'] == selected_journal_name].iloc[0]
