@@ -1917,10 +1917,20 @@ elif level == "Revista":
                         ].copy()
                         
                         if len(plot_data_works) > 0:
-                            # Limit to reasonable number for performance
-                            if len(plot_data_works) > 1000:
-                                st.info(f"ℹ️ Mostrando una muestra de 1000 artículos de {len(plot_data_works):,} totales para mejor rendimiento.")
-                                plot_data_works = plot_data_works.sample(n=1000, random_state=42)
+                            # Add checkbox for full data
+                            show_all_works = st.checkbox(
+                                "Mostrar todos los artículos (puede ser lento)",
+                                value=False,
+                                help="Si se activa, se mostrarán todos los puntos disponibles. Si no, se mostrará una muestra de 1,000 artículos."
+                            )
+
+                            # Limit to reasonable number for performance unless requested
+                            limit = 1000
+                            if not show_all_works and len(plot_data_works) > limit:
+                                st.info(f"ℹ️ Mostrando una muestra de {limit:,} artículos de {len(plot_data_works):,} totales para mejor rendimiento.")
+                                plot_data_works = plot_data_works.sample(n=limit, random_state=42)
+                            elif len(plot_data_works) > limit:
+                                st.warning(f"⚠️ Mostrando {len(plot_data_works):,} artículos. La interacción puede ser lenta.")
                             
                             # Prepare hover data
                             hover_cols = {
@@ -2209,4 +2219,4 @@ graph TD
 
 # Footer
 st.markdown("---")
-st.markdown("Desarrollado por ...")
+
