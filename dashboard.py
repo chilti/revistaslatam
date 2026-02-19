@@ -151,12 +151,13 @@ if level == "Region (Latinoamérica)":
                 'FWCI Promedio': 'fwci_avg',
                 '% Top 10%': 'pct_top_10',
                 '% Top 1%': 'pct_top_1',
-                '% Acceso Abierto': 'pct_oa_total',
-                '% Cerrado': 'pct_oa_closed',
-                '% Gold': 'pct_oa_gold',
-                '% Green': 'pct_oa_green',
-                '% Hybrid': 'pct_oa_hybrid',
-                '% Bronze': 'pct_oa_bronze'
+                '% OA Total': 'pct_oa_total',
+                '% OA Diamante': 'pct_oa_diamond',
+                '% OA Gold': 'pct_oa_gold',
+                '% OA Verde': 'pct_oa_green',
+                '% OA Híbrido': 'pct_oa_hybrid',
+                '% OA Bronce': 'pct_oa_bronze',
+                '% Cerrado': 'pct_oa_closed'
             }
             
             selected_indicator = st.selectbox(
