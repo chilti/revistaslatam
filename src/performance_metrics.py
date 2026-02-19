@@ -51,40 +51,86 @@ class MetricsAccumulator:
             'bronze': 0,
             'closed': 0
         }
-    
-    def add_batch(self, df_chunk):
-        """Add a batch of works to the accumulator."""
-        self.count += len(df_chunk)
+        # Language counters
+        self.lang_counts = {
+            'en': 0, # English
+            'fr': 0, # French
+            'de': 0, # German
+            'it': 0, # Italian
+            'la': 0, # Latin
+            'nd': 0, # North Ndebele
+            'pt': 0, # Portuguese
+            'ru': 0, # Russian
+            'es': 0, # Spanish
+            'other': 0
+        }
+
+    def add_batch(self, chunk):
+        """
+        Process a DataFrame chunk and update metrics.
+        chunk is a DataFrame with works data.
+        """
+        if len(chunk) == 0:
+            return
+
+        self.count += len(chunk)
         
-        # FWCI
-        if 'fwci' in df_chunk.columns:
-            fwci_values = pd.to_numeric(df_chunk['fwci'], errors='coerce').fillna(0)
-            self.fwci_sum += fwci_values.sum()
-        
+        # FWCI (Field Weighted Citation Impact)
+        if 'fwci' in chunk.columns:
+            # Replace None/NaN with 0 or exclude? Usually 1.0 is neutral, but 0.0 if unknown.
+            # Assuming pre-filled 0.0 for unknown
+            self.fwci_sum += chunk['fwci'].fillna(0.0).sum()
+        elif 'cited_by_count' in chunk.columns:
+            # Rough proxy if FWCI missing (not ideal but better than nothing)
+            # Normalizing by something would be better, but we sum raw counts here? 
+            # No, variable name is fwci_sum. If missing, we add 0.
+            pass
+
         # Percentile
-        if 'citation_normalized_percentile' in df_chunk.columns:
-            percentile_values = pd.to_numeric(df_chunk['citation_normalized_percentile'], errors='coerce').fillna(0)
-            self.percentile_sum += percentile_values.sum()
-        
-        # Top 10%
-        if 'is_in_top_10_percent' in df_chunk.columns:
-            top_10_values = df_chunk['is_in_top_10_percent'].fillna(False).astype(bool)
-            self.top_10_count += top_10_values.sum()
-        
-        # Top 1%
-        if 'is_in_top_1_percent' in df_chunk.columns:
-            top_1_values = df_chunk['is_in_top_1_percent'].fillna(False).astype(bool)
-            self.top_1_count += top_1_values.sum()
-        
-        # OA Status
-        if 'oa_status' in df_chunk.columns:
-            oa_counts = df_chunk['oa_status'].value_counts()
-            for oa_type, count in oa_counts.items():
-                if oa_type in self.oa_counts:
-                    self.oa_counts[oa_type] += count
-    
+        if 'citation_normalized_percentile' in chunk.columns:
+            # Usually stored as decimal 0-100 or 0-1 in data? 
+            # OpenAlex: citation_normalized_percentile.value is 0-100.
+            # We assume the column contains the numeric value.
+            
+            # Handle potential dictionary column if not unpacked
+            if chunk['citation_normalized_percentile'].dtype == 'object':
+                 # Try to extract value if it's a dict/json
+                 vals = pd.to_numeric(chunk['citation_normalized_percentile'], errors='coerce').fillna(0.0)
+            else:
+                 vals = chunk['citation_normalized_percentile'].fillna(0.0)
+            
+            self.percentile_sum += vals.sum()
+            
+            # Top 10% (>= 90.0)
+            self.top_10_count += (vals >= 90.0).sum()
+            
+            # Top 1% (>= 99.0)
+            self.top_1_count += (vals >= 99.0).sum()
+            
+        # Open Access Status
+        if 'oa_status' in chunk.columns:
+            counts = chunk['oa_status'].value_counts()
+            for status in ['gold', 'diamond', 'green', 'hybrid', 'bronze', 'closed']:
+                self.oa_counts[status] += counts.get(status, 0)
+                
+        # Language Stats
+        if 'language' in chunk.columns:
+            # Count languages
+            lang_counts = chunk['language'].fillna('unknown').value_counts()
+            
+            target_langs = ['en', 'fr', 'de', 'it', 'la', 'nd', 'pt', 'ru', 'es']
+            
+            for lang in target_langs:
+                self.lang_counts[lang] += lang_counts.get(lang, 0)
+                
+            # Count others (all that are not in our target list)
+            # sum of counts for indices NOT in target_langs
+            self.lang_counts['other'] += lang_counts[~lang_counts.index.isin(target_langs)].sum()
+
     def get_metrics(self):
-        """Calculate final metrics from accumulated values."""
+        """
+        Return dictionary with calculated average metrics.
+        """
         if self.count == 0:
             return {
                 'num_documents': 0,
@@ -97,10 +143,22 @@ class MetricsAccumulator:
                 'pct_oa_green': 0.0,
                 'pct_oa_hybrid': 0.0,
                 'pct_oa_bronze': 0.0,
-                'pct_oa_closed': 0.0
+                'pct_oa_closed': 0.0,
+                
+                # Default languages
+                'pct_lang_en': 0.0,
+                'pct_lang_fr': 0.0,
+                'pct_lang_de': 0.0,
+                'pct_lang_it': 0.0,
+                'pct_lang_la': 0.0,
+                'pct_lang_nd': 0.0,
+                'pct_lang_pt': 0.0,
+                'pct_lang_ru': 0.0,
+                'pct_lang_es': 0.0,
+                'pct_lang_other': 0.0
             }
         
-        return {
+        metrics = {
             'num_documents': self.count,
             'fwci_avg': round(self.fwci_sum / self.count, 2),
             'pct_top_10': round((self.top_10_count / self.count) * 100, 2),
@@ -113,6 +171,12 @@ class MetricsAccumulator:
             'pct_oa_bronze': round((self.oa_counts['bronze'] / self.count) * 100, 2),
             'pct_oa_closed': round((self.oa_counts['closed'] / self.count) * 100, 2)
         }
+        
+        # Calculate Language Percentages
+        for lang in ['en', 'fr', 'de', 'it', 'la', 'nd', 'pt', 'ru', 'es', 'other']:
+            metrics[f'pct_lang_{lang}'] = round((self.lang_counts[lang] / self.count) * 100, 2)
+            
+        return metrics
 
 def process_works_in_chunks(works_filepath, filter_func=None, chunk_size=50000):
     """
