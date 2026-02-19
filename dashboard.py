@@ -1071,6 +1071,106 @@ if level == "Region (Latinoamérica)":
         else:
             st.info(f"💡 No hay datos disponibles para {period_label}. Ejecuta el pipeline completo.")
     
+        st.markdown("---")
+        st.subheader("Indicadores Anuales (Todos los Países y LATAM)")
+        st.caption("Detalle histórico de la evolución bibliométrica por país y año. Incluye datos crudos y suavizados (medias móviles).")
+        
+        tab_raw, tab_w3, tab_w5 = st.tabs(["📊 Datos Crudos", "🌊 Suavizado (w=3)", "🌌 Suavizado (w=5)"])
+        
+        try:
+            # Load annual data
+            country_annual_all = load_cached_metrics('country', 'annual')
+            latam_annual_all = load_cached_metrics('latam', 'annual')
+            
+            # Combine Data
+            df_list = []
+            if country_annual_all is not None:
+                df_list.append(country_annual_all)
+            if latam_annual_all is not None:
+                latam_annual_all = latam_annual_all.copy()
+                latam_annual_all['country_code'] = 'Lat'
+                df_list.append(latam_annual_all)
+            
+            if df_list:
+                df_full = pd.concat(df_list, ignore_index=True)
+                
+                # Metrics columns to smooth
+                cols_metrics = [
+                    'num_journals', 'num_documents', 'fwci_avg', 
+                    'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
+                    'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
+                    'avg_percentile', 'pct_top_10', 'pct_top_1'
+                ]
+                # Filter useful columns only
+                cols_metrics = [c for c in cols_metrics if c in df_full.columns]
+                
+                # Function to prepare and display
+                def show_table(df_input, window=None):
+                    df_work = df_input.copy()
+                    
+                    if window:
+                        # Sort for rolling: Country, Year Asc
+                        df_work = df_work.sort_values(['country_code', 'year'], ascending=[True, True])
+                        # Apply rolling
+                        # Group by country ensures we don't mix data between countries
+                        # min_periods=1 allows computing partial means at edges
+                        df_work[cols_metrics] = df_work.groupby('country_code')[cols_metrics].rolling(window=window, min_periods=1).mean().reset_index(0, drop=True)
+                    
+                    # Create ID_Year
+                    df_work['id_year'] = df_work['country_code'] + '_' + df_work['year'].astype(str)
+                    
+                    # Final Sort: Country, Year Desc
+                    df_work = df_work.sort_values(['country_code', 'year'], ascending=[True, False])
+                    
+                    # Formatting Columns
+                    cols_map = {
+                        'id_year': 'Código_Año',
+                        'num_journals': 'Revistas',
+                        'num_documents': 'Documentos',
+                        'fwci_avg': 'FWCI',
+                        'pct_oa_total': '% OA Total',
+                        'pct_oa_diamond': '% OA Diamante',
+                        'pct_oa_gold': '% OA Gold',
+                        'pct_oa_green': '% OA Verde',
+                        'pct_oa_hybrid': '% OA Híbrido',
+                        'pct_oa_bronze': '% OA Bronce',
+                        'pct_oa_closed': '% Cerrado',
+                        'avg_percentile': 'Percentil Prom.',
+                        'pct_top_10': '% Top 10',
+                        'pct_top_1': '% Top 1'
+                    }
+                    
+                    desired_order = ['Código_Año', 'Revistas', 'Documentos', 'FWCI', 
+                                     '% OA Total', '% OA Diamante', '% OA Gold', 
+                                     '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
+                                     'Percentil Prom.', '% Top 10', '% Top 1']
+                    
+                    final_cols = [c for c in desired_order if c in cols_map.values()]
+                    
+                    # Rename
+                    df_display = df_work.rename(columns=cols_map)
+                    
+                    # Filter existing in display
+                    existing_final_cols = [c for c in final_cols if c in df_display.columns]
+                    
+                    st.dataframe(df_display[existing_final_cols], use_container_width=True, hide_index=True)
+
+                with tab_raw:
+                    show_table(df_full, window=None)
+                
+                with tab_w3:
+                    st.info("💡 Media móvil con ventana de 3 años, centrada en el año final (t, t-1, t-2).")
+                    show_table(df_full, window=3)
+                    
+                with tab_w5:
+                    st.info("💡 Media móvil con ventana de 5 años, centrada en el año final (t, t-1, ..., t-4).")
+                    show_table(df_full, window=5)
+
+            else:
+                st.info("No hay datos anuales disponibles.")
+                
+        except Exception as e:
+            st.error(f"Error cargando tabla anual: {e}")
         
 
     else:

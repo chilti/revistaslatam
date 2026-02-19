@@ -1,0 +1,43 @@
+# ==============================================================================
+# CONFIGURACIÓN SUGERIDA PARA NGINX
+# ==============================================================================
+# Agrega o modifica el bloque location /revistaslatam/ en tu configuración de Nginx.
+# Esto interceptará el HTML de Streamlit e inyectará los metadatos correctos.
+
+location /revistaslatam/ {
+    # ... tus configuraciones de proxy existentes ...
+    # Asegúrate de apuntar al puerto correcto donde corre tu app (ej. 8501)
+    proxy_pass http://127.0.0.1:8501/;
+    
+    proxy_http_version 1.1;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 86400;
+
+    # ----------------------------------------------------------------------
+    # INYECCIÓN DE METADATOS (OPEN GRAPH / WHATSAPP)
+    # ----------------------------------------------------------------------
+    # Importante: Deshabilitar la compresión desde el backend para que sub_filter funcione
+    # Aunque Streamlit ya suele enviar texto plano, es buena práctica.
+    proxy_set_header Accept-Encoding "";
+
+    # 1. Reemplaza el título por defecto
+    sub_filter '<title>Streamlit</title>' '<title>Dashboard Bibliométrico LATAM</title>';
+    
+    # 2. Inyecta los tags de Open Graph justo después de <head>
+    # Nota: Asegúrate de tener una imagen og_preview.png accesible en esa URL
+    sub_filter '<head>' '<head>
+    <meta name="description" content="Análisis interactivo de la producción científica, revistas y trayectorias de desempeño en Latinoamérica.">
+    <meta property="og:title" content="Dashboard Bibliométrico LATAM">
+    <meta property="og:description" content="Análisis interactivo de la producción científica, revistas y trayectorias de desempeño en Latinoamérica.">
+    <meta property="og:url" content="http://dinamica1.fciencias.unam.mx/revistaslatam/">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="http://dinamica1.fciencias.unam.mx/revistaslatam/static/og_preview.png">';
+    
+    # Asegura que solo se reemplace la primera ocurrencia (para title y head)
+    sub_filter_once on;
+    # Tipos de contenido donde aplicar el filtro
+    sub_filter_types text/html;
+}
