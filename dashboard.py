@@ -1906,7 +1906,7 @@ elif level == "Revista":
                 if not topics_j.empty:
                     fig_sun = px.sunburst(
                         topics_j,
-                        path=['domain', 'field', 'topic_name'],
+                        path=['domain', 'field', 'subfield', 'topic_name'],
                         values='count',
                         color='domain',
                         color_discrete_sequence=px.colors.qualitative.Prism
