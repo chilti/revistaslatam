@@ -127,6 +127,41 @@ def load_and_scale(entity_type, period_key):
             df['avg_percentile'] = df['avg_percentile'] * 100
     return df
 
+def create_profile_table(df_data, level_col, index_col, index_name, total_name):
+    """Agrega y pivotea métricas temáticas para Perfiles Temáticos."""
+    # 1. Agrupar por Entidad (País/Revista) y Nivel Temático (Dominio/Campo/Subcampo)
+    grouped = df_data.groupby([index_col, level_col], as_index=False)['count'].sum()
+    
+    # 2. Pivotear para que los temas sean columnas
+    pivoted = grouped.pivot(index=index_col, columns=level_col, values='count').fillna(0).astype(int)
+    
+    # 3. Formatear el índice y columnas
+    if index_col == 'country_code':
+        # Translate Country Codes
+        pivoted.index = pivoted.index.map(lambda x: COUNTRY_NAMES.get(x, x))
+    
+    pivoted.index.name = index_name
+    pivoted.columns.name = None
+    pivoted = pivoted.reset_index()
+    
+    # 4. Calcular el Total General por Entidad (para ordenar y mostrar)
+    topic_cols = [c for c in pivoted.columns if c != index_name]
+    pivoted['Total'] = pivoted[topic_cols].sum(axis=1)
+    
+    # Ordenar por el Total descendente
+    pivoted = pivoted.sort_values(by='Total', ascending=False)
+    
+    # 5. Calcular la Fila de Suma Total
+    total_row = {index_name: total_name}
+    for col in topic_cols + ['Total']:
+        total_row[col] = pivoted[col].sum()
+    
+    # Añadir fila inferior (usando concat para evitar problemas de append en nuevas vars pandas)
+    total_df = pd.DataFrame([total_row])
+    final_table = pd.concat([pivoted, total_df], ignore_index=True)
+    
+    return final_table
+
 # Filter by Level
 if level == "Region (Latinoamérica)":
     st.header("Panorama Regional")
@@ -374,6 +409,21 @@ if level == "Region (Latinoamérica)":
                             )
                             fig_sun_latam.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
                             st.plotly_chart(fig_sun_latam, use_container_width=True)
+                            
+                        with st.expander("📊 Perfiles Temáticos"):
+                            tab_dom, tab_field, tab_sub = st.tabs(["Dominio", "Campo", "Subcampo"])
+                            
+                            with tab_dom:
+                                df_dom = create_profile_table(topics_latam, 'domain', 'country_code', 'País', 'Total Región LATAM')
+                                st.dataframe(df_dom, use_container_width=True, hide_index=True)
+                                
+                            with tab_field:
+                                df_field = create_profile_table(topics_latam, 'field', 'country_code', 'País', 'Total Región LATAM')
+                                st.dataframe(df_field, use_container_width=True, hide_index=True)
+                                
+                            with tab_sub:
+                                df_sub = create_profile_table(topics_latam, 'subfield', 'country_code', 'País', 'Total Región LATAM')
+                                st.dataframe(df_sub, use_container_width=True, hide_index=True)
                 except Exception as e:
                     st.warning(f"No se pudieron cargar los temas regionales: {e}")
         
@@ -1793,6 +1843,38 @@ elif level == "País":
                                 )
                                 fig_sun_c.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
                                 st.plotly_chart(fig_sun_c, use_container_width=True)
+                                
+                            # --- Tablas de Perfiles Temáticos ---
+                            with st.expander("📊 Perfiles Temáticos"):
+                                tab_dom_c, tab_field_c, tab_sub_c = st.tabs(["Dominio", "Campo", "Subcampo"])
+                                
+                                # Obtener IDs de revistas de este país
+                                country_j_ids = df[df['country_code'] == selected_country]['id'].tolist()
+                                
+                                # Cargar temas a nivel revista
+                                if os.path.exists(TOPICS_FILE):
+                                    topics_j_all = pd.read_parquet(TOPICS_FILE)
+                                    topics_cj = topics_j_all[topics_j_all['journal_id'].isin(country_j_ids)]
+                                    
+                                    if not topics_cj.empty:
+                                        total_c_name = f"Total {COUNTRY_NAMES.get(selected_country, selected_country)}"
+                                        
+                                        with tab_dom_c:
+                                            df_dom_c = create_profile_table(topics_cj, 'domain', 'journal_name', 'Revista', total_c_name)
+                                            st.dataframe(df_dom_c, use_container_width=True, hide_index=True)
+                                            
+                                        with tab_field_c:
+                                            df_field_c = create_profile_table(topics_cj, 'field', 'journal_name', 'Revista', total_c_name)
+                                            st.dataframe(df_field_c, use_container_width=True, hide_index=True)
+                                            
+                                        with tab_sub_c:
+                                            df_sub_c = create_profile_table(topics_cj, 'subfield', 'journal_name', 'Revista', total_c_name)
+                                            st.dataframe(df_sub_c, use_container_width=True, hide_index=True)
+                                    else:
+                                        st.info("No hay datos temáticos detallados por revista para este país.")
+                                else:
+                                    st.warning("No se encontró el archivo de temas por revista.")
+                                
                     except Exception as e:
                         st.warning(f"No se pudieron cargar los temas del país: {e}")
         
