@@ -113,8 +113,9 @@ def enrich_journals(email=None):
                         'journal_name': data.get('display_name'),
                         'topic_name': topic['display_name'],
                         'topic_id': topic['id'],
-                        'field': topic['field']['display_name'],
-                        'domain': topic['domain']['display_name'],
+                        'subfield': topic['subfield']['display_name'] if 'subfield' in topic else 'Unknown',
+                        'field': topic['field']['display_name'] if 'field' in topic else 'Unknown',
+                        'domain': topic['domain']['display_name'] if 'domain' in topic else 'Unknown',
                         'count': count,
                         'share': share
                     }
@@ -156,8 +157,14 @@ def enrich_journals(email=None):
     print(f"\n✅ Enriquecimiento completado. Total registros topics: {len(final_list)}")
 
 if __name__ == "__main__":
+    import argparse
+    from generate_country_sunburst import generate_country_sunburst
+    
     parser = argparse.ArgumentParser(description='Enrich journals with OpenAlex API data')
     parser.add_argument('--email', help='Email for OpenAlex API politeness pool')
     args = parser.parse_args()
     
     enrich_journals(email=args.email)
+    
+    # También generar automáticamente el nivel país
+    generate_country_sunburst()
