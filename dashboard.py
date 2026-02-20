@@ -1100,7 +1100,9 @@ if level == "Region (Latinoamérica)":
                     'num_journals', 'num_documents', 'fwci_avg', 
                     'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
                     'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
-                    'avg_percentile', 'pct_top_10', 'pct_top_1'
+                    'avg_percentile', 'pct_top_10', 'pct_top_1',
+                    'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
+                    'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
                 ]
                 # Filter useful columns only
                 cols_metrics = [c for c in cols_metrics if c in df_full.columns]
@@ -1138,12 +1140,19 @@ if level == "Region (Latinoamérica)":
                         'pct_oa_closed': '% Cerrado',
                         'avg_percentile': 'Percentil Prom.',
                         'pct_top_10': '% Top 10',
-                        'pct_top_1': '% Top 1'
+                        'pct_top_1': '% Top 1',
+                        'pct_lang_es': '% Español',
+                        'pct_lang_en': '% Inglés',
+                        'pct_lang_pt': '% Portugués',
+                        'pct_lang_fr': '% Francés',
+                        'pct_lang_de': '% Alemán',
+                        'pct_lang_it': '% Italiano'
                     }
                     
                     desired_order = ['Código_Año', 'Revistas', 'Documentos', 'FWCI', 
                                      '% OA Total', '% OA Diamante', '% OA Gold', 
                                      '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
+                                     '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
                                      'Percentil Prom.', '% Top 10', '% Top 1']
                     
                     final_cols = [c for c in desired_order if c in cols_map.values()]
@@ -1326,42 +1335,86 @@ elif level == "País":
                             st.plotly_chart(fig_traj, use_container_width=True)
                     except Exception as e:
                         st.error(f"Error visualizando trayectoria: {e}")
-                with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
-                    tab1, tab2, tab3 = st.tabs(["Datos Crudos", "Suavizado (w=3)", "Suavizado (w=5)"])
+                st.markdown("---")
+                st.subheader(f"Indicadores Históricos de {selected_country}")
+                
+                tab_c_raw, tab_c_w3, tab_c_w5 = st.tabs(["📊 Datos Crudos", "🌊 Suavizado (w=3)", "🌌 Suavizado (w=5)"])
+                
+                # Load annual data
+                country_annual_all = load_cached_metrics('country', 'annual')
+                
+                if country_annual_all is not None:
+                    # Filter for selected country
+                    df_country_annual = country_annual_all[country_annual_all['country_code'] == selected_country].copy()
                     
-                    # RAW DATA
-                    if os.path.exists(traj_raw_file):
-                        raw_df = pd.read_parquet(traj_raw_file)
-                        raw_subset = raw_df[raw_df['id'].isin([selected_country, 'LATAM']) & (raw_df['year'] >= 2000) & (raw_df['year'] <= 2025)].sort_values(['id', 'year'])
-                        # Format for display
-                        cols_to_show = ['name', 'type', 'year', 'num_documents', 'fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1']
-                        existing_cols = [c for c in cols_to_show if c in raw_subset.columns]
-                        tab1.dataframe(raw_subset[existing_cols], use_container_width=True, hide_index=True)
-                    else:
-                        tab1.warning("Archivo de datos crudos no encontrado.")
-                        
-                    # SMOOTHED DATA (w=3)
-                    if os.path.exists(traj_smooth_file):
-                        smooth_df = pd.read_parquet(traj_smooth_file)
-                        smooth_subset = smooth_df[smooth_df['id'].isin([selected_country, 'LATAM']) & (smooth_df['year'] >= 2000) & (smooth_df['year'] <= 2025)].sort_values(['id', 'year'])
-                        # Format
-                        existing_cols_s = [c for c in cols_to_show if c in smooth_subset.columns]
-                        tab2.dataframe(smooth_subset[existing_cols_s], use_container_width=True, hide_index=True)
-                        tab2.caption("Nota: Datos suavizados (media móvil exponencial, window=3).")
-                    else:
-                        tab2.warning("Archivo de datos suavizados (w=3) no encontrado.")
+                    if not df_country_annual.empty:
+                        # Metrics columns to smooth and show
+                        cols_metrics_c = [
+                            'num_journals', 'num_documents', 'fwci_avg', 
+                            'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
+                            'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
+                            'avg_percentile', 'pct_top_10', 'pct_top_1',
+                            'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
+                            'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
+                        ]
+                        # Filter useful columns only
+                        cols_metrics_c = [c for c in cols_metrics_c if c in df_country_annual.columns]
 
-                    # SMOOTHED DATA (w=5)
-                    # SMOOTHED DATA (w=5)
-                    if os.path.exists(traj_smooth_w5_file):
-                        smooth_w5_df = pd.read_parquet(traj_smooth_w5_file)
-                        smooth_w5_subset = smooth_w5_df[smooth_w5_df['id'].isin([selected_country, 'LATAM']) & (smooth_w5_df['year'] >= 2000) & (smooth_w5_df['year'] <= 2025)].sort_values(['id', 'year'])
-                        # Format
-                        existing_cols_w5 = [c for c in cols_to_show if c in smooth_w5_subset.columns]
-                        tab3.dataframe(smooth_w5_subset[existing_cols_w5], use_container_width=True, hide_index=True)
-                        tab3.caption("Nota: Datos suavizados intensamente (media móvil exponencial, window=5).")
+                        def show_country_table(df_input, window=None):
+                            df_work = df_input.copy()
+                            
+                            if window:
+                                df_work = df_work.sort_values('year', ascending=True)
+                                df_work[cols_metrics_c] = df_work[cols_metrics_c].rolling(window=window, min_periods=1).mean()
+                            
+                            df_work = df_work.sort_values('year', ascending=False)
+                            
+                            # Formatting
+                            cols_map_c = {
+                                'year': 'Año',
+                                'num_journals': 'Revistas',
+                                'num_documents': 'Documentos',
+                                'fwci_avg': 'FWCI',
+                                'pct_oa_total': '% OA Total',
+                                'pct_oa_diamond': '% OA Diamante',
+                                'pct_oa_gold': '% OA Gold',
+                                'pct_oa_green': '% OA Verde',
+                                'pct_oa_hybrid': '% OA Híbrido',
+                                'pct_oa_bronze': '% OA Bronce',
+                                'pct_oa_closed': '% Cerrado',
+                                'avg_percentile': 'Percentil Prom.',
+                                'pct_top_10': '% Top 10',
+                                'pct_top_1': '% Top 1',
+                                'pct_lang_es': '% Español',
+                                'pct_lang_en': '% Inglés',
+                                'pct_lang_pt': '% Portugués',
+                                'pct_lang_fr': '% Francés',
+                                'pct_lang_de': '% Alemán',
+                                'pct_lang_it': '% Italiano'
+                            }
+                            
+                            desired_order_c = ['Año', 'Revistas', 'Documentos', 'FWCI', 
+                                             '% OA Total', '% OA Diamante', '% OA Gold', 
+                                             '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
+                                             '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
+                                             'Percentil Prom.', '% Top 10', '% Top 1']
+                            
+                            final_cols = [c for c in desired_order_c if c in cols_map_c.values()]
+                            df_display = df_work.rename(columns=cols_map_c)
+                            existing_final_cols = [c for c in final_cols if c in df_display.columns]
+                            
+                            st.dataframe(df_display[existing_final_cols], use_container_width=True, hide_index=True)
+
+                        with tab_c_raw:
+                            show_country_table(df_country_annual, window=None)
+                        with tab_c_w3:
+                            show_country_table(df_country_annual, window=3)
+                        with tab_c_w5:
+                            show_country_table(df_country_annual, window=5)
                     else:
-                        tab3.warning("Archivo de datos suavizados (w=5) no encontrado.")
+                        st.info("No hay datos históricos para este país.")
+                else:
+                    st.warning("No se pudieron cargar los datos anuales.")
                 
                 
                 # UMAP Visualization for Journals in this Country
@@ -1974,9 +2027,58 @@ elif level == "Revista":
                                           yaxis_title='Porcentaje (%)')
                 st.plotly_chart(fig_oa_trend, use_container_width=True)
                 
-                # Show annual data table
-                with st.expander("📊 Ver Tabla de Datos Anuales"):
-                    st.dataframe(recent_years, use_container_width=True, hide_index=True)
+                # Show annual data table nicely formatted
+                st.markdown("---")
+                st.markdown("### Tabla de Indicadores Anuales")
+                
+                # Metrics columns to show
+                cols_metrics_j = [
+                    'year', 'num_documents', 'fwci_avg', 
+                    'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
+                    'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
+                    'avg_percentile', 'pct_top_10', 'pct_top_1',
+                    'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
+                    'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
+                ]
+                # Filter useful columns only
+                cols_metrics_j = [c for c in cols_metrics_j if c in journal_annual_data.columns]
+                
+                # Formatting
+                cols_map_j = {
+                    'year': 'Año',
+                    'num_documents': 'Documentos',
+                    'fwci_avg': 'FWCI',
+                    'pct_oa_total': '% OA Total',
+                    'pct_oa_diamond': '% OA Diamante',
+                    'pct_oa_gold': '% OA Gold',
+                    'pct_oa_green': '% OA Verde',
+                    'pct_oa_hybrid': '% OA Híbrido',
+                    'pct_oa_bronze': '% OA Bronce',
+                    'pct_oa_closed': '% Cerrado',
+                    'avg_percentile': 'Percentil Prom.',
+                    'pct_top_10': '% Top 10',
+                    'pct_top_1': '% Top 1',
+                    'pct_lang_es': '% Español',
+                    'pct_lang_en': '% Inglés',
+                    'pct_lang_pt': '% Portugués',
+                    'pct_lang_fr': '% Francés',
+                    'pct_lang_de': '% Alemán',
+                    'pct_lang_it': '% Italiano'
+                }
+                
+                desired_order_j = ['Año', 'Documentos', 'FWCI', 
+                                 '% OA Total', '% OA Diamante', '% OA Gold', 
+                                 '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
+                                 '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
+                                 'Percentil Prom.', '% Top 10', '% Top 1']
+                
+                # Prepare DF (Full history, not just recent)
+                df_display_j = journal_annual_data[cols_metrics_j].copy().sort_values('year', ascending=False)
+                df_display_j = df_display_j.rename(columns=cols_map_j)
+                
+                final_cols_j = [c for c in desired_order_j if c in df_display_j.columns]
+                
+                st.dataframe(df_display_j[final_cols_j], use_container_width=True, hide_index=True)
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
@@ -2300,6 +2402,31 @@ elif level == "Acerca de...":
     # Diagrama Mermaid visualizado con Graphviz para compatibilidad nativa
     st.caption("Flujo de datos y arquitectura del sistema")
     
+    # 2. Extract stats for simplified diagram
+    n_revistas = len(df)
+    n_trabajos = df['works_count'].sum() if 'works_count' in df.columns else 0
+
+    st.graphviz_chart(f"""
+    digraph SimplifiedPipeline {{
+        rankdir=LR;
+        node [shape=box, style=filled, fillcolor="#f0f2f6", fontname="Sans-Serif"];
+        edge [fontname="Sans-Serif", fontsize=10];
+        
+        Sources [label="Fuentes de Datos\\n(PostgreSQL + API)\\n📦 1.2 Tb", shape=cylinder, fillcolor="#ffeba0"];
+        ETL [label="Extracción (ETL)\\n📄 {n_revistas:,} Revistas\\n📑 {n_trabajos:,} Trabajos", shape=component, fillcolor="#ffbd45"];
+        Processing [label="Procesamiento\\n(Métricas & UMAP)", shape=component, fillcolor="#ffbd45"];
+        Cache [label="Datos Procesados\\n(Cache Parquet)", shape=note, fillcolor="#e8fdf5"];
+        Dashboard [label="Dashboard\\n(Streamlit)", shape=rect, style=filled, fillcolor="#ff4b4b", fontcolor=white];
+
+        Sources -> ETL;
+        ETL -> Processing;
+        Processing -> Cache;
+        Cache -> Dashboard;
+    }}
+    """)
+    st.caption("Arquitectura General Simplificada")
+    st.markdown("---")
+
     st.graphviz_chart("""
     digraph Pipeline {
         rankdir=TB;
