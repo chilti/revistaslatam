@@ -298,25 +298,52 @@ if level == "Region (Latinoamérica)":
                 c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
                 c5.metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
             
-            # Open Access breakdown
-            st.markdown("#### Distribución de Acceso Abierto")
-            oa_data = {
-                'Tipo': ['Gold', 'Diamond', 'Green', 'Hybrid', 'Bronze', 'Closed'],
-                'Porcentaje': [
-                    period_data.get('pct_oa_gold', 0),
-                    period_data.get('pct_oa_diamond', 0),
-                    period_data.get('pct_oa_green', 0),
-                    period_data.get('pct_oa_hybrid', 0),
-                    period_data.get('pct_oa_bronze', 0),
-                    period_data.get('pct_oa_closed', 0)
-                ]
-            }
-            oa_df = pd.DataFrame(oa_data)
+            # Open Access and Language breakdown
+            st.markdown("#### Distribución y Características de las Publicaciones")
+            col_chart1, col_chart2 = st.columns(2)
             
-            fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo',
-                           title='Distribución por Tipo de Acceso Abierto',
-                           color_discrete_sequence=px.colors.qualitative.Set3)
-            st.plotly_chart(fig_oa, use_container_width=True)
+            with col_chart1:
+                oa_data = {
+                    'Tipo': ['Gold', 'Diamond', 'Green', 'Hybrid', 'Bronze', 'Closed'],
+                    'Porcentaje': [
+                        period_data.get('pct_oa_gold', 0),
+                        period_data.get('pct_oa_diamond', 0),
+                        period_data.get('pct_oa_green', 0),
+                        period_data.get('pct_oa_hybrid', 0),
+                        period_data.get('pct_oa_bronze', 0),
+                        period_data.get('pct_oa_closed', 0)
+                    ]
+                }
+                oa_df = pd.DataFrame(oa_data)
+                
+                fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo',
+                               title='Distribución por Acceso Abierto',
+                               color_discrete_sequence=px.colors.qualitative.Set3)
+                st.plotly_chart(fig_oa, use_container_width=True)
+
+            with col_chart2:
+                lang_data = {
+                    'Idioma': ['Español', 'Inglés', 'Portugués', 'Francés', 'Alemán', 'Italiano', 'Otros'],
+                    'Porcentaje': [
+                        period_data.get('pct_lang_es', 0),
+                        period_data.get('pct_lang_en', 0),
+                        period_data.get('pct_lang_pt', 0),
+                        period_data.get('pct_lang_fr', 0),
+                        period_data.get('pct_lang_de', 0),
+                        period_data.get('pct_lang_it', 0),
+                        period_data.get('pct_lang_other', 0)
+                    ]
+                }
+                lang_df = pd.DataFrame(lang_data)
+                lang_df = lang_df[lang_df['Porcentaje'] > 0]
+                
+                if not lang_df.empty:
+                    fig_lang = px.pie(lang_df, values='Porcentaje', names='Idioma',
+                                     title='Distribución por Idiomas',
+                                     color_discrete_sequence=px.colors.qualitative.Pastel)
+                    st.plotly_chart(fig_lang, use_container_width=True)
+                else:
+                    st.info("Sin datos de idioma.")
             
             # Journal indexing
             st.markdown("#### Indexación de Revistas")
@@ -1658,25 +1685,52 @@ elif level == "País":
 
                 # Data Tables Expander
                
-                # Open Access breakdown
-                st.markdown("#### Distribución de Acceso Abierto")
-                oa_data = {
-                    'Tipo': ['Gold', 'Diamond', 'Green', 'Hybrid', 'Bronze', 'Closed'],
-                    'Porcentaje': [
-                        period_data.get('pct_oa_gold', 0),
-                        period_data.get('pct_oa_diamond', 0),
-                        period_data.get('pct_oa_green', 0),
-                        period_data.get('pct_oa_hybrid', 0),
-                        period_data.get('pct_oa_bronze', 0),
-                        period_data.get('pct_oa_closed', 0)
-                    ]
-                }
-                oa_df = pd.DataFrame(oa_data)
+                # Open Access and Language breakdown
+                st.markdown("#### Distribución y Características de las Publicaciones")
+                col_chart1_c, col_chart2_c = st.columns(2)
                 
-                fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo',
-                               title='Distribución por Tipo de Acceso Abierto',
-                               color_discrete_sequence=px.colors.qualitative.Set3)
-                st.plotly_chart(fig_oa, use_container_width=True)
+                with col_chart1_c:
+                    oa_data = {
+                        'Tipo': ['Gold', 'Diamond', 'Green', 'Hybrid', 'Bronze', 'Closed'],
+                        'Porcentaje': [
+                            period_data.get('pct_oa_gold', 0),
+                            period_data.get('pct_oa_diamond', 0),
+                            period_data.get('pct_oa_green', 0),
+                            period_data.get('pct_oa_hybrid', 0),
+                            period_data.get('pct_oa_bronze', 0),
+                            period_data.get('pct_oa_closed', 0)
+                        ]
+                    }
+                    oa_df = pd.DataFrame(oa_data)
+                    
+                    fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo',
+                                   title='Distribución por Acceso Abierto',
+                                   color_discrete_sequence=px.colors.qualitative.Set3)
+                    st.plotly_chart(fig_oa, use_container_width=True)
+
+                with col_chart2_c:
+                    lang_data = {
+                        'Idioma': ['Español', 'Inglés', 'Portugués', 'Francés', 'Alemán', 'Italiano', 'Otros'],
+                        'Porcentaje': [
+                            period_data.get('pct_lang_es', 0),
+                            period_data.get('pct_lang_en', 0),
+                            period_data.get('pct_lang_pt', 0),
+                            period_data.get('pct_lang_fr', 0),
+                            period_data.get('pct_lang_de', 0),
+                            period_data.get('pct_lang_it', 0),
+                            period_data.get('pct_lang_other', 0)
+                        ]
+                    }
+                    lang_df = pd.DataFrame(lang_data)
+                    lang_df = lang_df[lang_df['Porcentaje'] > 0]
+                    
+                    if not lang_df.empty:
+                        fig_lang = px.pie(lang_df, values='Porcentaje', names='Idioma',
+                                         title='Distribución por Idiomas',
+                                         color_discrete_sequence=px.colors.qualitative.Pastel)
+                        st.plotly_chart(fig_lang, use_container_width=True)
+                    else:
+                        st.info("Sin datos de idioma.")
                 
                 # Indexing
                 st.markdown("#### Indexación de Revistas")
