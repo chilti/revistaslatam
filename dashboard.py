@@ -71,6 +71,7 @@ traj_smooth_w5_file = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_data_
 MAP_COUNTRIES_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_countries_coords.parquet')
 MAP_JOURNALS_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_journals_coords.parquet')
 TOPICS_FILE = os.path.join(BASE_PATH, 'data', 'journals_topics_sunburst.parquet')
+COUNTRIES_TOPICS_FILE = os.path.join(BASE_PATH, 'data', 'countries_topics_sunburst.parquet')
 
 # Country Names Mapping
 COUNTRY_NAMES = {
@@ -351,6 +352,30 @@ if level == "Region (Latinoamérica)":
             col1.metric("% Scopus", f"{period_data.get('pct_scopus', 0):.1f}%")
             col2.metric("% CORE", f"{period_data.get('pct_core', 0):.1f}%")
             col3.metric("% DOAJ", f"{period_data.get('pct_doaj', 0):.1f}%")
+
+            # --- Sunburst de Temáticas (Regional Level) ---
+            if os.path.exists(COUNTRIES_TOPICS_FILE):
+                try:
+                    topics_latam = pd.read_parquet(COUNTRIES_TOPICS_FILE)
+                    if not topics_latam.empty:
+                        st.markdown("---")
+                        st.subheader("Temáticas de Investigación a Nivel Regional (Sunburst)")
+                        # Agrupar todo LATAM a 3 niveles: domain -> field -> subfield
+                        topics_agg = topics_latam.groupby(['domain', 'field', 'subfield'], as_index=False)['count'].sum()
+                        topics_agg = topics_agg[topics_agg['count'] > 0]
+                        
+                        if not topics_agg.empty:
+                            fig_sun_latam = px.sunburst(
+                                topics_agg,
+                                path=['domain', 'field', 'subfield'],
+                                values='count',
+                                color='domain',
+                                color_discrete_sequence=px.colors.qualitative.Prism
+                            )
+                            fig_sun_latam.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
+                            st.plotly_chart(fig_sun_latam, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"No se pudieron cargar los temas regionales: {e}")
         
         if latam_annual is not None and len(latam_annual) > 0:
             st.markdown("---")
@@ -1738,6 +1763,38 @@ elif level == "País":
                 col1.metric("% Scopus", f"{period_data.get('pct_scopus', 0):.1f}%")
                 col2.metric("% CORE", f"{period_data.get('pct_core', 0):.1f}%")
                 col3.metric("% DOAJ", f"{period_data.get('pct_doaj', 0):.1f}%")
+
+                # --- Sunburst de Temáticas (Country Level) ---
+                if os.path.exists(COUNTRIES_TOPICS_FILE):
+                    try:
+                        try:
+                            # Carga optimizada filtrando por country
+                            topics_c = pd.read_parquet(COUNTRIES_TOPICS_FILE, filters=[('country_code', '==', selected_country)])
+                        except:
+                            # Fallback
+                            topics_full = pd.read_parquet(COUNTRIES_TOPICS_FILE)
+                            topics_c = topics_full[topics_full['country_code'] == selected_country]
+                        
+                        if not topics_c.empty:
+                            st.markdown("---")
+                            st.subheader(f"Temáticas de Investigación en {COUNTRY_NAMES.get(selected_country, selected_country)} (Sunburst)")
+                            
+                            # Agrupar por niveles: domain -> field -> subfield
+                            topics_agg_c = topics_c.groupby(['domain', 'field', 'subfield'], as_index=False)['count'].sum()
+                            topics_agg_c = topics_agg_c[topics_agg_c['count'] > 0]
+                            
+                            if not topics_agg_c.empty:
+                                fig_sun_c = px.sunburst(
+                                    topics_agg_c,
+                                    path=['domain', 'field', 'subfield'],
+                                    values='count',
+                                    color='domain',
+                                    color_discrete_sequence=px.colors.qualitative.Prism
+                                )
+                                fig_sun_c.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
+                                st.plotly_chart(fig_sun_c, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"No se pudieron cargar los temas del país: {e}")
         
         if country_annual is not None:
             country_annual_data = country_annual[country_annual['country_code'] == selected_country]
