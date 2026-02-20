@@ -101,26 +101,38 @@ def calculate_performance_metrics_from_df(works_df):
             pct_top_1 = (top_1_values.sum() / num_documents) * 100
     
     # OA percentages by type
-    if 'oa_status' in works_df.columns:
-        total = len(works_df)
+    if 'oa_status' in works_df.columns and num_documents > 0:
         oa_counts = works_df['oa_status'].value_counts()
         
         oa_types = {
-            'pct_oa_gold': (oa_counts.get('gold', 0) / total) * 100,
-            'pct_oa_diamond': (oa_counts.get('diamond', 0) / total) * 100,
-            'pct_oa_green': (oa_counts.get('green', 0) / total) * 100,
-            'pct_oa_hybrid': (oa_counts.get('hybrid', 0) / total) * 100,
-            'pct_oa_bronze': (oa_counts.get('bronze', 0) / total) * 100,
-            'pct_oa_closed': (oa_counts.get('closed', 0) / total) * 100
+            'pct_oa_gold': (oa_counts.get('gold', 0) / num_documents) * 100,
+            'pct_oa_diamond': (oa_counts.get('diamond', 0) / num_documents) * 100,
+            'pct_oa_green': (oa_counts.get('green', 0) / num_documents) * 100,
+            'pct_oa_hybrid': (oa_counts.get('hybrid', 0) / num_documents) * 100,
+            'pct_oa_bronze': (oa_counts.get('bronze', 0) / num_documents) * 100,
+            'pct_oa_closed': (oa_counts.get('closed', 0) / num_documents) * 100
         }
     else:
         oa_types = {
             'pct_oa_gold': 0.0,
+            'pct_oa_diamond': 0.0,
             'pct_oa_green': 0.0,
             'pct_oa_hybrid': 0.0,
             'pct_oa_bronze': 0.0,
             'pct_oa_closed': 0.0
         }
+
+    # Language percentages
+    target_langs = ['en', 'fr', 'de', 'it', 'la', 'nd', 'pt', 'ru', 'es']
+    lang_pcts = {f'pct_lang_{l}': 0.0 for l in target_langs + ['other']}
+    
+    if 'language' in works_df.columns and num_documents > 0:
+        lang_counts = works_df['language'].fillna('unknown').value_counts()
+        for lang in target_langs:
+            lang_pcts[f'pct_lang_{lang}'] = (lang_counts.get(lang, 0) / num_documents) * 100
+            
+        other_count = lang_counts[~lang_counts.index.isin(target_langs)].sum()
+        lang_pcts['pct_lang_other'] = (other_count / num_documents) * 100
     
     metrics = {
         'num_documents': num_documents,
@@ -131,6 +143,7 @@ def calculate_performance_metrics_from_df(works_df):
     }
     
     metrics.update({k: round(v, 6) for k, v in oa_types.items()})
+    metrics.update({k: round(v, 6) for k, v in lang_pcts.items()})
     
     return metrics
 
