@@ -193,7 +193,7 @@ def main():
     smoothed_w5.to_parquet(CACHE_DIR / 'trajectory_data_smoothed_w5.parquet', index=False)
     
     # Remove rows with NaN metrics for UMAP
-    valid_data = smoothed.dropna(subset=METRICS_COLS).copy()
+    valid_data = smoothed.dropna(subset=ALL_METRICS_COLS).copy()
     
     # --- Map 1: Global Countries ---
     logger.info("Generating Global Countries Map (Countries + LATAM)...")
