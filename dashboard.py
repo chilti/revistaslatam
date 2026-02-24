@@ -592,7 +592,7 @@ if level == "Region (Latinoamérica)":
         if os.path.exists(MAP_COUNTRIES_FILE):
             st.markdown("---")
             st.subheader("Trayectorias de Desempeño Latam (Global)")
-            st.caption("Evolución comparativa de todos los países y Latinoamérica (2000-2025) en el espacio UMAP.")
+            st.caption("Evolución comparativa de todos los países y Latinoamérica (2000-2025) en el espacio UMAP. Basado en: Documentos, FWCI, Percentil Promedio, % Top 1%, % Top 10%, % Inglés.")
             
             try:
                 coords_df = pd.read_parquet(MAP_COUNTRIES_FILE)
@@ -709,6 +709,7 @@ if level == "Region (Latinoamérica)":
                                     'name': 'País/Región',
                                     'year': 'Año',
                                     'num_documents': 'Documentos',
+                                    'pct_lang_en': '% Inglés',
                                     'fwci_avg': 'FWCI',
                                     'pct_oa_diamond': '% OA Diamante',
                                     'pct_oa_gold': '% OA Gold',
@@ -725,7 +726,7 @@ if level == "Region (Latinoamérica)":
                                 final_view = merged_df[available_cols].rename(columns=cols_map)
                                 
                                 # Reorder
-                                desired_order = ['Código', 'País/Región', 'Año', 'Documentos', 'FWCI', '% OA Diamante', '% OA Gold', '% Top 10', 'Percentil Prom.', 'Coord. UMAP X', 'Coord. UMAP Y']
+                                desired_order = ['Código', 'País/Región', 'Año', 'Documentos', 'FWCI', '% Inglés', '% OA Diamante', '% OA Gold', '% Top 10', 'Percentil Prom.', 'Coord. UMAP X', 'Coord. UMAP Y']
                                 final_order = [c for c in desired_order if c in final_view.columns]
                                 
                                 st.dataframe(final_view[final_order], use_container_width=True, hide_index=True)
@@ -893,6 +894,7 @@ if level == "Region (Latinoamérica)":
                             'country_code': 'Código',
                             'country_name': 'País',
                             'num_journals': 'Revistas',
+                            'pct_lang_en': '% Inglés',
                             'pct_oa_diamond': '% OA Diamante',
                             'fwci_avg': 'FWCI Promedio',
                             'pct_top_10': '% Top 10%',
@@ -901,7 +903,7 @@ if level == "Region (Latinoamérica)":
                         }
                         
                         # Reorder columns to have Name first
-                        ordered_cols = ['country_code', 'country_name', 'num_journals', 'pct_oa_diamond', 'fwci_avg', 'pct_top_10', 'pct_top_1', 'avg_percentile']
+                        ordered_cols = ['country_code', 'country_name', 'num_journals', 'pct_lang_en', 'pct_oa_diamond', 'fwci_avg', 'pct_top_10', 'pct_top_1', 'avg_percentile']
                         final_cols = [c for c in ordered_cols if c in df_umap_countries.columns]
                         
                         st.dataframe(
