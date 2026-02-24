@@ -833,7 +833,7 @@ if level == "Region (Latinoamérica)":
         # UMAP Visualization for Countries
         st.markdown("---")
         st.subheader("Mapa de Similitud entre Países (UMAP)")
-        st.caption("Visualización 2D basada en: Revistas, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio (2021-2025)")
+        st.caption("Visualización 2D basada en: Revistas, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio, **% Inglés** (2021-2025)")
         
         umap_countries_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_countries_recent.parquet')
         
@@ -1470,7 +1470,7 @@ elif level == "País":
                 # UMAP Visualization for Journals in this Country
                 st.markdown("---")
                 st.subheader("Mapa de Similitud entre Revistas (UMAP)")
-                st.caption("Visualización 2D basada en: Documentos, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio (2021-2025)")
+                st.caption("Visualización 2D basada en: Documentos, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio, **% Inglés** (datos anuales)")
                 
                 umap_journals_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_journals_recent.parquet')
                 
@@ -2335,9 +2335,10 @@ elif level == "Revista":
     st.markdown("---")
     st.subheader("Trayectoria de Desempeño (Perfil Multidimensional)")
     st.markdown("""
-    Esta visualización proyecta 5 indicadores clave (Documentos, FWCI, Percentil Promedio, Top 1%, Top 10%) 
+    Esta visualización proyecta **7 indicadores** (Documentos, FWCI, Percentil Promedio, Top 1%, Top 10%, % Inglés, OA Diamante) 
     en un plano 2D para observar la evolución del desempeño a lo largo del tiempo.
     """)
+
     
     
     if os.path.exists(MAP_JOURNALS_FILE):
