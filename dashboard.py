@@ -2404,14 +2404,35 @@ elif level == "Revista":
                 with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
                     tab1, tab2, tab3 = st.tabs(["Datos Crudos", "Suavizado (w=3)", "Suavizado (w=5)"])
                     
-                    cols_to_show = ['name', 'type', 'year', 'num_documents', 'fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1']
+                    cols_to_show = [
+                        'name', 'type', 'year', 'num_documents', 'fwci_avg',
+                        'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold',
+                        'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
+                        'pct_lang_es', 'pct_lang_en', 'pct_lang_pt',
+                        'pct_lang_fr', 'pct_lang_de', 'pct_lang_it',
+                        'avg_percentile', 'pct_top_10', 'pct_top_1'
+                    ]
+                    
+                    rename_map_traj = {
+                        'name': 'Nombre', 'type': 'Tipo', 'year': 'Año',
+                        'num_documents': 'Documentos', 'fwci_avg': 'FWCI',
+                        'pct_oa_total': '% OA Total', 'pct_oa_diamond': '% OA Diamante',
+                        'pct_oa_gold': '% OA Gold', 'pct_oa_green': '% OA Verde',
+                        'pct_oa_hybrid': '% OA Híbrido', 'pct_oa_bronze': '% OA Bronce',
+                        'pct_oa_closed': '% Cerrado',
+                        'pct_lang_es': '% Español', 'pct_lang_en': '% Inglés',
+                        'pct_lang_pt': '% Portugués', 'pct_lang_fr': '% Francés',
+                        'pct_lang_de': '% Alemán', 'pct_lang_it': '% Italiano',
+                        'avg_percentile': 'Percentil Prom.',
+                        'pct_top_10': '% Top 10', 'pct_top_1': '% Top 1'
+                    }
                     
                     # RAW DATA
                     if os.path.exists(traj_raw_file):
                         raw_df = pd.read_parquet(traj_raw_file)
                         raw_subset = raw_df[raw_df['id'].isin([target_id, country_code]) & (raw_df['year'] >= 2000) & (raw_df['year'] <= 2025)].sort_values(['id', 'year'])
                         existing_cols = [c for c in cols_to_show if c in raw_subset.columns]
-                        tab1.dataframe(raw_subset[existing_cols], use_container_width=True, hide_index=True)
+                        tab1.dataframe(raw_subset[existing_cols].rename(columns=rename_map_traj), use_container_width=True, hide_index=True)
                     else:
                         tab1.warning("Archivo de datos crudos no encontrado.")
                         
@@ -2420,7 +2441,7 @@ elif level == "Revista":
                         smooth_df = pd.read_parquet(traj_smooth_file)
                         smooth_subset = smooth_df[smooth_df['id'].isin([target_id, country_code]) & (smooth_df['year'] >= 2000) & (smooth_df['year'] <= 2025)].sort_values(['id', 'year'])
                         existing_cols_s = [c for c in cols_to_show if c in smooth_subset.columns]
-                        tab2.dataframe(smooth_subset[existing_cols_s], use_container_width=True, hide_index=True)
+                        tab2.dataframe(smooth_subset[existing_cols_s].rename(columns=rename_map_traj), use_container_width=True, hide_index=True)
                         tab2.caption("Media móvil exponencial (window=3, tau=1).")
                     else:
                         tab2.warning("Archivo w=3 no encontrado.")
@@ -2430,7 +2451,7 @@ elif level == "Revista":
                         smooth_w5_df = pd.read_parquet(traj_smooth_w5_file)
                         smooth_w5_subset = smooth_w5_df[smooth_w5_df['id'].isin([target_id, country_code]) & (smooth_w5_df['year'] >= 2000) & (smooth_w5_df['year'] <= 2025)].sort_values(['id', 'year'])
                         existing_cols_w5 = [c for c in cols_to_show if c in smooth_w5_subset.columns]
-                        tab3.dataframe(smooth_w5_subset[existing_cols_w5], use_container_width=True, hide_index=True)
+                        tab3.dataframe(smooth_w5_subset[existing_cols_w5].rename(columns=rename_map_traj), use_container_width=True, hide_index=True)
                         tab3.caption("Media móvil exponencial (window=5, tau=1).")
                     else:
                         tab3.warning("Archivo w=5 no encontrado.")
