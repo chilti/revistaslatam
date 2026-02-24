@@ -476,7 +476,54 @@ if level == "Region (Latinoamérica)":
             
             # Show annual data table
             with st.expander("📊 Ver Tabla de Datos Anuales"):
-                st.dataframe(recent_years, use_container_width=True, hide_index=True)
+                cols_metrics_l = [
+                    'year', 'num_documents', 'fwci_avg', 
+                    'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
+                    'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
+                    'avg_percentile', 'pct_top_10', 'pct_top_1',
+                    'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
+                    'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
+                ]
+                
+                # Default OA Total calculation
+                if 'pct_oa_total' not in recent_years.columns:
+                    recent_years['pct_oa_total'] = recent_years.get('pct_oa_gold', 0) + recent_years.get('pct_oa_green', 0) + recent_years.get('pct_oa_hybrid', 0) + recent_years.get('pct_oa_bronze', 0)
+                
+                cols_metrics_l = [c for c in cols_metrics_l if c in recent_years.columns]
+                
+                cols_map_l = {
+                    'year': 'Año',
+                    'num_documents': 'Documentos',
+                    'fwci_avg': 'FWCI',
+                    'pct_oa_total': '% OA Total',
+                    'pct_oa_diamond': '% OA Diamante',
+                    'pct_oa_gold': '% OA Gold',
+                    'pct_oa_green': '% OA Verde',
+                    'pct_oa_hybrid': '% OA Híbrido',
+                    'pct_oa_bronze': '% OA Bronce',
+                    'pct_oa_closed': '% Cerrado',
+                    'avg_percentile': 'Percentil Prom.',
+                    'pct_top_10': '% Top 10',
+                    'pct_top_1': '% Top 1',
+                    'pct_lang_es': '% Español',
+                    'pct_lang_en': '% Inglés',
+                    'pct_lang_pt': '% Portugués',
+                    'pct_lang_fr': '% Francés',
+                    'pct_lang_de': '% Alemán',
+                    'pct_lang_it': '% Italiano'
+                }
+                
+                desired_order_l = ['Año', 'Documentos', 'FWCI', 
+                                 '% OA Total', '% OA Diamante', '% OA Gold', 
+                                 '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
+                                 '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
+                                 'Percentil Prom.', '% Top 10', '% Top 1']
+                
+                df_display_l = recent_years[cols_metrics_l].copy().sort_values('year', ascending=False)
+                df_display_l = df_display_l.rename(columns=cols_map_l)
+                final_cols_l = [c for c in desired_order_l if c in df_display_l.columns]
+                
+                st.dataframe(df_display_l[final_cols_l], use_container_width=True, hide_index=True)
 
         # Tablas de Países
         st.markdown("---")
@@ -487,7 +534,8 @@ if level == "Region (Latinoamérica)":
         # Columns to display
         cols_display = [
             'country_code', 'num_journals', 'num_documents', 'fwci_avg', 'avg_percentile', 
-            'pct_top_10', 'pct_top_1', 'pct_oa_gold', 'pct_oa_diamond', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed'
+            'pct_top_10', 'pct_top_1', 'pct_oa_gold', 'pct_oa_diamond', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
+            'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
         ]
         
         with tab_countries_1:
@@ -504,7 +552,11 @@ if level == "Region (Latinoamérica)":
                 # Add Country Names
                 display_df.insert(1, 'country_name', display_df['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x)))
                 
-                final_df = display_df.rename(columns={'country_name': 'País', 'country_code': 'Código', 'avg_percentile': 'Percentil Prom. Norm.'})
+                final_df = display_df.rename(columns={
+                    'country_name': 'País', 'country_code': 'Código', 'avg_percentile': 'Percentil Prom. Norm.',
+                    'pct_lang_es': '% Español', 'pct_lang_en': '% Inglés', 'pct_lang_pt': '% Portugués', 
+                    'pct_lang_fr': '% Francés', 'pct_lang_de': '% Alemán', 'pct_lang_it': '% Italiano'
+                })
                 cols_final_order = ['Código', 'País'] + [c for c in final_df.columns if c not in ['Código', 'País']]
                 
                 st.dataframe(final_df[cols_final_order], use_container_width=True, hide_index=True)
@@ -525,7 +577,11 @@ if level == "Region (Latinoamérica)":
                 # Add Country Names
                 display_df_recent.insert(1, 'country_name', display_df_recent['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x)))
                 
-                final_df_recent = display_df_recent.rename(columns={'country_name': 'País', 'country_code': 'Código', 'avg_percentile': 'Percentil Prom. Norm.'})
+                final_df_recent = display_df_recent.rename(columns={
+                    'country_name': 'País', 'country_code': 'Código', 'avg_percentile': 'Percentil Prom. Norm.',
+                    'pct_lang_es': '% Español', 'pct_lang_en': '% Inglés', 'pct_lang_pt': '% Portugués', 
+                    'pct_lang_fr': '% Francés', 'pct_lang_de': '% Alemán', 'pct_lang_it': '% Italiano'
+                })
                 cols_final_order = ['Código', 'País'] + [c for c in final_df_recent.columns if c not in ['Código', 'País']]
                 
                 st.dataframe(final_df_recent[cols_final_order], use_container_width=True, hide_index=True)
@@ -1323,35 +1379,7 @@ elif level == "País":
     col1.metric("Revistas", len(country_df))
     col2.metric("Artículos", f"{country_df['works_count'].sum():,}")
     
-    # Top Journals Table
-    st.markdown("### Top Revistas por Citas")
-    top_journals = country_df.sort_values('cited_by_count', ascending=False).head(10)
-    
-    # Try to enhance with performance metrics
-    journal_period = load_and_scale('journal', 'period')
-    
-    cols_basic = ['display_name', 'issn_l', 'works_count', 'cited_by_count']
-    cols_advanced = [
-        'fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 
-        'pct_oa_gold', 'pct_oa_diamond', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed'
-    ]
-    
-    if journal_period is not None:
-        # Merge on ID
-        merged = pd.merge(top_journals, journal_period, left_on='id', right_on='journal_id', how='left')
-        
-        # Check which columns are available
-        available_cols = [c for c in cols_advanced if c in merged.columns]
-        final_cols = cols_basic + available_cols
-        
-        st.dataframe(merged[final_cols], use_container_width=True, hide_index=True)
-    else:
-        # Fallback
-        st.dataframe(
-            top_journals[['display_name', 'issn_l', 'works_count', 'cited_by_count', '2yr_mean_citedness', 'is_oa']],
-            use_container_width=True,
-            hide_index=True
-        )
+    # Removed Top Journals Table as per request
     
     if has_cached_metrics:
         # Load country metrics
@@ -1437,87 +1465,7 @@ elif level == "País":
                             st.plotly_chart(fig_traj, use_container_width=True)
                     except Exception as e:
                         st.error(f"Error visualizando trayectoria: {e}")
-                st.markdown("---")
-                st.subheader(f"Indicadores Históricos de {selected_country}")
-                
-                tab_c_raw, tab_c_w3, tab_c_w5 = st.tabs(["📊 Datos Crudos", "🌊 Suavizado (w=3)", "🌌 Suavizado (w=5)"])
-                
-                # Load annual data
-                country_annual_all = load_cached_metrics('country', 'annual')
-                
-                if country_annual_all is not None:
-                    # Filter for selected country
-                    df_country_annual = country_annual_all[country_annual_all['country_code'] == selected_country].copy()
-                    
-                    if not df_country_annual.empty:
-                        # Metrics columns to smooth and show
-                        cols_metrics_c = [
-                            'num_journals', 'num_documents', 'fwci_avg', 
-                            'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
-                            'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
-                            'avg_percentile', 'pct_top_10', 'pct_top_1',
-                            'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
-                            'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
-                        ]
-                        # Filter useful columns only
-                        cols_metrics_c = [c for c in cols_metrics_c if c in df_country_annual.columns]
-
-                        def show_country_table(df_input, window=None):
-                            df_work = df_input.copy()
-                            
-                            if window:
-                                df_work = df_work.sort_values('year', ascending=True)
-                                df_work[cols_metrics_c] = df_work[cols_metrics_c].rolling(window=window, min_periods=1).mean()
-                            
-                            df_work = df_work.sort_values('year', ascending=False)
-                            
-                            # Formatting
-                            cols_map_c = {
-                                'year': 'Año',
-                                'num_journals': 'Revistas',
-                                'num_documents': 'Documentos',
-                                'fwci_avg': 'FWCI',
-                                'pct_oa_total': '% OA Total',
-                                'pct_oa_diamond': '% OA Diamante',
-                                'pct_oa_gold': '% OA Gold',
-                                'pct_oa_green': '% OA Verde',
-                                'pct_oa_hybrid': '% OA Híbrido',
-                                'pct_oa_bronze': '% OA Bronce',
-                                'pct_oa_closed': '% Cerrado',
-                                'avg_percentile': 'Percentil Prom.',
-                                'pct_top_10': '% Top 10',
-                                'pct_top_1': '% Top 1',
-                                'pct_lang_es': '% Español',
-                                'pct_lang_en': '% Inglés',
-                                'pct_lang_pt': '% Portugués',
-                                'pct_lang_fr': '% Francés',
-                                'pct_lang_de': '% Alemán',
-                                'pct_lang_it': '% Italiano'
-                            }
-                            
-                            desired_order_c = ['Año', 'Revistas', 'Documentos', 'FWCI', 
-                                             '% OA Total', '% OA Diamante', '% OA Gold', 
-                                             '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
-                                             '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
-                                             'Percentil Prom.', '% Top 10', '% Top 1']
-                            
-                            final_cols = [c for c in desired_order_c if c in cols_map_c.values()]
-                            df_display = df_work.rename(columns=cols_map_c)
-                            existing_final_cols = [c for c in final_cols if c in df_display.columns]
-                            
-                            st.dataframe(df_display[existing_final_cols], use_container_width=True, hide_index=True)
-
-                        with tab_c_raw:
-                            show_country_table(df_country_annual, window=None)
-                        with tab_c_w3:
-                            show_country_table(df_country_annual, window=3)
-                        with tab_c_w5:
-                            show_country_table(df_country_annual, window=5)
-                    else:
-                        st.info("No hay datos históricos para este país.")
-                else:
-                    st.warning("No se pudieron cargar los datos anuales.")
-                
+                # Historic indicators moved to Annual Trends section
                 
                 # UMAP Visualization for Journals in this Country
                 st.markdown("---")
@@ -1929,9 +1877,90 @@ elif level == "País":
                                           yaxis_title='Porcentaje (%)')
                 st.plotly_chart(fig_oa_trend, use_container_width=True)
                 
-                # Show annual data table
-                with st.expander("📊 Ver Tabla de Datos Anuales"):
-                    st.dataframe(recent_years, use_container_width=True, hide_index=True)
+                st.markdown("---")
+                st.subheader(f"Indicadores Históricos de {selected_country}")
+                
+                tab_c_raw, tab_c_w3, tab_c_w5 = st.tabs(["📊 Datos Crudos", "🌊 Suavizado (w=3)", "🌌 Suavizado (w=5)"])
+                
+                # Load annual data
+                country_annual_all = load_cached_metrics('country', 'annual')
+                
+                if country_annual_all is not None:
+                    # Filter for selected country
+                    df_country_annual = country_annual_all[country_annual_all['country_code'] == selected_country].copy()
+                    
+                    if not df_country_annual.empty:
+                        # Metrics columns to smooth and show
+                        cols_metrics_c = [
+                            'num_journals', 'num_documents', 'fwci_avg', 
+                            'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
+                            'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
+                            'avg_percentile', 'pct_top_10', 'pct_top_1',
+                            'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
+                            'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
+                        ]
+                        
+                        # Calculate OA total if missing
+                        if 'pct_oa_total' not in df_country_annual.columns:
+                            df_country_annual['pct_oa_total'] = df_country_annual.get('pct_oa_gold', 0) + df_country_annual.get('pct_oa_green', 0) + df_country_annual.get('pct_oa_hybrid', 0) + df_country_annual.get('pct_oa_bronze', 0)
+                            
+                        # Filter useful columns only
+                        cols_metrics_c = [c for c in cols_metrics_c if c in df_country_annual.columns]
+
+                        def show_country_table(df_input, window=None):
+                            df_work = df_input.copy()
+                            
+                            if window:
+                                df_work = df_work.sort_values('year', ascending=True)
+                                df_work[cols_metrics_c] = df_work[cols_metrics_c].rolling(window=window, min_periods=1).mean()
+                            
+                            df_work = df_work.sort_values('year', ascending=False)
+                            
+                            # Formatting
+                            cols_map_c = {
+                                'year': 'Año',
+                                'num_journals': 'Revistas',
+                                'num_documents': 'Documentos',
+                                'fwci_avg': 'FWCI',
+                                'pct_oa_total': '% OA Total',
+                                'pct_oa_diamond': '% OA Diamante',
+                                'pct_oa_gold': '% OA Gold',
+                                'pct_oa_green': '% OA Verde',
+                                'pct_oa_hybrid': '% OA Híbrido',
+                                'pct_oa_bronze': '% OA Bronce',
+                                'pct_oa_closed': '% Cerrado',
+                                'avg_percentile': 'Percentil Prom.',
+                                'pct_top_10': '% Top 10',
+                                'pct_top_1': '% Top 1',
+                                'pct_lang_es': '% Español',
+                                'pct_lang_en': '% Inglés',
+                                'pct_lang_pt': '% Portugués',
+                                'pct_lang_fr': '% Francés',
+                                'pct_lang_de': '% Alemán',
+                                'pct_lang_it': '% Italiano'
+                            }
+                            
+                            desired_order_c = ['Año', 'Revistas', 'Documentos', 'FWCI', 
+                                             '% OA Total', '% OA Diamante', '% OA Gold', 
+                                             '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
+                                             '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
+                                             'Percentil Prom.', '% Top 10', '% Top 1']
+                            
+                            df_display = df_work.rename(columns=cols_map_c)
+                            final_cols = [c for c in desired_order_c if c in df_display.columns]
+                            
+                            st.dataframe(df_display[final_cols], use_container_width=True, hide_index=True)
+
+                        with tab_c_raw:
+                            show_country_table(df_country_annual, window=None)
+                        with tab_c_w3:
+                            show_country_table(df_country_annual, window=3)
+                        with tab_c_w5:
+                            show_country_table(df_country_annual, window=5)
+                    else:
+                        st.info("No hay datos históricos para este país.")
+                else:
+                    st.warning("No se pudieron cargar los datos anuales.")
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
