@@ -23,7 +23,26 @@ logger = logging.getLogger(__name__)
 
 # Constants
 CACHE_DIR = Path(__file__).parent.parent / 'data' / 'cache'
-METRICS_COLS = ['num_documents', 'fwci_avg', 'avg_percentile', 'pct_top_1', 'pct_top_10']
+
+# Metrics used for UMAP projection
+METRICS_COLS_COUNTRY = [
+    'num_documents', 'fwci_avg', 'avg_percentile',
+    'pct_top_1', 'pct_top_10', 'pct_lang_en'
+]
+METRICS_COLS_JOURNAL = [
+    'num_documents', 'fwci_avg', 'avg_percentile',
+    'pct_top_1', 'pct_top_10', 'pct_lang_en', 'pct_oa_diamond'
+]
+# Union of all UMAP metrics (for smoothing)
+ALL_METRICS_COLS = list(dict.fromkeys(METRICS_COLS_COUNTRY + METRICS_COLS_JOURNAL))
+
+# Extra columns carried only for display (not used in UMAP)
+DISPLAY_EXTRA_COLS = [
+    'pct_oa_total', 'pct_oa_gold', 'pct_oa_green',
+    'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
+    'pct_lang_es', 'pct_lang_pt', 'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
+]
+
 MAP_COUNTRIES_FILE = CACHE_DIR / 'trajectory_countries_coords.parquet'
 MAP_JOURNALS_FILE = CACHE_DIR / 'trajectory_journals_coords.parquet'
 
@@ -141,13 +160,14 @@ def load_and_prep_data():
     combined = pd.concat([df_j, df_c, df_l], ignore_index=True)
     if combined.empty: return None
 
-    # Keep necessary cols
-    keep_cols = ['id', 'name', 'type', 'year', 'country_code'] + METRICS_COLS
+    # Keep necessary cols: metadata + UMAP metrics + display-only indicators
+    all_data_cols = ALL_METRICS_COLS + DISPLAY_EXTRA_COLS
+    keep_cols = ['id', 'name', 'type', 'year', 'country_code'] + all_data_cols
     
-    # Fill missing cols
+    # Fill missing cols with 0 for numerics, '' for strings
     for c in keep_cols:
         if c not in combined.columns:
-            combined[c] = 0 if c in METRICS_COLS else ''
+            combined[c] = 0 if c in all_data_cols else ''
             
     return combined[keep_cols]
 
@@ -159,13 +179,13 @@ def main():
         logger.error("No data found.")
         return
 
-    # Apply Smoothing (Window 3)
+    # Apply Smoothing (Window 3) — smooth all UMAP + display metrics
     logger.info("Applying Smoothing (Window=3)...")
-    smoothed = apply_smoothing(raw_data, 'id', METRICS_COLS, window_size=3)
+    smoothed = apply_smoothing(raw_data, 'id', ALL_METRICS_COLS + DISPLAY_EXTRA_COLS, window_size=3)
     
     # Apply Smoothing (Window 5) - For heavy smoothing tab
     logger.info("Applying Smoothing (Window=5)...")
-    smoothed_w5 = apply_smoothing(raw_data, 'id', METRICS_COLS, window_size=5)
+    smoothed_w5 = apply_smoothing(raw_data, 'id', ALL_METRICS_COLS + DISPLAY_EXTRA_COLS, window_size=5)
     
     # Save base data tables for Dashboard
     raw_data.to_parquet(CACHE_DIR / 'trajectory_data_raw.parquet', index=False)
@@ -183,7 +203,7 @@ def main():
         # Lower neighbors since we have fewer points (~35 countries * ~15 years = ~500 points)
         # Actually each year is a point.
         n_neighbors = min(30, len(countries_data) - 1)
-        coords_countries = run_umap_projection(countries_data, METRICS_COLS, n_neighbors=n_neighbors)
+        coords_countries = run_umap_projection(countries_data, METRICS_COLS_COUNTRY, n_neighbors=n_neighbors)
         if coords_countries is not None:
             coords_countries.to_parquet(MAP_COUNTRIES_FILE, index=False)
             logger.info(f"Saved Global Countries Map to {MAP_COUNTRIES_FILE}")
@@ -212,7 +232,7 @@ def main():
         if n_neighbors < 2: n_neighbors = 2
         
         logger.info(f"Projecting {country} ({len(subset)} samples)...")
-        coords = run_umap_projection(subset, METRICS_COLS, n_neighbors=n_neighbors)
+        coords = run_umap_projection(subset, METRICS_COLS_JOURNAL, n_neighbors=n_neighbors)
         
         if coords is not None:
             coords['map_context'] = country
