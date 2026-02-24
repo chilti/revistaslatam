@@ -1493,6 +1493,7 @@ elif level == "País":
                                 hover_data={
                                     'display_name': True,
                                     'num_documents': ':,',
+                                    'pct_lang_en': ':.1f',
                                     'fwci_avg': ':.2f',
                                     'avg_percentile': ':.1f',
                                     'pct_top_10': ':.1f',
@@ -1505,7 +1506,8 @@ elif level == "País":
                                     'umap_x': 'UMAP Dimensión 1',
                                     'umap_y': 'UMAP Dimensión 2',
                                     'display_name': 'Revista',
-                                    'pct_oa_diamond': '% OA Diamante'
+                                    'pct_oa_diamond': '% OA Diamante',
+                                    'pct_lang_en': '% Inglés'
                                 },
                                 title=f'Revistas de {selected_country} - Espacio de Similitud'
                             )
@@ -1532,6 +1534,7 @@ elif level == "País":
                                 cols_to_show_j = {
                                     'display_name': 'Revista',
                                     'num_documents': 'Documentos',
+                                    'pct_lang_en': '% Inglés',
                                     'pct_oa_diamond': '% OA Diamante',
                                     'fwci_avg': 'FWCI Promedio',
                                     'pct_top_10': '% Top 10%',

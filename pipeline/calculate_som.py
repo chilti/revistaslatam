@@ -48,7 +48,8 @@ feature_cols = [
     'fwci_avg',           # FWCI Promedio
     'pct_top_10',         # % Top 10%
     'pct_top_1',          # % Top 1%
-    'avg_percentile'      # Percentil Promedio
+    'avg_percentile',     # Percentil Promedio
+    'pct_lang_en'         # % Inglés
 ]
 
 # Check availability
