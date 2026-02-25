@@ -922,7 +922,7 @@ if level == "Region (Latinoamérica)":
         som_countries_umatrix = os.path.join(BASE_PATH, 'data', 'som', 'som_countries_umatrix.npy')
         som_countries_bmus = os.path.join(BASE_PATH, 'data', 'som', 'som_countries_bmus.parquet')
         
-        if os.path.exists(som_countries_umatrix):
+        if False and os.path.exists(som_countries_umatrix): # Deshabilitado temporalmente
             st.markdown("---")
             st.subheader("Mapa Auto-Organizado (SOM) - Países")
             st.caption("Visualización hexagonal basada en perfiles de similitud. El color de fondo (U-Matrix) y las etiquetas muestran agrupamientos naturales.")
