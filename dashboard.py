@@ -1484,31 +1484,35 @@ elif level == "País":
                         df_country_journals = df_umap_journals[df_umap_journals['country_code'] == selected_country]
                         
                         if len(df_country_journals) >= 3 and 'umap_x' in df_country_journals.columns:
+                            # Build hover_data conditionally so missing columns don't crash
+                            _hover_j = {
+                                'display_name': True,
+                                'num_documents': ':,',
+                                'fwci_avg': ':.2f',
+                                'avg_percentile': ':.1f',
+                                'pct_top_10': ':.1f',
+                                'pct_top_1': ':.1f',
+                                'pct_oa_diamond': ':.1f',
+                                'umap_x': False,
+                                'umap_y': False
+                            }
+                            if 'pct_lang_en' in df_country_journals.columns:
+                                _hover_j['pct_lang_en'] = ':.1f'
+                            _labels_j = {
+                                'umap_x': 'UMAP Dimensión 1',
+                                'umap_y': 'UMAP Dimensión 2',
+                                'display_name': 'Revista',
+                                'pct_oa_diamond': '% OA Diamante',
+                                'pct_lang_en': '% Inglés'
+                            }
                             # Create scatter plot
                             fig_umap_j = px.scatter(
                                 df_country_journals,
                                 x='umap_x',
                                 y='umap_y',
                                #text='display_name',
-                                hover_data={
-                                    'display_name': True,
-                                    'num_documents': ':,',
-                                    'pct_lang_en': ':.1f',
-                                    'fwci_avg': ':.2f',
-                                    'avg_percentile': ':.1f',
-                                    'pct_top_10': ':.1f',
-                                    'pct_top_1': ':.1f',
-                                    'pct_oa_diamond': ':.1f',
-                                    'umap_x': False,
-                                    'umap_y': False
-                                },
-                                labels={
-                                    'umap_x': 'UMAP Dimensión 1',
-                                    'umap_y': 'UMAP Dimensión 2',
-                                    'display_name': 'Revista',
-                                    'pct_oa_diamond': '% OA Diamante',
-                                    'pct_lang_en': '% Inglés'
-                                },
+                                hover_data=_hover_j,
+                                labels=_labels_j,
                                 title=f'Revistas de {selected_country} - Espacio de Similitud'
                             )
                             
