@@ -156,6 +156,18 @@ def main():
     # A journal can have multiple topics, each with a 'share' (0.0 to 1.0)
     journal_hierarchy = topics_df[['journal_id', 'domain', 'field', 'subfield', 'share']].copy()
     
+    # FALLBACK: If share is 0 or missing, distribute equally among the journal's topics
+    def distribute_shares(df):
+        s_sum = df['share'].sum()
+        if s_sum <= 0:
+            df.loc[:, 'share'] = 1.0 / len(df)
+        else:
+            df.loc[:, 'share'] = df['share'] / s_sum # Normalize just in case
+        return df
+    
+    print("  → Normalizing topic shares...")
+    journal_hierarchy = journal_hierarchy.groupby('journal_id', group_keys=False).apply(distribute_shares)
+    
     # Merge pre-aggregated metrics with hierarchy
     print("  → Merging aggregated works with topic hierarchy (using shares)...")
     enriched_agg = pd.merge(journal_agg, journal_hierarchy, on='journal_id')

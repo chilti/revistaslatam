@@ -419,6 +419,12 @@ if level == "Region (Latinoamérica)":
                         
                         ind_col = sb_indicator_options[selected_sb_ind]
                         
+                        # Fix NameError for Expanders
+                        if os.path.exists(COUNTRIES_TOPICS_FILE):
+                            topics_latam = pd.read_parquet(COUNTRIES_TOPICS_FILE)
+                        else:
+                            topics_latam = pd.DataFrame()
+                        
                         # Transformación para go.Sunburst
                         # Creamos IDs únicos para evitar colisiones entre niveles
                         # El ID será: level:name o level:parent:name para unicidad
@@ -428,24 +434,30 @@ if level == "Region (Latinoamérica)":
                         values = []
                         colors = []
                         
-                        # Iterar niveles
-                        for _, row in df_sun_metrics.iterrows():
-                            # Generar ID
-                            if row['level'] == 'domain':
-                                curr_id = f"d:{row['domain']}"
-                                curr_parent = ""
-                            elif row['level'] == 'field':
-                                curr_id = f"f:{row['field']}"
-                                curr_parent = f"d:{row['domain']}"
-                            else: # subfield
-                                curr_id = f"s:{row['subfield']}"
-                                curr_parent = f"f:{row['field']}"
-                            
-                            ids.append(curr_id)
-                            labels.append(row[row['level']])
-                            parents.append(curr_parent)
-                            values.append(row['count'])
-                            colors.append(row[ind_col])
+                        # Filtrar datos con conteo > 0 para que el Sunburst se renderice
+                        df_plot = df_sun_metrics[df_sun_metrics['count'] > 0]
+                        
+                        if df_plot.empty:
+                            st.warning("No hay datos suficientes para mostrar el Sunburst regional con este indicador.")
+                        else:
+                            # Iterar niveles
+                            for _, row in df_plot.iterrows():
+                                # Generar ID
+                                if row['level'] == 'domain':
+                                    curr_id = f"d:{row['domain']}"
+                                    curr_parent = ""
+                                elif row['level'] == 'field':
+                                    curr_id = f"f:{row['field']}"
+                                    curr_parent = f"d:{row['domain']}"
+                                else: # subfield
+                                    curr_id = f"s:{row['subfield']}"
+                                    curr_parent = f"f:{row['field']}"
+                                
+                                ids.append(curr_id)
+                                labels.append(row[row['level']])
+                                parents.append(curr_parent)
+                                values.append(row['count'])
+                                colors.append(row[ind_col])
                         
                         fig_sun_latam = go.Figure(go.Sunburst(
                             ids=ids,
