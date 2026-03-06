@@ -153,28 +153,42 @@ def main():
         journal_agg = works_df.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
     
     # Get hierarchy and share per topic
-    # We explicitly drop the 'count' column from topics_df to avoid collision with our works count
+    # Hierarchy and share metadata
     journal_hierarchy = topics_df[['journal_id', 'domain', 'field', 'subfield', 'share']].copy()
     
-    # FALLBACK: If share is 0 or missing, distribute equally among the journal's topics
-    def distribute_shares(df):
-        s_sum = df['share'].sum()
-        if s_sum <= 0:
-            df.loc[:, 'share'] = 1.0 / len(df)
-        else:
-            df.loc[:, 'share'] = df['share'] / s_sum # Normalize just in case
-        return df
+    # We need to Ensure share is a float
+    journal_hierarchy['share'] = pd.to_numeric(journal_hierarchy['share'], errors='coerce').fillna(0.0)
     
+    # FALLBACK: If a journal has 0 total share, distribute 1.0 equally among its topics
     print("  → Normalizing topic shares...")
-    journal_hierarchy = journal_hierarchy.groupby('journal_id', group_keys=False).apply(distribute_shares)
+    shares_sum = journal_hierarchy.groupby('journal_id')['share'].transform('sum')
+    mask_zero = (shares_sum <= 0)
+    
+    if mask_zero.any():
+        print(f"    (Fixing {mask_zero.sum()} topics with zero share)")
+        # For journals with 0 total share, count how many topics they have
+        topic_counts = journal_hierarchy.groupby('journal_id')['journal_id'].transform('count')
+        journal_hierarchy.loc[mask_zero, 'share'] = 1.0 / topic_counts[mask_zero]
+    
+    # Final normalization to ensure sum = 1.0 for all journals
+    shares_sum = journal_hierarchy.groupby('journal_id')['share'].transform('sum')
+    journal_hierarchy['share'] = journal_hierarchy['share'] / shares_sum
     
     # Merge pre-aggregated metrics with hierarchy
-    print("  → Merging aggregated works with topic hierarchy (using shares)...")
-    # journal_agg has 'count' from our database
+    print("  → Merging aggregated works with topic hierarchy...")
+    # journal_agg had a 'count' column, hierarchies have 'share'.
+    # Double check no 'count' in journal_hierarchy
+    if 'count' in journal_hierarchy.columns:
+        journal_hierarchy = journal_hierarchy.drop(columns=['count'])
+        
     enriched_agg = pd.merge(journal_agg, journal_hierarchy, on='journal_id')
     
-    # ADJUST COUNT: Partition our database count according to the topic's share
+    # Partition the count
     enriched_agg['count'] = enriched_agg['count'] * enriched_agg['share']
+    
+    # Debug: Check if we have positive counts now
+    pos_count = (enriched_agg['count'] > 0).sum()
+    print(f"  ✓ Intermediate enriched records with positive count: {pos_count}")
     
     # Helper to calculate metrics from PRE-AGGREGATED data
     def calculate_from_agg(df):
