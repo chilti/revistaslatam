@@ -153,7 +153,7 @@ def main():
         journal_agg = works_df.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
     
     # Get hierarchy and share per topic
-    # A journal can have multiple topics, each with a 'share' (0.0 to 1.0)
+    # We explicitly drop the 'count' column from topics_df to avoid collision with our works count
     journal_hierarchy = topics_df[['journal_id', 'domain', 'field', 'subfield', 'share']].copy()
     
     # FALLBACK: If share is 0 or missing, distribute equally among the journal's topics
@@ -170,10 +170,10 @@ def main():
     
     # Merge pre-aggregated metrics with hierarchy
     print("  → Merging aggregated works with topic hierarchy (using shares)...")
+    # journal_agg has 'count' from our database
     enriched_agg = pd.merge(journal_agg, journal_hierarchy, on='journal_id')
     
-    # ADJUST COUNT: Partition the journal's total works according to the topic's share
-    # This prevents duplication of counts in higher levels of the sunburst
+    # ADJUST COUNT: Partition our database count according to the topic's share
     enriched_agg['count'] = enriched_agg['count'] * enriched_agg['share']
     
     # Helper to calculate metrics from PRE-AGGREGATED data
