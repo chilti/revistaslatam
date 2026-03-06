@@ -156,8 +156,8 @@ def main():
     # Hierarchy and share metadata
     journal_hierarchy = topics_df[['journal_id', 'domain', 'field', 'subfield', 'share']].copy()
     
-    # We need to Ensure share is a float
-    journal_hierarchy['share'] = pd.to_numeric(journal_hierarchy['share'], errors='coerce').fillna(0.0)
+    # We need to Ensure share is a float explicitly to avoid TypeError during assignment
+    journal_hierarchy['share'] = pd.to_numeric(journal_hierarchy['share'], errors='coerce').fillna(0.0).astype(float)
     
     # FALLBACK: If a journal has 0 total share, distribute 1.0 equally among its topics
     print("  → Normalizing topic shares...")
