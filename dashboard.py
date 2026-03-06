@@ -442,16 +442,16 @@ if level == "Region (Latinoamérica)":
                         else:
                             # Iterar niveles
                             for _, row in df_plot.iterrows():
-                                # Generar ID
+                                # Generar ID jerárquico único
                                 if row['level'] == 'domain':
-                                    curr_id = f"d:{row['domain']}"
+                                    curr_id = row['domain']
                                     curr_parent = ""
                                 elif row['level'] == 'field':
-                                    curr_id = f"f:{row['field']}"
-                                    curr_parent = f"d:{row['domain']}"
+                                    curr_id = f"{row['domain']}||{row['field']}"
+                                    curr_parent = row['domain']
                                 else: # subfield
-                                    curr_id = f"s:{row['subfield']}"
-                                    curr_parent = f"f:{row['field']}"
+                                    curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
+                                    curr_parent = f"{row['domain']}||{row['field']}"
                                 
                                 ids.append(curr_id)
                                 labels.append(row[row['level']])
@@ -464,6 +464,7 @@ if level == "Region (Latinoamérica)":
                             labels=labels,
                             parents=parents,
                             values=values,
+                            branchvalues='total',
                             marker=dict(
                                 colors=colors,
                                 colorscale='Viridis',
@@ -1871,14 +1872,14 @@ elif level == "País":
                             ids, labels, parents, values, colors = [], [], [], [], []
                             for _, row in df_sun_c.iterrows():
                                 if row['level'] == 'domain':
-                                    curr_id = f"d:{row['domain']}"
+                                    curr_id = row['domain']
                                     curr_parent = ""
                                 elif row['level'] == 'field':
-                                    curr_id = f"f:{row['field']}"
-                                    curr_parent = f"d:{row['domain']}"
+                                    curr_id = f"{row['domain']}||{row['field']}"
+                                    curr_parent = row['domain']
                                 else:
-                                    curr_id = f"s:{row['subfield']}"
-                                    curr_parent = f"f:{row['field']}"
+                                    curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
+                                    curr_parent = f"{row['domain']}||{row['field']}"
                                 
                                 ids.append(curr_id)
                                 labels.append(row[row['level']])
@@ -1888,8 +1889,9 @@ elif level == "País":
                             
                             fig_sun_c = go.Figure(go.Sunburst(
                                 ids=ids, labels=labels, parents=parents, values=values,
+                                branchvalues='total',
                                 marker=dict(colors=colors, colorscale='Viridis', showscale=True, colorbar=dict(title=selected_sb_ind_c)),
-                                hovertemplate='<b>%{label}</b><br>Artículos: %{value:,}<br>' + f'{selected_sb_ind_c}: ' + '%{color:.2f}<extra></extra>'
+                                hovertemplate='<b>%{label}</b><br>Artículos: %{value:,.1f}<br>' + f'{selected_sb_ind_c}: ' + '%{color:.2f}<extra></extra>'
                             ))
                             fig_sun_c.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
                             st.plotly_chart(fig_sun_c, use_container_width=True)
@@ -2188,14 +2190,14 @@ elif level == "Revista":
                 ids, labels, parents, values, colors = [], [], [], [], []
                 for _, row in df_sun_j.iterrows():
                     if row['level'] == 'domain':
-                        curr_id = f"d:{row['domain']}"
+                        curr_id = row['domain']
                         curr_parent = ""
                     elif row['level'] == 'field':
-                        curr_id = f"f:{row['field']}"
-                        curr_parent = f"d:{row['domain']}"
+                        curr_id = f"{row['domain']}||{row['field']}"
+                        curr_parent = row['domain']
                     else:
-                        curr_id = f"s:{row['subfield']}"
-                        curr_parent = f"f:{row['field']}"
+                        curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
+                        curr_parent = f"{row['domain']}||{row['field']}"
                     
                     ids.append(curr_id)
                     labels.append(row[row['level']])
@@ -2205,8 +2207,9 @@ elif level == "Revista":
                 
                 fig_sun = go.Figure(go.Sunburst(
                     ids=ids, labels=labels, parents=parents, values=values,
+                    branchvalues='total',
                     marker=dict(colors=colors, colorscale='Viridis', showscale=True, colorbar=dict(title=selected_sb_ind_j)),
-                    hovertemplate='<b>%{label}</b><br>Artículos: %{value:,}<br>' + f'{selected_sb_ind_j}: ' + '%{color:.2f}<extra></extra>'
+                    hovertemplate='<b>%{label}</b><br>Artículos: %{value:,.1f}<br>' + f'{selected_sb_ind_j}: ' + '%{color:.2f}<extra></extra>'
                 ))
                 fig_sun.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
                 st.plotly_chart(fig_sun, use_container_width=True)
