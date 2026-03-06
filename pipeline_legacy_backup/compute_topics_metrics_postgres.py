@@ -145,14 +145,24 @@ def main():
     # To keep it simple and accurate, let's group by journal_id.
     
     # Journal-level pre-aggregation
-    journal_agg = works_df.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
+    # Using include_groups=False if pandas >= 2.2.0, else standard apply
+    try:
+        journal_agg = works_df.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
+    except TypeError:
+        # Fallback for older pandas
+        journal_agg = works_df.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
     
-    # Unique hierarchy per journal
-    journal_hierarchy = topics_df[['journal_id', 'domain', 'field', 'subfield']].drop_duplicates()
+    # Get hierarchy and share per topic
+    # A journal can have multiple topics, each with a 'share' (0.0 to 1.0)
+    journal_hierarchy = topics_df[['journal_id', 'domain', 'field', 'subfield', 'share']].copy()
     
     # Merge pre-aggregated metrics with hierarchy
-    print("  → Merging aggregated works with topic hierarchy...")
+    print("  → Merging aggregated works with topic hierarchy (using shares)...")
     enriched_agg = pd.merge(journal_agg, journal_hierarchy, on='journal_id')
+    
+    # ADJUST COUNT: Partition the journal's total works according to the topic's share
+    # This prevents duplication of counts in higher levels of the sunburst
+    enriched_agg['count'] = enriched_agg['count'] * enriched_agg['share']
     
     # Helper to calculate metrics from PRE-AGGREGATED data
     def calculate_from_agg(df):
@@ -178,19 +188,26 @@ def main():
         levels = ['domain', 'field', 'subfield']
         all_results = []
         
+        # Helper for modern pandas compatibility
+        def apply_with_groups_fix(obj, func):
+            try:
+                return obj.apply(func, include_groups=False)
+            except TypeError:
+                return obj.apply(func)
+
         print(f"  → Aggregating level: Subfield...")
-        res_sub = df.groupby(group_cols + levels).apply(calculate_from_agg).reset_index()
+        res_sub = apply_with_groups_fix(df.groupby(group_cols + levels), calculate_from_agg).reset_index()
         res_sub['level'] = 'subfield'
         all_results.append(res_sub)
         
         print(f"  → Aggregating level: Field...")
-        res_field = df.groupby(group_cols + ['domain', 'field']).apply(calculate_from_agg).reset_index()
+        res_field = apply_with_groups_fix(df.groupby(group_cols + ['domain', 'field']), calculate_from_agg).reset_index()
         res_field['subfield'] = 'ALL'
         res_field['level'] = 'field'
         all_results.append(res_field)
         
         print(f"  → Aggregating level: Domain...")
-        res_domain = df.groupby(group_cols + ['domain']).apply(calculate_from_agg).reset_index()
+        res_domain = apply_with_groups_fix(df.groupby(group_cols + ['domain']), calculate_from_agg).reset_index()
         res_domain['field'] = 'ALL'
         res_domain['subfield'] = 'ALL'
         res_domain['level'] = 'domain'
