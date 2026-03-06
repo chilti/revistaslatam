@@ -190,77 +190,154 @@ def main():
     pos_count = (enriched_agg['count'] > 0).sum()
     print(f"  ✓ Intermediate enriched records with positive count: {pos_count}")
     
-    # Helper to calculate metrics from PRE-AGGREGATED data
-    def calculate_from_agg(df):
-        total_docs = df['count'].sum()
-        if total_docs == 0: return pd.Series({'count':0, 'fwci_avg':0.0}) # ...
+# Helper to calculate metrics from PRE-AGGREGATED data
+def calculate_from_agg(df):
+    total_docs = df['count'].sum()
+    if total_docs == 0:
+        return pd.Series({
+            'count': 0, 'fwci_avg': 0.0, 'avg_percentile': 0.0,
+            'pct_top_10': 0.0, 'pct_top_1': 0.0, 'pct_oa_gold': 0.0,
+            'pct_oa_green': 0.0, 'pct_oa_hybrid': 0.0, 'pct_oa_bronze': 0.0,
+            'pct_oa_closed': 0.0
+        })
+    
+    # Weighted averages for FWCI and Percentile
+    fwci = (df['fwci_avg'] * df['count']).sum() / total_docs
+    perc = (df['avg_percentile'] * df['count']).sum() / total_docs
+    
+    # Weighted averages for percentages
+    res = {
+        'count': total_docs,
+        'fwci_avg': round(fwci, 3),
+        'avg_percentile': round(perc, 1)
+    }
+    for col in ['pct_top_10', 'pct_top_1', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed']:
+        res[col] = round((df[col] * df['count']).sum() / total_docs, 2)
         
-        # Weighted averages for FWCI and Percentile
-        fwci = (df['fwci_avg'] * df['count']).sum() / total_docs
-        perc = (df['avg_percentile'] * df['count']).sum() / total_docs
+    return pd.Series(res)
+
+def aggregate_hierarchy_from_agg(df, group_cols, suffix=""):
+    levels = ['domain', 'field', 'subfield']
+    all_results = []
+    
+    # Helper for modern pandas compatibility
+    def apply_with_groups_fix(obj, func):
+        try:
+            return obj.apply(func, include_groups=False)
+        except TypeError:
+            return obj.apply(func)
+
+    print(f"  → Aggregating level: Subfield ({suffix})...")
+    res_sub = apply_with_groups_fix(df.groupby(group_cols + levels), calculate_from_agg).reset_index()
+    res_sub['level'] = 'subfield'
+    all_results.append(res_sub)
+    
+    print(f"  → Aggregating level: Field ({suffix})...")
+    res_field = apply_with_groups_fix(df.groupby(group_cols + ['domain', 'field']), calculate_from_agg).reset_index()
+    res_field['subfield'] = 'ALL'
+    res_field['level'] = 'field'
+    all_results.append(res_field)
+    
+    print(f"  → Aggregating level: Domain ({suffix})...")
+    res_domain = apply_with_groups_fix(df.groupby(group_cols + ['domain']), calculate_from_agg).reset_index()
+    res_domain['field'] = 'ALL'
+    res_domain['subfield'] = 'ALL'
+    res_domain['level'] = 'domain'
+    all_results.append(res_domain)
+
+    final_df = pd.concat(all_results, ignore_index=True)
+    
+    # Apply suffix to metric columns
+    if suffix:
+        cols_to_rename = {col: f"{col}_{suffix}" for col in final_df.columns if col not in (group_cols + levels + ['level'])}
+        final_df = final_df.rename(columns=cols_to_rename)
+    
+    return final_df
+
+def main():
+    data_dir = Path(__file__).parent.parent / 'data'
+    works_file = data_dir / 'latin_american_works.parquet'
+    topics_file = data_dir / 'journals_topics_sunburst.parquet'
+    journals_file = data_dir / 'latin_american_journals.parquet'
+    
+    output_dir = data_dir / 'cache'
+    output_dir.mkdir(exist_ok=True)
+
+    print("=" * 70)
+    print("POSTGRES TOPIC METRICS ENGINE (PANDAS) - DUAL PERIOD")
+    print("=" * 70)
+
+    # 1. Load Data
+    print("\n⚙️  Loading data...")
+    works_df = pd.read_parquet(works_file, columns=[
+        'id', 'journal_id', 'fwci', 'citation_normalized_percentile', 
+        'is_in_top_10_percent', 'is_in_top_1_percent', 'oa_status', 'publication_year'
+    ])
+    topics_df = pd.read_parquet(topics_file)
+    journals_df = pd.read_parquet(journals_file, columns=['id', 'country_code'])
+    
+    print(f"  ✓ {len(works_df):,} works loaded")
+    
+    # Merge with journals to get country_code
+    print("  → Merging works with journals...")
+    works_df = pd.merge(works_df, journals_df, left_on='journal_id', right_on='id')
+    
+    # Function to process a specific dataframe subset
+    def process_period(df_subset, period_suffix):
+        print(f"\n📑 Processing Period: {period_suffix.upper()}...")
         
-        # Weighted averages for percentages
-        res = {
-            'count': total_docs,
-            'fwci_avg': round(fwci, 3),
-            'avg_percentile': round(perc, 1)
-        }
-        for col in ['pct_top_10', 'pct_top_1', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed']:
-            res[col] = round((df[col] * df['count']).sum() / total_docs, 2)
+        # Aggregation at journal level
+        try:
+            j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
+        except TypeError:
+            j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
             
-        return pd.Series(res)
-
-    def aggregate_hierarchy_from_agg(df, group_cols):
-        levels = ['domain', 'field', 'subfield']
-        all_results = []
+        # Topic hierarchy metadata
+        j_h = topics_df[['journal_id', 'domain', 'field', 'subfield', 'share']].copy()
+        j_h['share'] = pd.to_numeric(j_h['share'], errors='coerce').fillna(0.0).astype(float)
         
-        # Helper for modern pandas compatibility
-        def apply_with_groups_fix(obj, func):
-            try:
-                return obj.apply(func, include_groups=False)
-            except TypeError:
-                return obj.apply(func)
-
-        print(f"  → Aggregating level: Subfield...")
-        res_sub = apply_with_groups_fix(df.groupby(group_cols + levels), calculate_from_agg).reset_index()
-        res_sub['level'] = 'subfield'
-        all_results.append(res_sub)
+        # Share normalization
+        s_sum = j_h.groupby('journal_id')['share'].transform('sum')
+        mask_z = (s_sum <= 0)
+        if mask_z.any():
+            t_counts = j_h.groupby('journal_id')['journal_id'].transform('count')
+            j_h.loc[mask_z, 'share'] = 1.0 / t_counts[mask_z]
+        s_sum = j_h.groupby('journal_id')['share'].transform('sum')
+        j_h['share'] = j_h['share'] / s_sum
         
-        print(f"  → Aggregating level: Field...")
-        res_field = apply_with_groups_fix(df.groupby(group_cols + ['domain', 'field']), calculate_from_agg).reset_index()
-        res_field['subfield'] = 'ALL'
-        res_field['level'] = 'field'
-        all_results.append(res_field)
+        # Merge metrics + topic hierarchy
+        enr = pd.merge(j_agg, j_h, on='journal_id')
+        enr['count'] = enr['count'] * enr['share']
         
-        print(f"  → Aggregating level: Domain...")
-        res_domain = apply_with_groups_fix(df.groupby(group_cols + ['domain']), calculate_from_agg).reset_index()
-        res_domain['field'] = 'ALL'
-        res_domain['subfield'] = 'ALL'
-        res_domain['level'] = 'domain'
-        all_results.append(res_domain)
+        # Aggregate at hierarchy levels
+        c_m = aggregate_hierarchy_from_agg(enr, ['country_code'], period_suffix)
+        l_m = aggregate_hierarchy_from_agg(enr, [], period_suffix)
+        l_m['country_code'] = 'LATAM'
+        j_m = aggregate_hierarchy_from_agg(enr, ['journal_id'], period_suffix)
+        
+        return c_m, l_m, j_m
 
-        return pd.concat(all_results, ignore_index=True)
+    # PERIOD 1: Full
+    c_full, l_full, j_full = process_period(works_df, "full")
+    
+    # PERIOD 2: Recent (2021-2025)
+    recent_mask = (works_df['publication_year'] >= 2021)
+    c_recent, l_recent, j_recent = process_period(works_df[recent_mask], "recent")
 
-    # 3. Calculation for Country Level
-    print("\n📊 Computing Country-Topic Metrics...")
-    country_metrics = aggregate_hierarchy_from_agg(enriched_agg, ['country_code'])
-    country_metrics.to_parquet(output_dir / 'sunburst_metrics_country.parquet', index=False)
-    print(f"  ✓ Saved: {len(country_metrics)} records")
+    # Combine results
+    merge_cols = ['country_code', 'domain', 'field', 'subfield', 'level']
+    final_country = pd.merge(c_full, c_recent, on=merge_cols, how='outer').fillna(0)
+    final_latam = pd.merge(l_full, l_recent, on=merge_cols, how='outer').fillna(0)
+    
+    merge_cols_j = ['journal_id', 'domain', 'field', 'subfield', 'level']
+    final_journal = pd.merge(j_full, j_recent, on=merge_cols_j, how='outer').fillna(0)
 
-    # 4. Calculation for Global Level (LATAM)
-    print("\n📊 Computing LATAM-Topic Metrics...")
-    latam_metrics = aggregate_hierarchy_from_agg(enriched_agg, [])
-    latam_metrics['country_code'] = 'LATAM'
-    latam_metrics.to_parquet(output_dir / 'sunburst_metrics_latam.parquet', index=False)
-    print(f"  ✓ Saved: {len(latam_metrics)} records")
+    # Save
+    final_country.to_parquet(output_dir / 'sunburst_metrics_country.parquet', index=False)
+    final_latam.to_parquet(output_dir / 'sunburst_metrics_latam.parquet', index=False)
+    final_journal.to_parquet(output_dir / 'sunburst_metrics_journal.parquet', index=False)
 
-    # 5. Calculation for Journal Level
-    print("\n📊 Computing Journal-Topic Metrics...")
-    journal_metrics = aggregate_hierarchy_from_agg(enriched_agg, ['journal_id'])
-    journal_metrics.to_parquet(output_dir / 'sunburst_metrics_journal.parquet', index=False)
-    print(f"  ✓ Saved: {len(journal_metrics)} records")
-
-    print("\n✅ Topic Metrics Computation Completed!")
+    print(f"\n✅ Topic Metrics (Dual Period) Saved to {output_dir}")
 
 if __name__ == "__main__":
     main()

@@ -399,13 +399,18 @@ if level == "Region (Latinoamérica)":
                         
                         # Selector de Indicador para el Sunburst
                         sb_indicator_options = {
-                            'Artículos (Tamaño)': 'count',
-                            'FWCI Promedio': 'fwci_avg',
-                            'Percentil Promedio': 'avg_percentile',
-                            '% Top 10%': 'pct_top_10',
-                            '% OA Gold': 'pct_oa_gold',
-                            '% OA Green': 'pct_oa_green',
-                            '% OA Diamond': 'pct_oa_diamond' if 'pct_oa_diamond' in df_sun_metrics.columns else 'pct_oa_gold'
+                            # Periodo Reciente (2021-2025)
+                            'FWCI (2021-2025)': 'fwci_avg_recent',
+                            'Percentil (2021-2025)': 'avg_percentile_recent',
+                            '% Top 1% (2021-2025)': 'pct_top_1_recent',
+                            '% Top 10% (2021-2025)': 'pct_top_10_recent',
+                            '% OA Gold (2021-2025)': 'pct_oa_gold_recent',
+                            # Periodo Completo
+                            'FWCI (Todo)': 'fwci_avg_full',
+                            'Percentil (Todo)': 'avg_percentile_full',
+                            '% Top 1% (Todo)': 'pct_top_1_full',
+                            '% Top 10% (Todo)': 'pct_top_10_full',
+                            '% OA Gold (Todo)': 'pct_oa_gold_full',
                         }
                         
                         col_sb1, col_sb2 = st.columns([2, 3])
@@ -414,10 +419,13 @@ if level == "Region (Latinoamérica)":
                                 "Indicador de Color:",
                                 options=list(sb_indicator_options.keys()),
                                 key='sb_ind_regional',
-                                index=1 # Default to FWCI
+                                index=0 # Default to Recent FWCI
                             )
                         
                         ind_col = sb_indicator_options[selected_sb_ind]
+                        
+                        # Determinar columna de tamaño según el periodo seleccionado
+                        size_col = 'count_recent' if '_recent' in ind_col else 'count_full'
                         
                         # Fix NameError for Expanders
                         if os.path.exists(COUNTRIES_TOPICS_FILE):
@@ -434,11 +442,11 @@ if level == "Region (Latinoamérica)":
                         values = []
                         colors = []
                         
-                        # Filtrar datos con conteo > 0 para que el Sunburst se renderice
-                        df_plot = df_sun_metrics[df_sun_metrics['count'] > 0]
+                        # Filtrar datos con volumen > 0 para que el Sunburst se renderice
+                        df_plot = df_sun_metrics[df_sun_metrics[size_col] > 0]
                         
                         if df_plot.empty:
-                            st.warning("No hay datos suficientes para mostrar el Sunburst regional con este indicador.")
+                            st.warning(f"No hay datos suficientes para mostrar el Sunburst regional con el volumen del periodo {'reciente' if 'recent' in size_col else 'completo'}.")
                         else:
                             # Iterar niveles
                             for _, row in df_plot.iterrows():
@@ -456,7 +464,7 @@ if level == "Region (Latinoamérica)":
                                 ids.append(curr_id)
                                 labels.append(row[row['level']])
                                 parents.append(curr_parent)
-                                values.append(row['count'])
+                                values.append(row[size_col])
                                 colors.append(row[ind_col])
                         
                         fig_sun_latam = go.Figure(go.Sunburst(
@@ -1852,25 +1860,36 @@ elif level == "País":
                             
                             # Indicator Selector
                             sb_indicator_options = {
-                                'Artículos (Tamaño)': 'count',
-                                'FWCI Promedio': 'fwci_avg',
-                                'Percentil Promedio': 'avg_percentile',
-                                '% Top 10%': 'pct_top_10',
-                                '% OA Gold': 'pct_oa_gold',
-                                '% OA Green': 'pct_oa_green',
-                                '% OA Diamond': 'pct_oa_diamond' if 'pct_oa_diamond' in df_sun_c.columns else 'pct_oa_gold'
+                                # Periodo Reciente (2021-2025)
+                                'FWCI (2021-2025)': 'fwci_avg_recent',
+                                'Percentil (2021-2025)': 'avg_percentile_recent',
+                                '% Top 1% (2021-2025)': 'pct_top_1_recent',
+                                '% Top 10% (2021-2025)': 'pct_top_10_recent',
+                                '% OA Gold (2021-2025)': 'pct_oa_gold_recent',
+                                # Periodo Completo
+                                'FWCI (Todo)': 'fwci_avg_full',
+                                'Percentil (Todo)': 'avg_percentile_full',
+                                '% Top 1% (Todo)': 'pct_top_1_full',
+                                '% Top 10% (Todo)': 'pct_top_10_full',
+                                '% OA Gold (Todo)': 'pct_oa_gold_full',
                             }
                             
                             selected_sb_ind_c = st.selectbox(
                                 "Indicador de Color:",
                                 options=list(sb_indicator_options.keys()),
                                 key='sb_ind_country',
-                                index=1
+                                index=0
                             )
                             ind_col_c = sb_indicator_options[selected_sb_ind_c]
                             
+                            # Determinar columna de tamaño
+                            size_col_c = 'count_recent' if '_recent' in ind_col_c else 'count_full'
+                            
                             ids, labels, parents, values, colors = [], [], [], [], []
-                            for _, row in df_sun_c.iterrows():
+                            # Filtrar por volumen positivo
+                            df_plot_c = df_sun_c[df_sun_c[size_col_c] > 0]
+                            
+                            for _, row in df_plot_c.iterrows():
                                 if row['level'] == 'domain':
                                     curr_id = row['domain']
                                     curr_parent = ""
@@ -1884,7 +1903,7 @@ elif level == "País":
                                 ids.append(curr_id)
                                 labels.append(row[row['level']])
                                 parents.append(curr_parent)
-                                values.append(row['count'])
+                                values.append(row[size_col_c])
                                 colors.append(row[ind_col_c])
                             
                             fig_sun_c = go.Figure(go.Sunburst(
@@ -2170,25 +2189,36 @@ elif level == "Revista":
                 
                 # Indicator Selector
                 sb_indicator_options = {
-                    'Artículos (Tamaño)': 'count',
-                    'FWCI Promedio': 'fwci_avg',
-                    'Percentil Promedio': 'avg_percentile',
-                    '% Top 10%': 'pct_top_10',
-                    '% OA Gold': 'pct_oa_gold',
-                    '% OA Green': 'pct_oa_green',
-                    '% OA Diamond': 'pct_oa_diamond' if 'pct_oa_diamond' in df_sun_j.columns else 'pct_oa_gold'
+                    # Periodo Reciente (2021-2025)
+                    'FWCI (2021-2025)': 'fwci_avg_recent',
+                    'Percentil (2021-2025)': 'avg_percentile_recent',
+                    '% Top 1% (2021-2025)': 'pct_top_1_recent',
+                    '% Top 10% (2021-2025)': 'pct_top_10_recent',
+                    '% OA Gold (2021-2025)': 'pct_oa_gold_recent',
+                    # Periodo Completo
+                    'FWCI (Todo)': 'fwci_avg_full',
+                    'Percentil (Todo)': 'avg_percentile_full',
+                    '% Top 1% (Todo)': 'pct_top_1_full',
+                    '% Top 10% (Todo)': 'pct_top_10_full',
+                    '% OA Gold (Todo)': 'pct_oa_gold_full',
                 }
                 
                 selected_sb_ind_j = st.selectbox(
                     "Indicador de Color:",
                     options=list(sb_indicator_options.keys()),
                     key='sb_ind_journal',
-                    index=1
+                    index=0
                 )
                 ind_col_j = sb_indicator_options[selected_sb_ind_j]
                 
+                # Determinar columna de tamaño
+                size_col_j = 'count_recent' if '_recent' in ind_col_j else 'count_full'
+                
                 ids, labels, parents, values, colors = [], [], [], [], []
-                for _, row in df_sun_j.iterrows():
+                # Filtrar por volumen positivo
+                df_plot_j = df_sun_j[df_sun_j[size_col_j] > 0]
+                
+                for _, row in df_plot_j.iterrows():
                     if row['level'] == 'domain':
                         curr_id = row['domain']
                         curr_parent = ""
@@ -2202,7 +2232,7 @@ elif level == "Revista":
                     ids.append(curr_id)
                     labels.append(row[row['level']])
                     parents.append(curr_parent)
-                    values.append(row['count'])
+                    values.append(row[size_col_j])
                     colors.append(row[ind_col_j])
                 
                 fig_sun = go.Figure(go.Sunburst(
