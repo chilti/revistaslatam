@@ -467,6 +467,34 @@ if level == "Region (Latinoamérica)":
                                 values.append(row[size_col])
                                 colors.append(row[ind_col])
                         
+                        # Configuración de escala de colores especial para FWCI
+                        cscale = 'Viridis'
+                        cmin, cmax = None, None
+                        
+                        if 'fwci_avg' in ind_col:
+                            # Escala anclada en 1.0 (Media Mundial)
+                            vals_for_scale = [v for v in colors if v is not None]
+                            if vals_for_scale:
+                                min_v = min(vals_for_scale)
+                                max_v = max(vals_for_scale + [1.0]) # El 1.0 es el tope mínimo si todo es bajo
+                                
+                                # Si todo es bajo, forzamos la escala hasta 1.0
+                                # Si hay valores altos, el 1.0 queda como pivote
+                                cmin, cmax = min_v, max_v
+                                
+                                # Normalizar la posición del 1.0 en la escala
+                                if max_v > min_v:
+                                    norm_mid = (1.0 - min_v) / (max_v - min_v)
+                                    norm_mid = max(0, min(1, norm_mid)) # Clamp
+                                else:
+                                    norm_mid = 0.5
+                                    
+                                cscale = [
+                                    [0, 'red'],
+                                    [norm_mid, 'yellow'],
+                                    [1, 'green']
+                                ]
+
                         fig_sun_latam = go.Figure(go.Sunburst(
                             ids=ids,
                             labels=labels,
@@ -475,7 +503,9 @@ if level == "Region (Latinoamérica)":
                             branchvalues='total',
                             marker=dict(
                                 colors=colors,
-                                colorscale='Viridis',
+                                colorscale=cscale,
+                                cmin=cmin,
+                                cmax=cmax,
                                 showscale=True,
                                 colorbar=dict(title=selected_sb_ind)
                             ),
@@ -1906,10 +1936,34 @@ elif level == "País":
                                 values.append(row[size_col_c])
                                 colors.append(row[ind_col_c])
                             
+                            # Configuración de escala de colores especial para FWCI
+                            cscale_c = 'Viridis'
+                            cmin_c, cmax_c = None, None
+                            
+                            if 'fwci_avg' in ind_col_c:
+                                vals_for_scale = [v for v in colors if v is not None]
+                                if vals_for_scale:
+                                    min_v = min(vals_for_scale)
+                                    max_v = max(vals_for_scale + [1.0])
+                                    cmin_c, cmax_c = min_v, max_v
+                                    if max_v > min_v:
+                                        norm_mid = (1.0 - min_v) / (max_v - min_v)
+                                        norm_mid = max(0, min(1, norm_mid))
+                                    else:
+                                        norm_mid = 0.5
+                                    cscale_c = [[0, 'red'], [norm_mid, 'yellow'], [1, 'green']]
+
                             fig_sun_c = go.Figure(go.Sunburst(
                                 ids=ids, labels=labels, parents=parents, values=values,
                                 branchvalues='total',
-                                marker=dict(colors=colors, colorscale='Viridis', showscale=True, colorbar=dict(title=selected_sb_ind_c)),
+                                marker=dict(
+                                    colors=colors, 
+                                    colorscale=cscale_c, 
+                                    cmin=cmin_c, 
+                                    cmax=cmax_c,
+                                    showscale=True, 
+                                    colorbar=dict(title=selected_sb_ind_c)
+                                ),
                                 hovertemplate='<b>%{label}</b><br>Artículos: %{value:,.1f}<br>' + f'{selected_sb_ind_c}: ' + '%{color:.2f}<extra></extra>'
                             ))
                             fig_sun_c.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
@@ -2235,10 +2289,34 @@ elif level == "Revista":
                     values.append(row[size_col_j])
                     colors.append(row[ind_col_j])
                 
+                # Configuración de escala de colores especial para FWCI
+                cscale_j = 'Viridis'
+                cmin_j, cmax_j = None, None
+                
+                if 'fwci_avg' in ind_col_j:
+                    vals_for_scale = [v for v in colors if v is not None]
+                    if vals_for_scale:
+                        min_v = min(vals_for_scale)
+                        max_v = max(vals_for_scale + [1.0])
+                        cmin_j, cmax_j = min_v, max_v
+                        if max_v > min_v:
+                            norm_mid = (1.0 - min_v) / (max_v - min_v)
+                            norm_mid = max(0, min(1, norm_mid))
+                        else:
+                            norm_mid = 0.5
+                        cscale_j = [[0, 'red'], [norm_mid, 'yellow'], [1, 'green']]
+
                 fig_sun = go.Figure(go.Sunburst(
                     ids=ids, labels=labels, parents=parents, values=values,
                     branchvalues='total',
-                    marker=dict(colors=colors, colorscale='Viridis', showscale=True, colorbar=dict(title=selected_sb_ind_j)),
+                    marker=dict(
+                        colors=colors, 
+                        colorscale=cscale_j, 
+                        cmin=cmin_j, 
+                        cmax=cmax_j,
+                        showscale=True, 
+                        colorbar=dict(title=selected_sb_ind_j)
+                    ),
                     hovertemplate='<b>%{label}</b><br>Artículos: %{value:,.1f}<br>' + f'{selected_sb_ind_j}: ' + '%{color:.2f}<extra></extra>'
                 ))
                 fig_sun.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
