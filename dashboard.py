@@ -389,26 +389,80 @@ if level == "Region (Latinoamérica)":
             col3.metric("% DOAJ", f"{period_data.get('pct_doaj', 0):.1f}%")
 
             # --- Sunburst de Temáticas (Regional Level) ---
-            if os.path.exists(COUNTRIES_TOPICS_FILE):
+            SUNBURST_METRICS_LATAM = os.path.join(BASE_PATH, 'data', 'cache', 'sunburst_metrics_latam.parquet')
+            if os.path.exists(SUNBURST_METRICS_LATAM):
                 try:
-                    topics_latam = pd.read_parquet(COUNTRIES_TOPICS_FILE)
-                    if not topics_latam.empty:
+                    df_sun_metrics = pd.read_parquet(SUNBURST_METRICS_LATAM)
+                    if not df_sun_metrics.empty:
                         st.markdown("---")
                         st.subheader("Temáticas de Investigación a Nivel Regional (Sunburst)")
-                        # Agrupar todo LATAM a 3 niveles: domain -> field -> subfield
-                        topics_agg = topics_latam.groupby(['domain', 'field', 'subfield'], as_index=False)['count'].sum()
-                        topics_agg = topics_agg[topics_agg['count'] > 0]
                         
-                        if not topics_agg.empty:
-                            fig_sun_latam = px.sunburst(
-                                topics_agg,
-                                path=['domain', 'field', 'subfield'],
-                                values='count',
-                                color='domain',
-                                color_discrete_sequence=px.colors.qualitative.Prism
+                        # Selector de Indicador para el Sunburst
+                        sb_indicator_options = {
+                            'Artículos (Tamaño)': 'count',
+                            'FWCI Promedio': 'fwci_avg',
+                            'Percentil Promedio': 'avg_percentile',
+                            '% Top 10%': 'pct_top_10',
+                            '% OA Gold': 'pct_oa_gold',
+                            '% OA Green': 'pct_oa_green',
+                            '% OA Diamond': 'pct_oa_diamond' if 'pct_oa_diamond' in df_sun_metrics.columns else 'pct_oa_gold'
+                        }
+                        
+                        col_sb1, col_sb2 = st.columns([2, 3])
+                        with col_sb1:
+                            selected_sb_ind = st.selectbox(
+                                "Indicador de Color:",
+                                options=list(sb_indicator_options.keys()),
+                                key='sb_ind_regional',
+                                index=1 # Default to FWCI
                             )
-                            fig_sun_latam.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
-                            st.plotly_chart(fig_sun_latam, use_container_width=True)
+                        
+                        ind_col = sb_indicator_options[selected_sb_ind]
+                        
+                        # Transformación para go.Sunburst
+                        # Creamos IDs únicos para evitar colisiones entre niveles
+                        # El ID será: level:name o level:parent:name para unicidad
+                        ids = []
+                        labels = []
+                        parents = []
+                        values = []
+                        colors = []
+                        
+                        # Iterar niveles
+                        for _, row in df_sun_metrics.iterrows():
+                            # Generar ID
+                            if row['level'] == 'domain':
+                                curr_id = f"d:{row['domain']}"
+                                curr_parent = ""
+                            elif row['level'] == 'field':
+                                curr_id = f"f:{row['field']}"
+                                curr_parent = f"d:{row['domain']}"
+                            else: # subfield
+                                curr_id = f"s:{row['subfield']}"
+                                curr_parent = f"f:{row['field']}"
+                            
+                            ids.append(curr_id)
+                            labels.append(row[row['level']])
+                            parents.append(curr_parent)
+                            values.append(row['count'])
+                            colors.append(row[ind_col])
+                        
+                        fig_sun_latam = go.Figure(go.Sunburst(
+                            ids=ids,
+                            labels=labels,
+                            parents=parents,
+                            values=values,
+                            marker=dict(
+                                colors=colors,
+                                colorscale='Viridis',
+                                showscale=True,
+                                colorbar=dict(title=selected_sb_ind)
+                            ),
+                            hovertemplate='<b>%{label}</b><br>Artículos: %{value:,}<br>' + f'{selected_sb_ind}: ' + '%{color:.2f}<extra></extra>'
+                        ))
+                        
+                        fig_sun_latam.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=550)
+                        st.plotly_chart(fig_sun_latam, use_container_width=True)
                             
                         with st.expander("📊 Perfiles Temáticos"):
                             tab_dom, tab_field, tab_sub = st.tabs(["Dominio", "Campo", "Subcampo"])
@@ -1772,34 +1826,61 @@ elif level == "País":
                 col3.metric("% DOAJ", f"{period_data.get('pct_doaj', 0):.1f}%")
 
                 # --- Sunburst de Temáticas (Country Level) ---
-                if os.path.exists(COUNTRIES_TOPICS_FILE):
+                SUNBURST_METRICS_COUNTRY = os.path.join(BASE_PATH, 'data', 'cache', 'sunburst_metrics_country.parquet')
+                if os.path.exists(SUNBURST_METRICS_COUNTRY):
                     try:
-                        try:
-                            # Carga optimizada filtrando por country
-                            topics_c = pd.read_parquet(COUNTRIES_TOPICS_FILE, filters=[('country_code', '==', selected_country)])
-                        except:
-                            # Fallback
-                            topics_full = pd.read_parquet(COUNTRIES_TOPICS_FILE)
-                            topics_c = topics_full[topics_full['country_code'] == selected_country]
+                        df_sun_c = pd.read_parquet(SUNBURST_METRICS_COUNTRY)
+                        # Filter by country
+                        df_sun_c = df_sun_c[df_sun_c['country_code'] == selected_country]
                         
-                        if not topics_c.empty:
+                        if not df_sun_c.empty:
                             st.markdown("---")
                             st.subheader(f"Temáticas de Investigación en {COUNTRY_NAMES.get(selected_country, selected_country)} (Sunburst)")
                             
-                            # Agrupar por niveles: domain -> field -> subfield
-                            topics_agg_c = topics_c.groupby(['domain', 'field', 'subfield'], as_index=False)['count'].sum()
-                            topics_agg_c = topics_agg_c[topics_agg_c['count'] > 0]
+                            # Indicator Selector
+                            sb_indicator_options = {
+                                'Artículos (Tamaño)': 'count',
+                                'FWCI Promedio': 'fwci_avg',
+                                'Percentil Promedio': 'avg_percentile',
+                                '% Top 10%': 'pct_top_10',
+                                '% OA Gold': 'pct_oa_gold',
+                                '% OA Green': 'pct_oa_green',
+                                '% OA Diamond': 'pct_oa_diamond' if 'pct_oa_diamond' in df_sun_c.columns else 'pct_oa_gold'
+                            }
                             
-                            if not topics_agg_c.empty:
-                                fig_sun_c = px.sunburst(
-                                    topics_agg_c,
-                                    path=['domain', 'field', 'subfield'],
-                                    values='count',
-                                    color='domain',
-                                    color_discrete_sequence=px.colors.qualitative.Prism
-                                )
-                                fig_sun_c.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
-                                st.plotly_chart(fig_sun_c, use_container_width=True)
+                            selected_sb_ind_c = st.selectbox(
+                                "Indicador de Color:",
+                                options=list(sb_indicator_options.keys()),
+                                key='sb_ind_country',
+                                index=1
+                            )
+                            ind_col_c = sb_indicator_options[selected_sb_ind_c]
+                            
+                            ids, labels, parents, values, colors = [], [], [], [], []
+                            for _, row in df_sun_c.iterrows():
+                                if row['level'] == 'domain':
+                                    curr_id = f"d:{row['domain']}"
+                                    curr_parent = ""
+                                elif row['level'] == 'field':
+                                    curr_id = f"f:{row['field']}"
+                                    curr_parent = f"d:{row['domain']}"
+                                else:
+                                    curr_id = f"s:{row['subfield']}"
+                                    curr_parent = f"f:{row['field']}"
+                                
+                                ids.append(curr_id)
+                                labels.append(row[row['level']])
+                                parents.append(curr_parent)
+                                values.append(row['count'])
+                                colors.append(row[ind_col_c])
+                            
+                            fig_sun_c = go.Figure(go.Sunburst(
+                                ids=ids, labels=labels, parents=parents, values=values,
+                                marker=dict(colors=colors, colorscale='Viridis', showscale=True, colorbar=dict(title=selected_sb_ind_c)),
+                                hovertemplate='<b>%{label}</b><br>Artículos: %{value:,}<br>' + f'{selected_sb_ind_c}: ' + '%{color:.2f}<extra></extra>'
+                            ))
+                            fig_sun_c.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
+                            st.plotly_chart(fig_sun_c, use_container_width=True)
                                 
                             # --- Tablas de Perfiles Temáticos ---
                             with st.expander("📊 Perfiles Temáticos"):
@@ -2062,35 +2143,62 @@ elif level == "Revista":
     m12.metric("En Scopus", "✅ Sí" if journal_data.get('is_scopus', False) else "❌ No")
     
     # --- Sunburst de Temáticas (Journal Level) ---
-    if os.path.exists(TOPICS_FILE):
+    SUNBURST_METRICS_JOURNAL = os.path.join(BASE_PATH, 'data', 'cache', 'sunburst_metrics_journal.parquet')
+    if os.path.exists(SUNBURST_METRICS_JOURNAL):
         try:
             # Carga optimizada filtrando por journal_id
             jid = journal_data['id']
-            try:
-                topics_j = pd.read_parquet(TOPICS_FILE, filters=[('journal_id', '==', jid)])
-            except:
-                # Fallback si falla el filtro (versiones antiguas pandas/pyarrow)
-                topics_full = pd.read_parquet(TOPICS_FILE)
-                topics_j = topics_full[topics_full['journal_id'] == jid]
+            df_sun_j = pd.read_parquet(SUNBURST_METRICS_JOURNAL, filters=[('journal_id', '==', jid)])
             
-            if not topics_j.empty:
+            if not df_sun_j.empty:
                 st.markdown("---")
                 st.subheader("Temáticas de Investigación (Sunburst)")
                 
-                # Filtrar tópicos con 0 relevancia
-                topics_j = topics_j[topics_j['count'] > 0]
+                # Indicator Selector
+                sb_indicator_options = {
+                    'Artículos (Tamaño)': 'count',
+                    'FWCI Promedio': 'fwci_avg',
+                    'Percentil Promedio': 'avg_percentile',
+                    '% Top 10%': 'pct_top_10',
+                    '% OA Gold': 'pct_oa_gold',
+                    '% OA Green': 'pct_oa_green',
+                    '% OA Diamond': 'pct_oa_diamond' if 'pct_oa_diamond' in df_sun_j.columns else 'pct_oa_gold'
+                }
                 
-                if not topics_j.empty:
-                    fig_sun = px.sunburst(
-                        topics_j,
-                        path=['domain', 'field', 'subfield', 'topic_name'],
-                        values='count',
-                        color='domain',
-                        color_discrete_sequence=px.colors.qualitative.Prism
-                    )
-                    fig_sun.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
-                    st.plotly_chart(fig_sun, use_container_width=True)
-                    st.caption("Jerarquía: Dominio -> Campo -> Tópico. Tamaño basado en volumen de documentos.")
+                selected_sb_ind_j = st.selectbox(
+                    "Indicador de Color:",
+                    options=list(sb_indicator_options.keys()),
+                    key='sb_ind_journal',
+                    index=1
+                )
+                ind_col_j = sb_indicator_options[selected_sb_ind_j]
+                
+                ids, labels, parents, values, colors = [], [], [], [], []
+                for _, row in df_sun_j.iterrows():
+                    if row['level'] == 'domain':
+                        curr_id = f"d:{row['domain']}"
+                        curr_parent = ""
+                    elif row['level'] == 'field':
+                        curr_id = f"f:{row['field']}"
+                        curr_parent = f"d:{row['domain']}"
+                    else:
+                        curr_id = f"s:{row['subfield']}"
+                        curr_parent = f"f:{row['field']}"
+                    
+                    ids.append(curr_id)
+                    labels.append(row[row['level']])
+                    parents.append(curr_parent)
+                    values.append(row['count'])
+                    colors.append(row[ind_col_j])
+                
+                fig_sun = go.Figure(go.Sunburst(
+                    ids=ids, labels=labels, parents=parents, values=values,
+                    marker=dict(colors=colors, colorscale='Viridis', showscale=True, colorbar=dict(title=selected_sb_ind_j)),
+                    hovertemplate='<b>%{label}</b><br>Artículos: %{value:,}<br>' + f'{selected_sb_ind_j}: ' + '%{color:.2f}<extra></extra>'
+                ))
+                fig_sun.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
+                st.plotly_chart(fig_sun, use_container_width=True)
+                st.caption("Jerarquía: Dominio -> Campo -> Subcampo. Tamaño basado en volumen de documentos.")
         except Exception as e:
             st.warning(f"No se pudieron cargar los temas: {e}")
 

@@ -98,6 +98,15 @@ if __name__ == "__main__":
         print("🛑 Deteniendo el pipeline debido a error en el cálculo de métricas.")
         sys.exit(1)
 
+    # PASO 4: Cálculo de métricas temáticas (Sunburst con Indicadores)
+    step4_success = run_step(
+        "pipeline_legacy_backup/compute_topics_metrics_postgres.py",
+        "Cálculo de Indicadores Jerárquicos para Sunburst (Temáticas)"
+    )
+
+    if not step4_success:
+        print("⚠️ Advertencia: El cálculo de métricas temáticas falló. Los Sunburst podrían no mostrar indicadores.")
+
     total_elapsed = time.time() - total_start
     print(f"\n{'='*70}")
     print(f"🎉 PIPELINE COMPLETO FINALIZADO EXITOSAMENTE")
