@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+pd.set_option("styler.render.max_elements", 1000000)
 import plotly.express as px
 import plotly.graph_objects as go
 import os
@@ -277,19 +278,40 @@ def render_thematic_evolution_table(df_evo_source, level_label, key_suffix, cmap
         
         # Add Total column for sorting
         df_pivot['Total'] = df_pivot.sum(axis=1)
-        df_pivot = df_pivot.sort_values('Total', ascending=False).drop(columns=['Total'])
+        df_pivot = df_pivot.sort_values('Total', ascending=False)
         
-        # UI Checkbox to show all rows
-        show_all = st.checkbox(f"Mostrar todos los {sel_level}s", value=False, key=f'show_all_{key_suffix}')
-        
-        # Limit rows for readability unless show_all is True
-        if not show_all and len(df_pivot) > 30:
-            st.caption(f"Mostrando los 30 {sel_level}s con mayor producción histórica.")
+        # --- UI FILTERS ---
+        col_f1, col_f2 = st.columns([2, 1])
+        with col_f1:
+            search_query = st.text_input(f"🔍 Bucar {sel_level}:", key=f'search_{key_suffix}')
+        with col_f2:
+            limit_options = ["Top 30", "Top 100", "Top 500", "Todos"]
+            selected_limit = st.selectbox("Mostrar:", options=limit_options, key=f'limit_{key_suffix}')
+
+        # 1. Apply Search Filter
+        if search_query:
+            df_pivot = df_pivot[df_pivot.index.str.contains(search_query, case=False, na=False)]
+
+        # 2. Apply Limit
+        total_found = len(df_pivot)
+        if selected_limit == "Top 30":
             df_pivot = df_pivot.head(30)
+        elif selected_limit == "Top 100":
+            df_pivot = df_pivot.head(100)
+        elif selected_limit == "Top 500":
+            df_pivot = df_pivot.head(500)
+            
+        # Drop Total before rendering
+        df_render = df_pivot.drop(columns=['Total'])
+        
+        if total_found > len(df_render):
+            st.caption(f"Mostrando {len(df_render)} de {total_found} {sel_level}s encontrados (ordenados por producción total).")
+        else:
+            st.caption(f"Mostrando {total_found} {sel_level}s.")
             
         # Display with gradient
         st.dataframe(
-            df_pivot.style.background_gradient(cmap=cmap, axis=1).format("{:.0f}"),
+            df_render.style.background_gradient(cmap=cmap, axis=1).format("{:.0f}"),
             use_container_width=True
         )
     else:
