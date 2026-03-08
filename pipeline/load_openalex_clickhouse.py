@@ -24,10 +24,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Configuración por defecto de ClickHouse
-CH_HOST = os.environ.get('CH_HOST', 'localhost')
-CH_PORT = int(os.environ.get('CH_PORT', 8123))
-CH_USER = os.environ.get('CH_USER', 'default')
-CH_PASSWORD = os.environ.get('CH_PASSWORD', '')
+CH_HOST = os.environ.get('CH_HOST', '10.90.0.87')
+CH_PORT = int(os.environ.get('CH_PORT', 8124))
+CH_USER = os.environ.get('CH_USER', 'rag_user')
+CH_PASSWORD = os.environ.get('CH_PASSWORD', '$B3tt3r-R4g-3veR-d0N3++')
 CH_DATABASE = os.environ.get('CH_DATABASE', 'openalex')
 
 def get_clickhouse_client():
@@ -44,13 +44,25 @@ def get_clickhouse_client():
     logger.info(f"Conectado a ClickHouse. Usando base de datos: {CH_DATABASE}")
     
     # Reconectarse especificando la BD
-    return clickhouse_connect.get_client(
+    client = clickhouse_connect.get_client(
         host=CH_HOST, 
         port=CH_PORT, 
         username=CH_USER, 
         password=CH_PASSWORD,
         database=CH_DATABASE
     )
+    
+    # Crear tabla de control de archivos procesados
+    client.command(f"""
+        CREATE TABLE IF NOT EXISTS _processed_files (
+            entity String,
+            file_name String,
+            processed_at DateTime DEFAULT now()
+        ) ENGINE = MergeTree()
+        ORDER BY (entity, file_name)
+    """)
+    
+    return client
 
 def discover_entities(snapshot_path: Path):
     """
@@ -78,14 +90,11 @@ def discover_entities(snapshot_path: Path):
 def infer_and_create_schema(client, entity_name: str):
     """Crea una tabla simple para almacenar los documentos JSON crudos de la entidad."""
     table_name = f"openalex_{entity_name}"
-    logger.info(f"[{entity_name}] Limpiando y creando tabla de repositorio JSON...")
+    logger.info(f"[{entity_name}] Asegurando tabla de repositorio JSON...")
     
-    # Limpiar tabla previa para evitar conflictos de esquemas antiguos
-    client.command(f"DROP TABLE IF EXISTS {table_name}")
-    
-    # Crear tabla con ID y el JSON rudo
+    # Crear tabla con ID y el JSON rudo (Idempotente)
     create_query = f"""
-    CREATE TABLE {table_name} (
+    CREATE TABLE IF NOT EXISTS {table_name} (
         id String,
         raw_data String
     ) ENGINE = MergeTree()
@@ -111,9 +120,18 @@ def ingest_entity(client, entity_name: str, snapshot_path: Path, docker_path: st
     # Asegurar tabla de repositorio
     infer_and_create_schema(client, entity_name)
     
+    # Obtener archivos ya procesados para esta entidad
+    processed_files = set(client.query(
+        f"SELECT file_name FROM _processed_files WHERE entity = '{entity_name}'"
+    ).result_rows_flatten)
+    
     logger.info(f"[{entity_name}] Iniciando ingesta por ID + Raw JSON...")
     
     for i, file_path in enumerate(files, 1):
+        if file_path.name in processed_files:
+            logger.info(f"  -> [{i}/{len(files)}] Saltando (ya procesado): {file_path.name}")
+            continue
+            
         try:
             logger.info(f"  -> [{i}/{len(files)}] Procesando: {file_path.name}")
             
@@ -131,13 +149,18 @@ def ingest_entity(client, entity_name: str, snapshot_path: Path, docker_path: st
             
             if rows:
                 client.insert(table_name, rows, column_names=['id', 'raw_data'])
+            
+            # Registrar archivo como completado
+            client.command(
+                f"INSERT INTO _processed_files (entity, file_name) VALUES ('{entity_name}', '{file_path.name}')"
+            )
                 
         except Exception as e:
             logger.error(f"  ❌ Error en archivo {file_path.name}: {e}")
 
     # Verificar cuenta
     count = client.command(f"SELECT COUNT() FROM {table_name}")
-    logger.info(f"[{entity_name}] ✅ Ingesta finalizada. Total registros: {count:,}")
+    logger.info(f"[{entity_name}] ✅ Estado actual. Total registros en tabla: {count:,}")
 
 
 def main():

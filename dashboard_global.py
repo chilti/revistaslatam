@@ -366,11 +366,14 @@ if level == "1. Mundo (Macro)":
             df_m_evo = df_thematic_evo.groupby(['year', target_evo])['num_documents'].sum().reset_index()
             df_m_pivot = df_m_evo.pivot(index=target_evo, columns='year', values='num_documents').fillna(0)
             # --- UI FILTERS ---
-            col_fm1, col_fm2 = st.columns([2, 1])
+            col_fm1, col_fm2, col_fm3 = st.columns([2, 1, 1])
             with col_fm1:
                 search_m = st.text_input(f"🔍 Buscar {sel_evo_level}:", key='search_mundo')
             with col_fm2:
-                limit_m = st.selectbox("Mostrar:", options=["Top 30", "Top 100", "Top 500", "Todos"], key='limit_mundo')
+                limit_m = st.selectbox("Mostrar:", options=["Top 30", "Top 100", "Top 500"], key='limit_mundo')
+            with col_fm3:
+                csv_m = df_m_pivot.drop(columns=['Total']).to_csv().encode('utf-8')
+                st.download_button("📥 Descargar CSV", data=csv_m, file_name=f"evolucion_mundo_{sel_evo_level}.csv", mime="text/csv", key='dl_mundo')
 
             # 1. Search
             if search_m:
@@ -383,7 +386,7 @@ if level == "1. Mundo (Macro)":
             elif limit_m == "Top 500": df_m_pivot = df_m_pivot.head(500)
             
             df_m_render = df_m_pivot.drop(columns=['Total'])
-            st.caption(f"Mostrando {len(df_m_render)} de {total_m} {sel_evo_level}s encontrados.")
+            st.caption(f"Mostrando {len(df_m_render)} de {total_m} {sel_evo_level}s. Datos completos en descarga.")
             st.dataframe(df_m_render.style.background_gradient(cmap='Blues', axis=1).format("{:.0f}"), use_container_width=True)
             
     else:
@@ -668,11 +671,14 @@ elif level == "2. Exploración por Región":
                             df_r_p = df_r_p.sort_values('Total', ascending=False)
                             
                             # --- UI FILTERS ---
-                            col_fr1, col_fr2 = st.columns([2, 1])
+                            col_fr1, col_fr2, col_fr3 = st.columns([2, 1, 1])
                             with col_fr1:
                                 search_r = st.text_input(f"🔍 Buscar {sel_evo_r}:", key=f'search_reg_{selected_region}')
                             with col_fr2:
-                                limit_r = st.selectbox("Mostrar:", options=["Top 30", "Top 100", "Top 500", "Todos"], key=f'limit_reg_{selected_region}')
+                                limit_r = st.selectbox("Mostrar:", options=["Top 30", "Top 100", "Top 500"], key=f'limit_reg_{selected_region}')
+                            with col_fr3:
+                                csv_r = df_r_p.drop(columns=['Total']).to_csv().encode('utf-8')
+                                st.download_button("📥 Descargar CSV", data=csv_r, file_name=f"evolucion_{selected_region}_{sel_evo_r}.csv", mime="text/csv", key=f'dl_reg_{selected_region}')
 
                             if search_r:
                                 df_r_p = df_r_p[df_r_p.index.str.contains(search_r, case=False, na=False)]
@@ -683,7 +689,7 @@ elif level == "2. Exploración por Región":
                             elif limit_r == "Top 500": df_r_p = df_r_p.head(500)
                             
                             df_r_render = df_r_p.drop(columns=['Total'])
-                            st.caption(f"Mostrando {len(df_r_render)} de {total_r} {sel_evo_r}s encontrados.")
+                            st.caption(f"Mostrando {len(df_r_render)} de {total_r} {sel_evo_r}s. Datos completos en descarga.")
                             st.dataframe(df_r_render.style.background_gradient(cmap='Greens', axis=1).format("{:.0f}"), use_container_width=True)
                         else:
                             st.info("Sin datos de evolución temática para esta región.")
@@ -963,11 +969,14 @@ elif level == "3. Análisis de País":
                                                 df_c_p = df_c_p.sort_values('Total', ascending=False)
                                                 
                                                 # --- UI FILTERS ---
-                                                col_fc1, col_fc2 = st.columns([2, 1])
+                                                col_fc1, col_fc2, col_fc3 = st.columns([2, 1, 1])
                                                 with col_fc1:
                                                     search_c = st.text_input(f"🔍 Buscar {sel_evo_c}:", key=f'search_country_{selected_country}')
                                                 with col_fc2:
-                                                    limit_c = st.selectbox("Mostrar:", options=["Top 30", "Top 100", "Top 500", "Todos"], key=f'limit_country_{selected_country}')
+                                                    limit_c = st.selectbox("Mostrar:", options=["Top 30", "Top 100", "Top 500"], key=f'limit_country_{selected_country}')
+                                                with col_fc3:
+                                                    csv_c = df_c_p.drop(columns=['Total']).to_csv().encode('utf-8')
+                                                    st.download_button("📥 Descargar CSV", data=csv_c, file_name=f"evolucion_{selected_country}_{sel_evo_c}.csv", mime="text/csv", key=f'dl_country_{selected_country}')
 
                                                 if search_c:
                                                     df_c_p = df_c_p[df_c_p.index.str.contains(search_c, case=False, na=False)]
@@ -978,7 +987,7 @@ elif level == "3. Análisis de País":
                                                 elif limit_c == "Top 500": df_c_p = df_c_p.head(500)
                                                 
                                                 df_c_render = df_c_p.drop(columns=['Total'])
-                                                st.caption(f"Mostrando {len(df_c_render)} de {total_c} {sel_evo_c}s encontrados.")
+                                                st.caption(f"Mostrando {len(df_c_render)} de {total_c} {sel_evo_c}s. Datos completos en descarga.")
                                                 st.dataframe(df_c_render.style.background_gradient(cmap='Purples', axis=1).format("{:.0f}"), use_container_width=True)
                                             else:
                                                 st.info("Sin datos de evolución temática para este país.")
@@ -1321,11 +1330,14 @@ elif level == "4. Buscador de Revista":
                                     df_j_p = df_j_p.sort_values('Total', ascending=False)
                                     
                                     # --- UI FILTERS ---
-                                    col_fj1, col_fj2 = st.columns([2, 1])
+                                    col_fj1, col_fj2, col_fj3 = st.columns([2, 1, 1])
                                     with col_fj1:
                                         search_j = st.text_input(f"🔍 Buscar {sel_evo_j}:", key=f'search_journal_{jid}')
                                     with col_fj2:
-                                        limit_j = st.selectbox("Mostrar:", options=["Top 30", "Top 100", "Top 500", "Todos"], key=f'limit_journal_{jid}')
+                                        limit_j = st.selectbox("Mostrar:", options=["Top 30", "Top 100", "Top 500"], key=f'limit_journal_{jid}')
+                                    with col_fj3:
+                                        csv_j = df_j_p.drop(columns=['Total']).to_csv().encode('utf-8')
+                                        st.download_button("📥 Descargar CSV", data=csv_j, file_name=f"evolucion_revista_{jid}_{sel_evo_j}.csv", mime="text/csv", key=f'dl_journal_{jid}')
 
                                     if search_j:
                                         df_j_p = df_j_p[df_j_p.index.str.contains(search_j, case=False, na=False)]
@@ -1336,7 +1348,7 @@ elif level == "4. Buscador de Revista":
                                     elif limit_j == "Top 500": df_j_p = df_j_p.head(500)
                                     
                                     df_j_render = df_j_p.drop(columns=['Total'])
-                                    st.caption(f"Mostrando {len(df_j_render)} de {total_j} {sel_evo_j}s encontrados.")
+                                    st.caption(f"Mostrando {len(df_j_render)} de {total_j} {sel_evo_j}s. Datos completos en descarga.")
                                     st.dataframe(df_j_render.style.background_gradient(cmap='Oranges', axis=1).format("{:.0f}"), use_container_width=True)
                                 else:
                                     st.info("Sin datos de evolución temática para esta revista.")

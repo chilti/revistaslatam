@@ -281,12 +281,22 @@ def render_thematic_evolution_table(df_evo_source, level_label, key_suffix, cmap
         df_pivot = df_pivot.sort_values('Total', ascending=False)
         
         # --- UI FILTERS ---
-        col_f1, col_f2 = st.columns([2, 1])
+        col_f1, col_f2, col_f3 = st.columns([2, 1, 1])
         with col_f1:
-            search_query = st.text_input(f"🔍 Bucar {sel_level}:", key=f'search_{key_suffix}')
+            search_query = st.text_input(f"🔍 Buscar {sel_level}:", key=f'search_{key_suffix}')
         with col_f2:
-            limit_options = ["Top 30", "Top 100", "Top 500", "Todos"]
+            limit_options = ["Top 30", "Top 100", "Top 500"]
             selected_limit = st.selectbox("Mostrar:", options=limit_options, key=f'limit_{key_suffix}')
+        with col_f3:
+            # Download full data
+            csv_data = df_pivot.drop(columns=['Total']).to_csv().encode('utf-8')
+            st.download_button(
+                label="📥 Descargar CSV",
+                data=csv_data,
+                file_name=f'evolucion_tematica_{key_suffix}_{sel_level}.csv',
+                mime='text/csv',
+                key=f'dl_{key_suffix}'
+            )
 
         # 1. Apply Search Filter
         if search_query:
@@ -305,7 +315,7 @@ def render_thematic_evolution_table(df_evo_source, level_label, key_suffix, cmap
         df_render = df_pivot.drop(columns=['Total'])
         
         if total_found > len(df_render):
-            st.caption(f"Mostrando {len(df_render)} de {total_found} {sel_level}s encontrados (ordenados por producción total).")
+            st.caption(f"Mostrando {len(df_render)} de {total_found} {sel_level}s encontrados (ordenados por producción total). Los datos completos están disponibles en la descarga.")
         else:
             st.caption(f"Mostrando {total_found} {sel_level}s.")
             
