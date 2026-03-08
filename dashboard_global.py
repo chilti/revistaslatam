@@ -367,7 +367,11 @@ if level == "1. Mundo (Macro)":
             df_m_pivot['Total'] = df_m_pivot.sum(axis=1)
             df_m_pivot = df_m_pivot.sort_values('Total', ascending=False).drop(columns=['Total'])
             
-            if len(df_m_pivot) > 30:
+            # UI Checkbox to show all rows
+            show_all_m = st.checkbox(f"Mostrar todos los {sel_evo_level}s", value=False, key='show_all_mundo')
+            
+            # Limit rows for readability unless show_all is True
+            if not show_all_m and len(df_m_pivot) > 30:
                 st.caption(f"Mostrando los 30 {sel_evo_level}s con mayor producción histórica.")
                 df_m_pivot = df_m_pivot.head(30)
             
@@ -653,7 +657,12 @@ elif level == "2. Exploración por Región":
                             df_r_p = df_r_evo.pivot(index=t_evo_r, columns='year', values='num_documents').fillna(0)
                             df_r_p['Total'] = df_r_p.sum(axis=1)
                             df_r_p = df_r_p.sort_values('Total', ascending=False).drop(columns=['Total'])
-                            if len(df_r_p) > 30: df_r_p = df_r_p.head(30)
+                            
+                            show_all_r = st.checkbox(f"Mostrar todos los {sel_evo_r}s", value=False, key=f'show_all_reg_{selected_region}')
+                            if not show_all_r and len(df_r_p) > 30:
+                                st.caption(f"Mostrando los 30 {sel_evo_r}s con mayor producción histórica.")
+                                df_r_p = df_r_p.head(30)
+                                
                             st.dataframe(df_r_p.style.background_gradient(cmap='Greens', axis=1).format("{:.0f}"), use_container_width=True)
                         else:
                             st.info("Sin datos de evolución temática para esta región.")
@@ -931,7 +940,12 @@ elif level == "3. Análisis de País":
                                                 df_c_p = df_c_evo.pivot(index=t_evo_c, columns='year', values='num_documents').fillna(0)
                                                 df_c_p['Total'] = df_c_p.sum(axis=1)
                                                 df_c_p = df_c_p.sort_values('Total', ascending=False).drop(columns=['Total'])
-                                                if len(df_c_p) > 30: df_c_p = df_c_p.head(30)
+                                                
+                                                show_all_c = st.checkbox(f"Mostrar todos los {sel_evo_c}s", value=False, key=f'show_all_country_{selected_country}')
+                                                if not show_all_c and len(df_c_p) > 30:
+                                                    st.caption(f"Mostrando los 30 {sel_evo_c}s con mayor producción histórica.")
+                                                    df_c_p = df_c_p.head(30)
+                                                    
                                                 st.dataframe(df_c_p.style.background_gradient(cmap='Purples', axis=1).format("{:.0f}"), use_container_width=True)
                                             else:
                                                 st.info("Sin datos de evolución temática para este país.")
@@ -1270,6 +1284,14 @@ elif level == "4. Buscador de Revista":
                                 df_j_evo = df_thematic_evo[df_thematic_evo['journal_id'] == jid].groupby(['year', t_evo_j])['num_documents'].sum().reset_index()
                                 if not df_j_evo.empty:
                                     df_j_p = df_j_evo.pivot(index=t_evo_j, columns='year', values='num_documents').fillna(0)
+                                    df_j_p['Total'] = df_j_p.sum(axis=1)
+                                    df_j_p = df_j_p.sort_values('Total', ascending=False).drop(columns=['Total'])
+                                    
+                                    show_all_j = st.checkbox(f"Mostrar todos los {sel_evo_j}s", value=False, key=f'show_all_journal_{jid}')
+                                    if not show_all_j and len(df_j_p) > 30:
+                                        st.caption(f"Mostrando los 30 {sel_evo_j}s con mayor producción histórica.")
+                                        df_j_p = df_j_p.head(30)
+                                        
                                     st.dataframe(df_j_p.style.background_gradient(cmap='Oranges', axis=1).format("{:.0f}"), use_container_width=True)
                                 else:
                                     st.info("Sin datos de evolución temática para esta revista.")

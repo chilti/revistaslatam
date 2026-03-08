@@ -279,8 +279,11 @@ def render_thematic_evolution_table(df_evo_source, level_label, key_suffix, cmap
         df_pivot['Total'] = df_pivot.sum(axis=1)
         df_pivot = df_pivot.sort_values('Total', ascending=False).drop(columns=['Total'])
         
-        # Limit rows for readability
-        if len(df_pivot) > 30:
+        # UI Checkbox to show all rows
+        show_all = st.checkbox(f"Mostrar todos los {sel_level}s", value=False, key=f'show_all_{key_suffix}')
+        
+        # Limit rows for readability unless show_all is True
+        if not show_all and len(df_pivot) > 30:
             st.caption(f"Mostrando los 30 {sel_level}s con mayor producción histórica.")
             df_pivot = df_pivot.head(30)
             
