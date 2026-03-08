@@ -1,0 +1,73 @@
+File: c:\Users\jlja\Documents\Proyectos\revistaslatam\data\cache\thematic_evolution_latam.parquet
+Rows: 2617104
+
+Columns and Dtypes:
+journal_id           str
+year             float64
+num_documents      int64
+topic                str
+subfield             str
+field                str
+domain               str
+share              int64
+dtype: object
+
+First 10 rows:
+                        journal_id  ...  share
+0  https://openalex.org/S100062655  ...      0
+1  https://openalex.org/S100062655  ...      0
+2  https://openalex.org/S100062655  ...      0
+3  https://openalex.org/S100062655  ...      0
+4  https://openalex.org/S100062655  ...      0
+5  https://openalex.org/S100062655  ...      0
+6  https://openalex.org/S100062655  ...      0
+7  https://openalex.org/S100062655  ...      0
+8  https://openalex.org/S100062655  ...      0
+9  https://openalex.org/S100062655  ...      0
+
+[10 rows x 8 columns]
+
+Summary statistics for num_documents:
+count    2617104.0
+mean           0.0
+std            0.0
+min            0.0
+25%            0.0
+50%            0.0
+75%            0.0
+max            0.0
+Name: num_documents, dtype: float64
+
+Total documents in the whole file: 0
+
+Unique identifiers count:
+Unique journal_ids: 7551
+Unique years: 174
+Unique domains: 4
+
+Rows with 0 documents: 2617104 (100.00%)
+
+Counts per year (top 10):
+year
+2017.0    0
+2018.0    0
+2019.0    0
+2020.0    0
+2021.0    0
+2022.0    0
+2023.0    0
+2024.0    0
+2025.0    0
+2026.0    0
+Name: num_documents, dtype: int64
+
+Top 5 Journals by documents:
+journal_id
+https://openalex.org/S100062655     0
+https://openalex.org/S100582281     0
+https://openalex.org/S1006027302    0
+https://openalex.org/S1007503842    0
+https://openalex.org/S100827509     0
+Name: num_documents, dtype: int64
+
+Column names: ['journal_id', 'year', 'num_documents', 'topic', 'subfield', 'field', 'domain', 'share']

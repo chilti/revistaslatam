@@ -88,14 +88,14 @@ def calculate_from_agg(df):
 def compute_thematic_evolution_legacy(works_df, topics_df, output_path):
     print("\n📈 Computing LATAM Thematic Evolution (Legacy)...")
     
-    # Group by journal and year
+    # 1. Group by journal and year (raw document counts)
     j_year_counts = works_df.groupby(['journal_id', 'publication_year']).size().reset_index(name='num_documents')
     
-    # Merge with topics hierarchy (including topic_name as 'topic')
-    df_evo = pd.merge(j_year_counts, topics_df[['journal_id', 'topic_name', 'subfield', 'field', 'domain', 'share']], on='journal_id')
+    # 2. Merge with topics/areas (multiple rows per journal)
+    df_evo = pd.merge(j_year_counts, topics_df[['journal_id', 'topic_name', 'subfield', 'field', 'domain']], on='journal_id')
     
-    # Distribute documents by share
-    df_evo['num_documents'] = df_evo['num_documents'] * df_evo['share']
+    # 3. Use raw counts (no share multiplication as per user request)
+    # The counts will effectively represent "documents within this topic area"
     
     # Rename to match expected dashboard schema
     df_evo = df_evo.rename(columns={'topic_name': 'topic', 'publication_year': 'year'})
