@@ -97,7 +97,7 @@ def compute_umap():
             
             # Enriqueciendo Países con su región para coloreo
             valid_merge = valid.copy() # Aquí asumo que df_country tiene ya el join pero lo revisamos
-            if len(valid_merge) > 10:
+            if len(valid_merge) >= 4:
                 scaler = StandardScaler()
                 X_scaled = scaler.fit_transform(valid_merge[feature_cols])
                 

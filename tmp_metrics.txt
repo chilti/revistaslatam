@@ -1,0 +1,6 @@
+<div class="metric-delta {color_class}">{delta_str}</div>
+---
+<div class="metric-card">
+        <div class="metric-label">{label}</div>
+---
+<div class="metric-value">{value}</div>

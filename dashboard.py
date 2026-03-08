@@ -23,6 +23,100 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Estilos CSS Premium
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Outfit', sans-serif;
+    }
+
+    .stApp {
+        background: radial-gradient(circle at top right, #fdfdfd, #f4f7f6);
+    }
+
+    /* Tarjetas de Métricas Premium */
+    .metric-container {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 2rem;
+    }
+
+    .metric-card {
+        background: white;
+        padding: 24px;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        border: 1px solid rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+        flex: 1;
+        text-align: left;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+    }
+
+    .metric-label {
+        font-size: 0.9rem;
+        color: #64748b;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+    }
+
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1e293b;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .metric-delta {
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-top: 4px;
+    }
+
+    .delta-positive { color: #10b981; }
+    .delta-negative { color: #ef4444; }
+
+    /* Headers */
+    h1, h2, h3 {
+        font-weight: 700 !important;
+        color: #0f172a !important;
+    }
+
+    /* Sidebar Customization */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e2e8f0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+def premium_metric(label, value, delta=None):
+    delta_html = ""
+    if delta:
+        color_class = "delta-positive" if str(delta).startswith("+") or (isinstance(delta, (int, float)) and delta > 0) else "delta-negative"
+        # Aseguramos formato string
+        delta_str = str(delta) if isinstance(delta, str) else f"{delta:+,g}"
+        delta_html = f'<div class="metric-delta {color_class}">{delta_str}</div>'
+    
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">{label}</div>
+        <div class="metric-value">{value}</div>
+        {delta_html}
+    </div>
+    """, unsafe_allow_html=True)
+
 # --- Sidebar ---
 st.sidebar.title("Bibliometría LATAM")
 st.sidebar.markdown("---")
@@ -72,6 +166,7 @@ MAP_COUNTRIES_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_countr
 MAP_JOURNALS_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'trajectory_journals_coords.parquet')
 TOPICS_FILE = os.path.join(BASE_PATH, 'data', 'journals_topics_sunburst.parquet')
 COUNTRIES_TOPICS_FILE = os.path.join(BASE_PATH, 'data', 'countries_topics_sunburst.parquet')
+EVO_THEMATIC_FILE = os.path.join(BASE_PATH, 'data', 'cache', 'thematic_evolution_latam.parquet')
 
 # Country Names Mapping
 COUNTRY_NAMES = {
@@ -102,14 +197,19 @@ st.title("Revistas Científicas de Latinoamérica")
 st.caption("OpenAlex Snapshot 2025-10-27")
 
 # Load Data
-@st.cache_data
 def load_data():
     data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
     journals_path = os.path.join(data_dir, 'latin_american_journals.parquet')
     df = collector_load_data(journals_path)
-    return df
+    
+    # Load thematic evolution if exists
+    df_evo = None
+    if os.path.exists(EVO_THEMATIC_FILE):
+        df_evo = pd.read_parquet(EVO_THEMATIC_FILE)
+        
+    return df, df_evo
 
-df = load_data()
+df, df_thematic_evo = load_data()
 
 if df.empty:
     st.warning("⚠️ No hay datos disponibles. Por favor, pulsa 'Actualizar Datos' en la barra lateral para comenzar.")
@@ -162,14 +262,46 @@ def create_profile_table(df_data, level_col, index_col, index_name, total_name):
     
     return final_table
 
+def render_thematic_evolution_table(df_evo_source, level_label, key_suffix, cmap='Blues'):
+    """Helper to render thematic evolution table with level selector."""
+    levels_map = {'Dominio': 'domain', 'Campo': 'field', 'Subcampo': 'subfield', 'Tópico': 'topic'}
+    sel_level = st.radio(f"Nivel Temático ({level_label}):", options=list(levels_map.keys()), horizontal=True, key=f'evo_sel_{key_suffix}')
+    target_col = levels_map[sel_level]
+    
+    if df_evo_source is not None and not df_evo_source.empty:
+        # Aggregate by year and selected level
+        df_agg = df_evo_source.groupby(['year', target_col])['num_documents'].sum().reset_index()
+        
+        # Pivot: Years as columns, Topics as rows
+        df_pivot = df_agg.pivot(index=target_col, columns='year', values='num_documents').fillna(0)
+        
+        # Add Total column for sorting
+        df_pivot['Total'] = df_pivot.sum(axis=1)
+        df_pivot = df_pivot.sort_values('Total', ascending=False).drop(columns=['Total'])
+        
+        # Limit rows for readability
+        if len(df_pivot) > 30:
+            st.caption(f"Mostrando los 30 {sel_level}s con mayor producción histórica.")
+            df_pivot = df_pivot.head(30)
+            
+        # Display with gradient
+        st.dataframe(
+            df_pivot.style.background_gradient(cmap=cmap, axis=1).format("{:.0f}"),
+            use_container_width=True
+        )
+    else:
+        st.warning("No hay datos de evolución temática disponibles.")
+
 # Filter by Level
 if level == "Region (Latinoamérica)":
     st.header("Panorama Regional")
     
     # Basic KPIs from journals
     col1, col2 = st.columns(2)
-    col1.metric("Revistas Indexadas", len(df))
-    col2.metric("Total Artículos", f"{df['works_count'].sum():,}")
+    with col1:
+        premium_metric("Revistas Indexadas", len(df))
+    with col2:
+        premium_metric("Total Artículos", f"{df['works_count'].sum():,}")
     
     # Geographic Map Section
     if has_cached_metrics:
@@ -317,22 +449,32 @@ if level == "Region (Latinoamérica)":
             st.markdown(f"### Periodo Completo: {period_data.get('period', 'N/A')}")
             
             col1, col2, col3, col4, col5 = st.columns(5)
-            col1.metric("Documentos", f"{period_data.get('num_documents', 0):,}")
-            col2.metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
-            col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
-            col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
-            col5.metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
+            with col1:
+                premium_metric("Documentos", f"{period_data.get('num_documents', 0):,}")
+            with col2:
+                premium_metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
+            with col3:
+                premium_metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
+            with col4:
+                premium_metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
+            with col5:
+                premium_metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
             
             # Recent Period
             if latam_period_recent is not None and len(latam_period_recent) > 0:
                 rec_data = latam_period_recent.iloc[0]
                 st.markdown(f"### Periodo Reciente: 2021-2025")
                 c1, c2, c3, c4, c5 = st.columns(5)
-                c1.metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
-                c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
-                c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
-                c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
-                c5.metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
+                with c1:
+                    premium_metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
+                with c2:
+                    premium_metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
+                with c3:
+                    premium_metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
+                with c4:
+                    premium_metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
+                with c5:
+                    premium_metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
             
             # Open Access and Language breakdown
             st.markdown("#### Distribución y Características de las Publicaciones")
@@ -529,6 +671,11 @@ if level == "Region (Latinoamérica)":
                             with tab_sub:
                                 df_sub = create_profile_table(topics_latam, 'subfield', 'country_code', 'País', 'Total Región LATAM')
                                 st.dataframe(df_sub, use_container_width=True, hide_index=True)
+
+                        # --- EVOLUCIÓN HISTÓRICA REGIONAL ---
+                        st.markdown("---")
+                        st.subheader("Evolución Histórica de Perfiles de Conocimiento: Región")
+                        render_thematic_evolution_table(df_thematic_evo, "Región", "regional", cmap='Greens')
                 except Exception as e:
                     st.warning(f"No se pudieron cargar los temas regionales: {e}")
         
@@ -2002,6 +2149,16 @@ elif level == "País":
                                 
                     except Exception as e:
                         st.warning(f"No se pudieron cargar los temas del país: {e}")
+
+                # --- EVOLUCIÓN HISTÓRICA POR PAÍS ---
+                st.markdown("---")
+                st.subheader(f"Evolución Histórica de Perfiles de Conocimiento: {selected_country}")
+                
+                # Obtener IDs de revistas de este país (ya calculado arriba como country_j_ids)
+                country_j_ids = df[df['country_code'] == selected_country]['id'].tolist()
+                if df_thematic_evo is not None:
+                    df_evo_country = df_thematic_evo[df_thematic_evo['journal_id'].isin(country_j_ids)]
+                    render_thematic_evolution_table(df_evo_country, selected_country, f"country_{selected_country}", cmap='Purples')
         
         if country_annual is not None:
             country_annual_data = country_annual[country_annual['country_code'] == selected_country]
@@ -2322,6 +2479,13 @@ elif level == "Revista":
                 fig_sun.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
                 st.plotly_chart(fig_sun, use_container_width=True)
                 st.caption("Jerarquía: Dominio -> Campo -> Subcampo. Tamaño basado en volumen de documentos.")
+
+                # --- EVOLUCIÓN HISTÓRICA POR REVISTA ---
+                st.markdown("---")
+                st.subheader(f"Evolución Histórica de Perfiles de Conocimiento: Revista")
+                if df_thematic_evo is not None:
+                    df_evo_journal = df_thematic_evo[df_thematic_evo['journal_id'] == journal_data['id']]
+                    render_thematic_evolution_table(df_evo_journal, selected_journal_name, f"journal_{journal_data['id']}", cmap='Oranges')
         except Exception as e:
             st.warning(f"No se pudieron cargar los temas: {e}")
 
@@ -2344,11 +2508,16 @@ elif level == "Revista":
                 period_data = journal_period_data.iloc[0]
                 
                 col1, col2, col3, col4, col5 = st.columns(5)
-                col1.metric("Documentos", f"{period_data.get('num_documents', 0):,}")
-                col2.metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
-                col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
-                col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
-                col5.metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
+                with col1:
+                    premium_metric("Documentos", f"{period_data.get('num_documents', 0):,}")
+                with col2:
+                    premium_metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
+                with col3:
+                    premium_metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
+                with col4:
+                    premium_metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
+                with col5:
+                    premium_metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
 
                 # Recent Period
                 if journal_period_recent is not None:
@@ -2357,11 +2526,16 @@ elif level == "Revista":
                         rec_data = journal_rec_data.iloc[0]
                         st.markdown(f"### Periodo Reciente: 2021-2025")
                         c1, c2, c3, c4, c5 = st.columns(5)
-                        c1.metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
-                        c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
-                        c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
-                        c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
-                        c5.metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
+                        with c1:
+                            premium_metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
+                        with c2:
+                            premium_metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
+                        with c3:
+                            premium_metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
+                        with c4:
+                            premium_metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
+                        with c5:
+                            premium_metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
                 
                 st.markdown("#### Distribución y Características de las Publicaciones")
                 col_chart1, col_chart2 = st.columns(2)
