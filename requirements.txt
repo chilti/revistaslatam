@@ -11,3 +11,4 @@ metric_learn
 scikit-learn
 openpyxl
 requests
+python-dotenv

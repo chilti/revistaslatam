@@ -12,6 +12,10 @@ import numpy as np
 from pathlib import Path
 import logging
 import argparse
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 import sys
 import os
@@ -33,12 +37,12 @@ BASE_PATH = Path(__file__).parent.parent
 CACHE_DIR = BASE_PATH / 'data' / 'cache'
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-# ClickHouse Env
+# ClickHouse Env (prioriza .env)
 CH_HOST = os.environ.get('CH_HOST', 'localhost')
 CH_PORT = int(os.environ.get('CH_PORT', 8123))
 CH_USER = os.environ.get('CH_USER', 'default')
 CH_PASSWORD = os.environ.get('CH_PASSWORD', '')
-CH_DATABASE = os.environ.get('CH_DATABASE', 'openalex')
+CH_DATABASE = os.environ.get('CH_DATABASE', 'rag')
 
 def get_client():
     return clickhouse_connect.get_client(

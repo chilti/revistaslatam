@@ -12,6 +12,10 @@ import glob
 import logging
 import argparse
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde .env si existe
+load_dotenv()
 
 # Se requiere tener instalado clickhouse-connect (pip install clickhouse-connect)
 try:
@@ -23,34 +27,48 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Configuración por defecto de ClickHouse
-CH_HOST = os.environ.get('CH_HOST', '10.90.0.87')
-CH_PORT = int(os.environ.get('CH_PORT', 8124))
-CH_USER = os.environ.get('CH_USER', 'rag_user')
-CH_PASSWORD = os.environ.get('CH_PASSWORD', '$B3tt3r-R4g-3veR-d0N3++')
-CH_DATABASE = os.environ.get('CH_DATABASE', 'openalex')
+# Configuración de ClickHouse (se priorizan variables de entorno / .env)
+CH_HOST = os.environ.get('CH_HOST', 'localhost')
+CH_PORT = int(os.environ.get('CH_PORT', 8123))
+CH_USER = os.environ.get('CH_USER', 'default')
+CH_PASSWORD = os.environ.get('CH_PASSWORD', '')
+CH_DATABASE = os.environ.get('CH_DATABASE', 'rag')
 
 def get_clickhouse_client():
-    """Conecta al servidor ClickHouse y crea la base de datos si no existe."""
-    client = clickhouse_connect.get_client(
-        host=CH_HOST, 
-        port=CH_PORT, 
-        username=CH_USER, 
-        password=CH_PASSWORD
-    )
-    
-    # Crear la BD
-    client.command(f"CREATE DATABASE IF NOT EXISTS {CH_DATABASE}")
-    logger.info(f"Conectado a ClickHouse. Usando base de datos: {CH_DATABASE}")
-    
-    # Reconectarse especificando la BD
-    client = clickhouse_connect.get_client(
-        host=CH_HOST, 
-        port=CH_PORT, 
-        username=CH_USER, 
-        password=CH_PASSWORD,
-        database=CH_DATABASE
-    )
+    """Conecta al servidor ClickHouse y asegura la base de datos."""
+    try:
+        # Intento 1: Conectar directamente (asume que la BD ya existe o el usuario tiene acceso limitado)
+        client = clickhouse_connect.get_client(
+            host=CH_HOST, 
+            port=CH_PORT, 
+            username=CH_USER, 
+            password=CH_PASSWORD,
+            database=CH_DATABASE
+        )
+        logger.info(f"Conectado exitosamente a la base de datos: {CH_DATABASE}")
+    except Exception as e:
+        logger.warning(f"No se pudo conectar directamente a '{CH_DATABASE}'. Intentando crearla si hay permisos...")
+        try:
+            # Intento 2: Conectar sin BD para intentar crearla
+            temp_client = clickhouse_connect.get_client(
+                host=CH_HOST, 
+                port=CH_PORT, 
+                username=CH_USER, 
+                password=CH_PASSWORD
+            )
+            temp_client.command(f"CREATE DATABASE IF NOT EXISTS {CH_DATABASE}")
+            
+            # Re-conectar a la BD ya creada
+            client = clickhouse_connect.get_client(
+                host=CH_HOST, 
+                port=CH_PORT, 
+                username=CH_USER, 
+                password=CH_PASSWORD,
+                database=CH_DATABASE
+            )
+        except Exception as final_err:
+            logger.error(f"Error de acceso: El usuario '{CH_USER}' no tiene permisos para crear la BD y ésta no parece existir.")
+            raise final_err
     
     # Crear tabla de control de archivos procesados
     client.command(f"""
@@ -89,7 +107,7 @@ def discover_entities(snapshot_path: Path):
 
 def infer_and_create_schema(client, entity_name: str):
     """Crea una tabla simple para almacenar los documentos JSON crudos de la entidad."""
-    table_name = f"openalex_{entity_name}"
+    table_name = f"`openalex_{entity_name}`"
     logger.info(f"[{entity_name}] Asegurando tabla de repositorio JSON...")
     
     # Crear tabla con ID y el JSON rudo (Idempotente)
@@ -115,15 +133,20 @@ def ingest_entity(client, entity_name: str, snapshot_path: Path, docker_path: st
         logger.warning(f"[{entity_name}] No se encontraron archivos .gz")
         return
 
-    table_name = f"openalex_{entity_name}"
+    table_name = f"`openalex_{entity_name}`"
     
     # Asegurar tabla de repositorio
     infer_and_create_schema(client, entity_name)
     
     # Obtener archivos ya procesados para esta entidad
-    processed_files = set(client.query(
-        f"SELECT file_name FROM _processed_files WHERE entity = '{entity_name}'"
-    ).result_rows_flatten)
+    try:
+        result = client.query(
+            f"SELECT file_name FROM _processed_files WHERE entity = '{entity_name}'"
+        )
+        processed_files = set(result.result_columns[0]) if result.result_columns else set()
+    except Exception as e:
+        logger.warning(f"[{entity_name}] No se pudo consultar _processed_files: {e}")
+        processed_files = set()
     
     logger.info(f"[{entity_name}] Iniciando ingesta por ID + Raw JSON...")
     
