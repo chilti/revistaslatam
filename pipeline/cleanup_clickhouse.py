@@ -38,8 +38,9 @@ def cleanup():
             confirm = input("\n⚠️  ¿Deseas BORRAR estas tablas permanentemente? (s/n): ")
             if confirm.lower() == 's':
                 for t in old_tables:
-                    print(f"  Dropping {t}...")
-                    client.command(f"DROP TABLE IF EXISTS `{t}`")
+                    print(f"  Dropping {t} (omitiendo límite de tamaño)...")
+                    # Se agrega SETTINGS para permitir borrar tablas de más de 50GB
+                    client.command(f"DROP TABLE IF EXISTS `{t}` SETTINGS max_table_size_to_drop = 0")
                 print("✅ Tablas eliminadas.")
             else:
                 print("Operación cancelada para las tablas.")
