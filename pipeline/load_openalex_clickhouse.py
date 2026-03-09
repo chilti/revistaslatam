@@ -98,8 +98,8 @@ def discover_entities(snapshot_path: Path):
         if item.is_dir() and not item.name.startswith('.'):
             # Verificar si adentro tiene particiones por fecha o archivos .gz
             files = list(item.glob('**/*.gz'))
-            logger.info(f"Escaneando {item.name}: found {len(files)} files")
             if len(files) > 0:
+                logger.info(f"Escaneando {item.name}: found {len(files)} files")
                 entities.append(item.name)
                 
     logger.info(f"🔍 Entidades dinámicas descubiertas en el snapshot: {entities}")
@@ -107,7 +107,7 @@ def discover_entities(snapshot_path: Path):
 
 def infer_and_create_schema(client, entity_name: str):
     """Crea una tabla simple para almacenar los documentos JSON crudos de la entidad."""
-    table_name = f"`openalex_{entity_name}`"
+    table_name = f"`{entity_name}`"
     logger.info(f"[{entity_name}] Asegurando tabla de repositorio JSON...")
     
     # Crear tabla con ID y el JSON rudo (Idempotente)
@@ -133,7 +133,7 @@ def ingest_entity(client, entity_name: str, snapshot_path: Path, docker_path: st
         logger.warning(f"[{entity_name}] No se encontraron archivos .gz")
         return
 
-    table_name = f"`openalex_{entity_name}`"
+    table_name = f"`{entity_name}`"
     
     # Asegurar tabla de repositorio
     infer_and_create_schema(client, entity_name)

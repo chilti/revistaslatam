@@ -23,20 +23,25 @@ def check_status():
             database=CH_DATABASE
         )
         
-        # 1. Consultar tablas de OpenAlex
-        tables = client.query("SHOW TABLES").result_rows
+        # 1. Consultar tablas de OpenAlex y base de datos
+        tables = [t[0] for t in client.query("SHOW TABLES").result_rows]
+        
+        # Lista de entidades esperadas de OpenAlex
+        OPENALEX_ENTITIES = ['works', 'authors', 'sources', 'institutions', 'concepts', 'venues', 'publishers', 'funders', 'topics', 'data', 'legacy-data']
         
         print("\n" + "="*50)
         print(f"{'TABLA':<30} | {'REGISTROS':>15}")
         print("-" * 50)
         
         total_records = 0
-        for (table_name,) in tables:
-            # Solo tablas de datos o de control
-            if table_name.startswith('openalex_') or table_name == '_processed_files':
+        for table_name in tables:
+            # Detectar si es una tabla de datos (por nombre o prefijo legacy)
+            is_data_table = table_name in OPENALEX_ENTITIES or table_name.startswith('openalex_')
+            
+            if is_data_table or table_name == '_processed_files':
                 count = client.command(f"SELECT count() FROM `{table_name}`")
                 print(f"{table_name:<30} | {count:>15,}")
-                if table_name.startswith('openalex_'):
+                if is_data_table:
                     total_records += count
                     
         print("-" * 50)
