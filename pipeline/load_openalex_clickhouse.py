@@ -115,7 +115,7 @@ def infer_and_create_schema(client, entity_name: str):
     CREATE TABLE IF NOT EXISTS {table_name} (
         id String,
         raw_data String
-    ) ENGINE = MergeTree()
+    ) ENGINE = ReplacingMergeTree()
     ORDER BY id
     """
     client.command(create_query)
@@ -151,12 +151,16 @@ def ingest_entity(client, entity_name: str, snapshot_path: Path, docker_path: st
     logger.info(f"[{entity_name}] Iniciando ingesta por ID + Raw JSON...")
     
     for i, file_path in enumerate(files, 1):
-        if file_path.name in processed_files:
-            logger.info(f"  -> [{i}/{len(files)}] Saltando (ya procesado): {file_path.name}")
+        # Usamos la ruta relativa para distinguir archivos con el mismo nombre en diferentes carpetas de fecha
+        relative_path = str(file_path.relative_to(entity_dir))
+        
+        # Compatibilidad: saltar si la ruta completa O solo el nombre del archivo ya fueron procesados
+        if relative_path in processed_files or file_path.name in processed_files:
+            logger.info(f"  -> [{i}/{len(files)}] Saltando (ya procesado): {relative_path}")
             continue
             
         try:
-            logger.info(f"  -> [{i}/{len(files)}] Procesando: {file_path.name}")
+            logger.info(f"  -> [{i}/{len(files)}] Procesando: {relative_path}")
             
             rows = []
             with gzip.open(file_path, 'rt', encoding='utf-8') as f:
@@ -173,9 +177,9 @@ def ingest_entity(client, entity_name: str, snapshot_path: Path, docker_path: st
             if rows:
                 client.insert(table_name, rows, column_names=['id', 'raw_data'])
             
-            # Registrar archivo como completado
+            # Registrar archivo como completado (usando ruta relativa)
             client.command(
-                f"INSERT INTO _processed_files (entity, file_name) VALUES ('{entity_name}', '{file_path.name}')"
+                f"INSERT INTO _processed_files (entity, file_name) VALUES ('{entity_name}', '{relative_path}')"
             )
                 
         except Exception as e:

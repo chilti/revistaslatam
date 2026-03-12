@@ -99,7 +99,7 @@ def _build_journal_analytics_query(country_list: list):
         sum(if(JSONExtractString(raw_data, 'language') = 'de', 1, 0)) AS lang_de_count,
         sum(if(JSONExtractString(raw_data, 'language') = 'it', 1, 0)) AS lang_it_count
         
-    FROM openalex_works
+    FROM works
     WHERE JSONExtractString(raw_data, 'primary_location', 'source', 'id') != ''
       AND year >= 2000
     GROUP BY 
@@ -268,7 +268,7 @@ def compute_and_save_sunburst_metrics(client):
         sum(if(toUInt16OrZero(JSONExtractString(raw_data, 'publication_year')) >= 2021 AND toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile', 'value')) >= 0.99, 1, 0)) AS top_1_count_recent,
         sum(if(toUInt16OrZero(JSONExtractString(raw_data, 'publication_year')) >= 2021 AND JSONExtractString(raw_data, 'open_access', 'oa_status') = 'gold', 1, 0)) AS oa_gold_count_recent
         
-    FROM openalex_works
+    FROM works
     WHERE JSONExtractString(raw_data, 'primary_location', 'source', 'id') != ''
       AND JSONExtractString(raw_data, 'primary_topic', 'domain', 'display_name') != ''
       AND toUInt16OrZero(JSONExtractString(raw_data, 'publication_year')) >= 2000
@@ -420,7 +420,7 @@ def export_journal_metadata(client):
         if(position(JSONExtractString(raw_data, 'display_name'), 'SciELO') > 0 OR position(JSONExtractString(raw_data, 'host_organization_name'), 'SciELO') > 0, 1, 0) AS in_scielo,
         if(position(JSONExtractString(raw_data, 'display_name'), 'CORE') > 0 OR JSONExtractString(raw_data, 'ids', 'fatcat') != '', 1, 0) AS in_core
         
-    FROM openalex_sources
+    FROM sources
     """
     
     try:
@@ -443,7 +443,7 @@ def compute_thematic_evolution(client):
         JSONExtractString(raw_data, 'primary_topic', 'subfield', 'display_name') AS subfield,
         JSONExtractString(raw_data, 'primary_topic', 'display_name') AS topic,
         count() AS num_documents
-    FROM openalex_works
+    FROM works
     WHERE JSONExtractString(raw_data, 'primary_location', 'source', 'id') != ''
       AND JSONExtractString(raw_data, 'primary_topic', 'domain', 'display_name') != ''
       AND toUInt16OrZero(JSONExtractString(raw_data, 'publication_year')) BETWEEN 2000 AND 2025
