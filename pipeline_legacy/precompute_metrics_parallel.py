@@ -207,7 +207,7 @@ def process_journal_parallel(args):
     return annual_metrics_df, period_metrics
 
 def main():
-    data_dir = Path(__file__).parent / 'data'
+    data_dir = Path(__file__).parent.parent / 'data'
     works_file = data_dir / 'latin_american_works.parquet'
     journals_file = data_dir / 'latin_american_journals.parquet'
     
