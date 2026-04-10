@@ -80,6 +80,33 @@ if __name__ == "__main__":
     total_start = time.time()
     email = os.environ.get('OPENALEX_EMAIL')
 
+    # --- VALIDACIÓN DE INTEGRIDAD DE DATOS ---
+    DATA_PATH = BASE_DIR.parent / 'data'
+    WORKS_FILE = DATA_PATH / 'latin_american_works.parquet'
+    JOURNALS_FILE = DATA_PATH / 'latin_american_journals.parquet'
+    PARTS_DIR = DATA_PATH / 'works_parts'
+
+    print("🔍 Verificando integridad de datos...")
+    
+    # 1. Verificar Revistas
+    if not JOURNALS_FILE.exists():
+        print(f"❌ ERROR: No se encontró el archivo de revistas en {JOURNALS_FILE}")
+        print("   Asegúrate de haber corrido la extracción de Postgres al menos una vez.")
+        sys.exit(1)
+
+    # 2. Verificar o Consolidar Trabajos
+    if not WORKS_FILE.exists():
+        if PARTS_DIR.exists() and any(PARTS_DIR.glob('*.parquet')):
+            print("⚠️ El archivo maestro 'latin_american_works.parquet' no existe pero se encontraron fragmentos.")
+            print("🔄 Iniciando consolidación automática...")
+            if not run_step(f"{PIPELINE_DIR}/consolidate_files.py", "Consolidación de Emergencia (Fragmentos -> Maestro)"):
+                sys.exit(1)
+        else:
+            print(f"❌ ERROR: No se encuentran los datos de trabajos en {WORKS_FILE} ni fragmentos en {PARTS_DIR}")
+            sys.exit(1)
+    else:
+        print("✓ Datos de trabajos (Parquet) presentes.")
+
     # --- FASE 1: DATOS CRUDOS ---
     if run_infra:
         # 1. Extracción de datos
