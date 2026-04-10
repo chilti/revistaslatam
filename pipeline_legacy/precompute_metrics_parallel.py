@@ -103,15 +103,9 @@ def calculate_performance_metrics_from_df(works_df):
 
 def process_country_parallel(args):
     """Worker function to process a single country."""
-    country_code, works_df, journals_df, start_year, end_year = args
+    country_code, country_works, country_journals, start_year, end_year = args
     
-    # Get journals for this country
-    country_journals = journals_df[journals_df['country_code'] == country_code]
     num_journals = len(country_journals)
-    journal_ids = country_journals['id'].tolist()
-    
-    # Filter works for this country
-    country_works = works_df[works_df['journal_id'].isin(journal_ids)].copy()
     
     if len(country_works) == 0:
         return None, None, None
@@ -153,15 +147,13 @@ def process_country_parallel(args):
 
 def process_journal_parallel(args):
     """Worker function to process a single journal."""
-    journal_id, works_df, journals_df, start_year, end_year = args
+    journal_id, journal_works, journal_info, start_year, end_year = args
     
-    # Get journal metadata
-    journal_info = journals_df[journals_df['id'] == journal_id]
-    
-    if len(journal_info) == 0:
+    if journal_info is None or len(journal_info) == 0:
         return None, None
     
-    journal_info = journal_info.iloc[0]
+    if isinstance(journal_info, pd.DataFrame):
+        journal_info = journal_info.iloc[0]
     
     # Extract indexing information
     is_scopus = safe_get(journal_info, 'is_indexed_in_scopus', default=False)
@@ -173,9 +165,6 @@ def process_journal_parallel(args):
         'is_core': bool(is_core),
         'is_doaj': bool(is_doaj)
     }
-    
-    # Filter works for this journal
-    journal_works = works_df[works_df['journal_id'] == journal_id].copy()
     
     if len(journal_works) == 0:
         return None, None
@@ -294,11 +283,15 @@ def main():
     print(f"  Processing {len(countries)} countries in parallel...")
     
     # Prepare arguments for parallel processing
-    country_args = [
-        (country_code, works_df, journals_df, start_year, end_year)
-        for country_code in countries
-    ]
+    print("  Pre-filtering data to avoid RAM overload...")
+    country_args = []
+    for country_code in countries:
+        c_journals = journals_df[journals_df['country_code'] == country_code]
+        c_journal_ids = c_journals['id'].tolist()
+        c_works = works_df[works_df['journal_id'].isin(c_journal_ids)]
+        country_args.append((country_code, c_works, c_journals, start_year, end_year))
     
+    print(f"  Executing {len(country_args)} country tasks...")
     # Process in parallel
     with Pool(processes=num_cores) as pool:
         results = pool.map(process_country_parallel, country_args)
@@ -335,11 +328,14 @@ def main():
     print(f"  Processing {len(journal_ids)} journals in parallel...")
     
     # Prepare arguments
-    journal_args = [
-        (journal_id, works_df, journals_df, start_year, end_year)
-        for journal_id in journal_ids
-    ]
+    print("  Pre-filtering data to avoid RAM overload...")
+    journal_args = []
+    for j_id in journal_ids:
+        j_info = journals_df[journals_df['id'] == j_id]
+        j_works = works_df[works_df['journal_id'] == j_id]
+        journal_args.append((j_id, j_works, j_info, start_year, end_year))
     
+    print(f"  Executing {len(journal_args)} journal tasks...")
     # Process in parallel with progress
     with Pool(processes=num_cores) as pool:
         results = pool.map(process_journal_parallel, journal_args)
