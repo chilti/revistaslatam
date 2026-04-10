@@ -4,6 +4,10 @@ import time
 import os
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Cargar variables de entorno (.env)
+load_dotenv()
 
 # Configuración de carpetas
 BASE_DIR = Path(__file__).parent
