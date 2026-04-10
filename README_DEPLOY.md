@@ -17,19 +17,19 @@ Ejecutar desde la raíz del proyecto:
 1. **Ingestar el Snapshot a ClickHouse**
    *Este script escanea la carpeta del snapshot, infiere dinámicamente las entidades y crea las tablas `MergeTree` para cargarlas.*
    ```bash
-   python pipeline/load_openalex_clickhouse.py /ruta/al/openalex-snapshot
+   python pipeline_world/load_openalex_clickhouse.py /ruta/al/openalex-snapshot
    ```
 
 2. **Cómputo Analítico (Server-Side)**
    *Delega a ClickHouse el cálculo (COUNT, AVG FWCI, % OA) y descarga solo los resúmenes estadísticos (Parquets)*
    ```bash
-   python pipeline/compute_metrics_clickhouse.py
+   python pipeline_world/compute_metrics_clickhouse.py
    ```
 
 3. **Proyectar Mapas Dimensionales Globales**
    *Crea la vista UMAP para las macro regiones usando las métricas descargadas en el paso anterior.*
    ```bash
-   python pipeline/calculate_umap_global.py
+   python pipeline_world/calculate_umap_global.py
    ```
 
 ### Levantar el Dashboard
@@ -48,31 +48,31 @@ streamlit run dashboard_global.py
 
 ### Pipeline de Ejecución (PostgreSQL)
 
-Si necesitas recalcular el pipeline desde cero usando la arquitectura original, los scripts clave fueron restaurados en la carpeta `pipeline_legacy_backup/` y coexistirán con los modulares en `pipeline/`.
+Si necesitas recalcular el pipeline desde cero usando la arquitectura original, los scripts clave se encuentran en la carpeta `pipeline_revistaslatam/`.
 
 1. **Extracción y Cálculo Base Parcial (Opcional, según necesidad)**
    *Descarga la información en chunking localmente.*
    ```bash
    # Opción Secuencial
-   python pipeline_legacy_backup/precompute_metrics.py
+   python pipeline_revistaslatam/precompute_metrics.py
    
    # Opción Paralelizada
-   python pipeline_legacy_backup/precompute_metrics_parallel.py
+   python pipeline_revistaslatam/precompute_metrics_parallel.py
    ```
 
 2. **Transformación de Métricas de LATAM**
    *Procesa los indicadores temporales y suavizados de la región.*
    ```bash
-   python pipeline/transform_metrics.py --force
+   python pipeline_revistaslatam/transform_metrics.py --force
    ```
 
 3. **Geometría de Similitud Interamericana**
    *Genera los espacios UMAP y el agrupamiento Self-Organizing Map (SOM) para los países locales.*
    ```bash
-   python pipeline/calculate_umap.py
-   python pipeline/process_trajectories.py
-   python pipeline/calculate_som.py
-   python pipeline/calculate_som_trajectories.py
+   python pipeline_revistaslatam/calculate_umap.py
+   python pipeline_revistaslatam/process_trajectories.py
+   python pipeline_revistaslatam/calculate_som.py
+   python pipeline_revistaslatam/calculate_som_trajectories.py
    ```
 
 ### Levantar el Dashboard

@@ -2,8 +2,8 @@
 
 Sistema de recolección y análisis de datos bibliométricos utilizando la API de OpenAlex. El proyecto contiene dos versiones principales:
 
-1. **Revistas de Latinoamérica (LATAM)**: Enfocado en revistas latinoamericanas indexadas. Utiliza `dashboard.py` y los scripts legacy en `pipeline_legacy/`.
-2. **Versión Global**: Análisis a escala mundial. Utiliza `dashboard_global.py` y los scripts de la carpeta `pipeline/`.
+1. **Revistas de Latinoamérica (LATAM)**: Enfocado en revistas latinoamericanas indexadas. Utiliza `dashboard.py` y los scripts legacy en `pipeline_revistaslatam/`.
+2. **Versión Global**: Análisis a escala mundial. Utiliza `dashboard_global.py` y los scripts de la carpeta `pipeline_world/`.
 
 ## 🚀 Funcionalidades
 
@@ -41,18 +41,18 @@ El proyecto se divide en dos flujos de trabajo principales:
 
 ### Versión 1: Revistas de Latinoamérica (LATAM)
 - **Dashboard:** `dashboard.py`
-- **Pipelines:** Scripts ubicados en la carpeta `pipeline_legacy/` (y scripts legacy en la raíz o en `src/`).
+- **Pipelines:** Scripts ubicados en la carpeta `pipeline_revistaslatam/` (y scripts legacy en la raíz o en `src/`).
 
 ### Versión 2: Global
 - **Dashboard:** `dashboard_global.py`
-- **Pipelines:** Scripts ubicados en la carpeta `pipeline/` (optimizados para uso con bases de datos como ClickHouse).
+- **Pipelines:** Scripts ubicados en la carpeta `pipeline_world/` (optimizados para uso con bases de datos como ClickHouse).
 
 ---
 
 ### Uso: Revistas LATAM (Ejecución Legacy)
 
 #### 1. Recolección de Datos
-El script `data_collector.py` (o equivalentes en `pipeline_legacy/`) descarga la información desde OpenAlex.
+El script `data_collector.py` (o equivalentes en `pipeline_revistaslatam/`) descarga la información desde OpenAlex.
 *Nota: La primera ejecución puede tardar varias horas dependiendo del volumen de datos.*
 
 ```bash
@@ -128,15 +128,23 @@ Para visualizar los indicadores de las revistas latinoamericanas:
 streamlit run dashboard.py
 ```
 
----
-
 ### Uso: Versión Global
 
-Para la versión global ejecute los procesos utilizando los scripts modernos de la carpeta `pipeline/` y para la visualización lance el dashboard global:
-
+Para visualizar el análisis mundial:
 ```bash
 streamlit run dashboard_global.py
 ```
+
+#### Ejecución del Pipeline Global (ClickHouse)
+Para actualizar los datos mundiales desde el servidor ClickHouse:
+
+```bash
+python pipeline_world/run_pipeline_world.py
+```
+
+**Opciones:**
+- `--skip-metrics`: Usa los archivos Parquet existentes y solo regenera los mapas.
+- `--skip-maps`: Calcula métricas en ClickHouse pero omite las proyecciones UMAP/SOM.
 
 
 ## 📂 Estructura del Proyecto
@@ -146,8 +154,8 @@ streamlit run dashboard_global.py
 - `dashboard_global.py`: Aplicación (Streamlit) para la **Versión Global**.
 
 ### Pipelines
-- `pipeline/`: Scripts actualizados para procesamiento de la **Versión Global** (ej. cálculo de métricas en ClickHouse).
-- `pipeline_legacy/`: Scripts originales y legacy para el procesamiento de **Revistas LATAM**.
+- `pipeline_world/`: Scripts actualizados para procesamiento de la **Versión Global** (ej. cálculo de métricas en ClickHouse).
+- `pipeline_revistaslatam/`: Scripts originales y legacy para el procesamiento de **Revistas LATAM**.
 
 ### Otros Archivos y Módulos Legacy
 - `precompute_metrics*.py`: Scripts para precalcular indicadores en la versión LATAM.

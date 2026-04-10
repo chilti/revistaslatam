@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Configuración de carpetas
 BASE_DIR = Path(__file__).parent
-PIPELINE_DIR = "pipeline_legacy"
+PIPELINE_DIR = "pipeline_revistaslatam"
 
 def run_step(script_name, description, args=None):
     """Ejecuta un script de Python como subproceso y maneja errores."""
