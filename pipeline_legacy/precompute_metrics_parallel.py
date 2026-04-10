@@ -12,7 +12,7 @@ from multiprocessing import Pool, cpu_count
 import time
 
 # Add src to path
-sys.path.append(str(Path(__file__).parent / 'src'))
+sys.path.append(str(Path(__file__).parent.parent / 'src'))
 
 from performance_metrics import (
     get_cache_dir,

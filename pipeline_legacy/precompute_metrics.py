@@ -19,7 +19,7 @@ import argparse
 from pathlib import Path
 
 # Add src to path
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
 from performance_metrics import compute_and_cache_all_metrics
 
