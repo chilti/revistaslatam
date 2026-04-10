@@ -17,7 +17,7 @@ DB_PARAMS = {
     "password": "tu_contasena" 
 }
 
-SNAPSHOT_DIR = "./openalex-snapshot/data"
+SNAPSHOT_DIR = Path(__file__).parent.parent / "openalex-snapshot" / "data"
 
 LATAM_CODES = {
     'MX', 'GT', 'SV', 'HN', 'NI', 'CR', 'PA', 'CU', 'DO', 'HT', 

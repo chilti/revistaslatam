@@ -42,15 +42,21 @@ def generate_country_sunburst():
     # Unir para obtener el país de cada revista en los tópicos
     merged_df = pd.merge(topics_df, journal_country_map, on='journal_id', how='inner')
     
-    # Agrupar por país y la jerarquía temática, sumando el count
-    # Se ignora 'journal_name', 'journal_id' y 'share' ya que este último es a nivel revista
-    group_cols = ['country_code', 'domain', 'field', 'subfield', 'topic_name', 'topic_id']
+    # Mapeo de columnas para asegurar consistencia con el nivel 4 (topic)
+    if 'topic' not in merged_df.columns and 'topic_name' in merged_df.columns:
+        merged_df = merged_df.rename(columns={'topic_name': 'topic'})
+
+    # Agrupar por país y la jerarquía temática completa (4 niveles)
+    group_cols = ['country_code', 'domain', 'field', 'subfield', 'topic']
     
-    if 'subfield' not in merged_df.columns:
-        print("⚠️ Advertencia: La columna 'subfield' no existe. Asegúrese de actualizar los tópicos de las revistas primero.")
-        group_cols = ['country_code', 'domain', 'field', 'topic_name', 'topic_id']
+    # Verificar disponibilidad de cada nivel
+    available_group_cols = [col for col in group_cols if col in merged_df.columns]
+    
+    missing = set(group_cols) - set(available_group_cols)
+    if missing:
+        print(f"⚠️ Advertencia: Faltan niveles en la jerarquía: {missing}")
         
-    country_topics = merged_df.groupby(group_cols, as_index=False)['count'].sum()
+    country_topics = merged_df.groupby(available_group_cols, as_index=False)['count'].sum()
     
     # Opcional: Calcular el nuevo 'share' a nivel país
     # Guardamos el total por país para calcular los porcentajes
