@@ -2080,12 +2080,14 @@ elif level == "País":
                                 'Percentil (2021-2025)': 'avg_percentile_recent',
                                 '% Top 1% (2021-2025)': 'pct_top_1_recent',
                                 '% Top 10% (2021-2025)': 'pct_top_10_recent',
+                                '% OA Diamond (2021-2025)': 'pct_oa_diamond_recent',
                                 '% OA Gold (2021-2025)': 'pct_oa_gold_recent',
                                 # Periodo Completo
                                 'FWCI (Todo)': 'fwci_avg_full',
                                 'Percentil (Todo)': 'avg_percentile_full',
                                 '% Top 1% (Todo)': 'pct_top_1_full',
                                 '% Top 10% (Todo)': 'pct_top_10_full',
+                                '% OA Diamond (Todo)': 'pct_oa_diamond_full',
                                 '% OA Gold (Todo)': 'pct_oa_gold_full',
                             }
                             
@@ -2111,9 +2113,12 @@ elif level == "País":
                                 elif row['level'] == 'field':
                                     curr_id = f"{row['domain']}||{row['field']}"
                                     curr_parent = row['domain']
-                                else:
+                                elif row['level'] == 'subfield':
                                     curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
                                     curr_parent = f"{row['domain']}||{row['field']}"
+                                else: # topic
+                                    curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}||{row['topic']}"
+                                    curr_parent = f"{row['domain']}||{row['field']}||{row['subfield']}"
                                 
                                 ids.append(curr_id)
                                 labels.append(row[row['level']])
@@ -2443,12 +2448,14 @@ elif level == "Revista":
                     'Percentil (2021-2025)': 'avg_percentile_recent',
                     '% Top 1% (2021-2025)': 'pct_top_1_recent',
                     '% Top 10% (2021-2025)': 'pct_top_10_recent',
+                    '% OA Diamond (2021-2025)': 'pct_oa_diamond_recent',
                     '% OA Gold (2021-2025)': 'pct_oa_gold_recent',
                     # Periodo Completo
                     'FWCI (Todo)': 'fwci_avg_full',
                     'Percentil (Todo)': 'avg_percentile_full',
                     '% Top 1% (Todo)': 'pct_top_1_full',
                     '% Top 10% (Todo)': 'pct_top_10_full',
+                    '% OA Diamond (Todo)': 'pct_oa_diamond_full',
                     '% OA Gold (Todo)': 'pct_oa_gold_full',
                 }
                 
@@ -2474,9 +2481,12 @@ elif level == "Revista":
                     elif row['level'] == 'field':
                         curr_id = f"{row['domain']}||{row['field']}"
                         curr_parent = row['domain']
-                    else:
+                    elif row['level'] == 'subfield':
                         curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
                         curr_parent = f"{row['domain']}||{row['field']}"
+                    else: # topic
+                        curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}||{row['topic']}"
+                        curr_parent = f"{row['domain']}||{row['field']}||{row['subfield']}"
                     
                     ids.append(curr_id)
                     labels.append(row[row['level']])

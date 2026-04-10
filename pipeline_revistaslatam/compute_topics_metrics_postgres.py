@@ -28,6 +28,7 @@ def calculate_metrics_for_group(group_df):
             'avg_percentile': 0.0,
             'pct_top_10': 0.0,
             'pct_top_1': 0.0,
+            'pct_oa_diamond': 0.0,
             'pct_oa_gold': 0.0,
             'pct_oa_green': 0.0,
             'pct_oa_hybrid': 0.0,
@@ -52,6 +53,7 @@ def calculate_metrics_for_group(group_df):
         'avg_percentile': round(percentile, 1) if pd.notna(percentile) else 0.0,
         'pct_top_10': round(top10, 2),
         'pct_top_1': round(top1, 2),
+        'pct_oa_diamond': round((oa_counts.get('diamond', 0) / total) * 100, 2),
         'pct_oa_gold': round((oa_counts.get('gold', 0) / total) * 100, 2),
         'pct_oa_green': round((oa_counts.get('green', 0) / total) * 100, 2),
         'pct_oa_hybrid': round((oa_counts.get('hybrid', 0) / total) * 100, 2),
@@ -80,7 +82,7 @@ def calculate_from_agg(df):
         'fwci_avg': round(fwci, 3),
         'avg_percentile': round(perc, 1)
     }
-    for col in ['pct_top_10', 'pct_top_1', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed']:
+    for col in ['pct_top_10', 'pct_top_1', 'pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed']:
         res[col] = round((df[col] * df['count']).sum() / total_docs, 2)
         
     return pd.Series(res)
