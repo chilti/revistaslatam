@@ -634,9 +634,12 @@ if level == "Region (Latinoamérica)":
                                 elif row['level'] == 'field':
                                     curr_id = f"{row['domain']}||{row['field']}"
                                     curr_parent = row['domain']
-                                else: # subfield
+                                elif row['level'] == 'subfield':
                                     curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
                                     curr_parent = f"{row['domain']}||{row['field']}"
+                                else: # topic
+                                    curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}||{row['topic']}"
+                                    curr_parent = f"{row['domain']}||{row['field']}||{row['subfield']}"
                                 
                                 ids.append(curr_id)
                                 labels.append(row[row['level']])

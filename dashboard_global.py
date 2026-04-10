@@ -483,7 +483,7 @@ elif level == "2. Exploración por Región":
                             ind_col_r = sb_indicator_options[selected_sb_ind_r]
                             size_col_r = 'count_recent' if '_recent' in ind_col_r else 'count_full'
                             
-                            df_plot_r = df_sun_r[(df_sun_r[size_col_r] > 0) & (df_sun_r['level'] != 'topic')]
+                            df_plot_r = df_sun_r[(df_sun_r[size_col_r] > 0)]
                             
                             if not df_plot_r.empty:
                                 ids, labels, parents, values, colors = [], [], [], [], []
@@ -863,7 +863,7 @@ elif level == "3. Análisis de País":
                             ind_col_c = sb_indicator_options[selected_sb_ind_c]
                             size_col_c = 'count_recent' if '_recent' in ind_col_c else 'count_full'
                             
-                            df_plot_c = df_sun_c[(df_sun_c[size_col_c] > 0) & (df_sun_c['level'] != 'topic')]
+                            df_plot_c = df_sun_c[(df_sun_c[size_col_c] > 0)]
                             
                             if not df_plot_c.empty:
                                 ids, labels, parents, values, colors = [], [], [], [], []
@@ -1279,7 +1279,7 @@ elif level == "4. Buscador de Revista":
                             size_col_j = 'count_recent' if '_recent' in ind_col_j else 'count_full'
                             
                             ids, labels, parents, values, colors = [], [], [], [], []
-                            df_plot_j = df_sun_j[(df_sun_j[size_col_j] > 0) & (df_sun_j['level'] != 'topic')]
+                            df_plot_j = df_sun_j[(df_sun_j[size_col_j] > 0)]
                             
                             for _, row in df_plot_j.iterrows():
                                 if row['level'] == 'domain':

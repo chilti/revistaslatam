@@ -1,6 +1,9 @@
-# Revistas LATAM (Análisis Bibliométrico)
+# Análisis Bibliométrico (Revistas LATAM y Versión Global)
 
-Sistema de recolección y análisis de datos bibliométricos para revistas latinoamericanas indexadas, utilizando la API de OpenAlex.
+Sistema de recolección y análisis de datos bibliométricos utilizando la API de OpenAlex. El proyecto contiene dos versiones principales:
+
+1. **Revistas de Latinoamérica (LATAM)**: Enfocado en revistas latinoamericanas indexadas. Utiliza `dashboard.py` y los scripts legacy en `pipeline_legacy/`.
+2. **Versión Global**: Análisis a escala mundial. Utiliza `dashboard_global.py` y los scripts de la carpeta `pipeline/`.
 
 ## 🚀 Funcionalidades
 
@@ -32,10 +35,24 @@ Sistema de recolección y análisis de datos bibliométricos para revistas latin
     pip install -r requirements.txt
     ```
 
-## 📊 Uso
+## 📊 Arquitectura de Versiones y Uso
 
-### 1. Recolección de Datos
-El script `data_collector.py` descarga la información desde OpenAlex.
+El proyecto se divide en dos flujos de trabajo principales:
+
+### Versión 1: Revistas de Latinoamérica (LATAM)
+- **Dashboard:** `dashboard.py`
+- **Pipelines:** Scripts ubicados en la carpeta `pipeline_legacy/` (y scripts legacy en la raíz o en `src/`).
+
+### Versión 2: Global
+- **Dashboard:** `dashboard_global.py`
+- **Pipelines:** Scripts ubicados en la carpeta `pipeline/` (optimizados para uso con bases de datos como ClickHouse).
+
+---
+
+### Uso: Revistas LATAM (Ejecución Legacy)
+
+#### 1. Recolección de Datos
+El script `data_collector.py` (o equivalentes en `pipeline_legacy/`) descarga la información desde OpenAlex.
 *Nota: La primera ejecución puede tardar varias horas dependiendo del volumen de datos.*
 
 ```bash
@@ -104,25 +121,38 @@ Los resultados se guardan en `data/cache/` y el dashboard los cargará automáti
 **Opciones:**
 - `python precompute_metrics.py --force`: Forzar recálculo aunque exista caché válido
 
-### 3. Ejecutar el Dashboard
-Para visualizar los indicadores:
+### 3. Ejecutar el Dashboard (LATAM)
+Para visualizar los indicadores de las revistas latinoamericanas:
 
 ```bash
 streamlit run dashboard.py
 ```
 
+---
+
+### Uso: Versión Global
+
+Para la versión global ejecute los procesos utilizando los scripts modernos de la carpeta `pipeline/` y para la visualización lance el dashboard global:
+
+```bash
+streamlit run dashboard_global.py
+```
+
+
 ## 📂 Estructura del Proyecto
 
-- `dashboard.py`: Aplicación principal (Streamlit).
-- `precompute_metrics.py`: Script original para precalcular indicadores.
-- `precompute_metrics_parallel.py`: Script paralelo básico.
-- `precompute_metrics_parallel_optimized.py`: Script optimizado con procesamiento incremental (recomendado).
-- `src/`: Módulos de lógica.
-  - `data_collector.py`: Interacción con API OpenAlex y guardado incremental.
-  - `data_processor.py`: Limpieza y cálculo de KPIs generales.
-  - `performance_metrics.py`: Cálculo avanzado de métricas (Normalización, Percentiles).
-- `data/`: Almacenamiento de datos (ignorado en git por tamaño).
-  - `cache/`: Métricas precalculadas para carga rápida del dashboard.
+### Dashboards
+- `dashboard.py`: Aplicación principal (Streamlit) para **Revistas LATAM**.
+- `dashboard_global.py`: Aplicación (Streamlit) para la **Versión Global**.
+
+### Pipelines
+- `pipeline/`: Scripts actualizados para procesamiento de la **Versión Global** (ej. cálculo de métricas en ClickHouse).
+- `pipeline_legacy/`: Scripts originales y legacy para el procesamiento de **Revistas LATAM**.
+
+### Otros Archivos y Módulos Legacy
+- `precompute_metrics*.py`: Scripts para precalcular indicadores en la versión LATAM.
+- `src/`: Módulos de lógica originariamente usados por LATAM (`data_collector.py`, `data_processor.py`, `performance_metrics.py`).
+- `data/`: Almacenamiento de datos y caché local.
 
 ### 📚 Documentación
 

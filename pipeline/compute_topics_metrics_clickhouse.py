@@ -43,6 +43,7 @@ def _build_topic_hierarchy_query(group_col, min_year=None):
         JSONExtractString(primary_topic, 'domain', 'display_name') as domain,
         JSONExtractString(primary_topic, 'field', 'display_name') as field,
         JSONExtractString(primary_topic, 'subfield', 'display_name') as subfield,
+        JSONExtractString(primary_topic, 'display_name') as topic,
         
         -- Metrics
         count() as count,
@@ -62,7 +63,7 @@ def _build_topic_hierarchy_query(group_col, min_year=None):
         
     FROM works
     WHERE domain != '' {where_clause}
-    GROUP BY {grouping} domain, field, subfield WITH ROLLUP
+    GROUP BY {grouping} domain, field, subfield, topic WITH ROLLUP
     """
     return query
 
@@ -88,8 +89,10 @@ def compute_and_save_topic_metrics(client, group_col, filename):
         df['domain'] = df['domain'].replace('', 'ALL').fillna('ALL')
         df['field'] = df['field'].replace('', 'ALL').fillna('ALL')
         df['subfield'] = df['subfield'].replace('', 'ALL').fillna('ALL')
+        df['topic'] = df['topic'].replace('', 'ALL').fillna('ALL')
         
         def get_level(row):
+            if row['topic'] != 'ALL': return 'topic'
             if row['subfield'] != 'ALL': return 'subfield'
             if row['field'] != 'ALL': return 'field'
             if row['domain'] != 'ALL': return 'domain'
@@ -101,7 +104,7 @@ def compute_and_save_topic_metrics(client, group_col, filename):
     df_recent = clean_and_level(df_recent)
     
     # Add suffixes
-    merge_keys = ([group_col] if group_col else []) + ['domain', 'field', 'subfield', 'level']
+    merge_keys = ([group_col] if group_col else []) + ['domain', 'field', 'subfield', 'topic', 'level']
     
     metric_cols = [c for c in df_full.columns if c not in merge_keys]
     df_full = df_full.rename(columns={c: f"{c}_full" for c in metric_cols})

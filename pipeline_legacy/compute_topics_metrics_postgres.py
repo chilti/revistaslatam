@@ -105,7 +105,7 @@ def compute_thematic_evolution_legacy(works_df, topics_df, output_path):
     print(f"  ✓ Saved legacy thematic evolution -> {len(df_evo)} records")
 
 def aggregate_hierarchy_from_agg(df, group_cols, suffix=""):
-    levels = ['domain', 'field', 'subfield']
+    levels = ['domain', 'field', 'subfield', 'topic']
     all_results = []
     
     # Helper for modern pandas compatibility
@@ -115,14 +115,21 @@ def aggregate_hierarchy_from_agg(df, group_cols, suffix=""):
         except TypeError:
             return obj.apply(func)
 
+    print(f"  → Aggregating level: Topic ({suffix})...")
+    res_topic = apply_with_groups_fix(df.groupby(group_cols + levels), calculate_from_agg).reset_index()
+    res_topic['level'] = 'topic'
+    all_results.append(res_topic)
+
     print(f"  → Aggregating level: Subfield ({suffix})...")
-    res_sub = apply_with_groups_fix(df.groupby(group_cols + levels), calculate_from_agg).reset_index()
+    res_sub = apply_with_groups_fix(df.groupby(group_cols + ['domain', 'field', 'subfield']), calculate_from_agg).reset_index()
+    res_sub['topic'] = 'ALL'
     res_sub['level'] = 'subfield'
     all_results.append(res_sub)
     
     print(f"  → Aggregating level: Field ({suffix})...")
     res_field = apply_with_groups_fix(df.groupby(group_cols + ['domain', 'field']), calculate_from_agg).reset_index()
     res_field['subfield'] = 'ALL'
+    res_field['topic'] = 'ALL'
     res_field['level'] = 'field'
     all_results.append(res_field)
     
@@ -130,6 +137,7 @@ def aggregate_hierarchy_from_agg(df, group_cols, suffix=""):
     res_domain = apply_with_groups_fix(df.groupby(group_cols + ['domain']), calculate_from_agg).reset_index()
     res_domain['field'] = 'ALL'
     res_domain['subfield'] = 'ALL'
+    res_domain['topic'] = 'ALL'
     res_domain['level'] = 'domain'
     all_results.append(res_domain)
 
@@ -181,7 +189,8 @@ def main():
             j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
             
         # Topic hierarchy metadata
-        j_h = topics_df[['journal_id', 'domain', 'field', 'subfield', 'share']].copy()
+        j_h = topics_df[['journal_id', 'domain', 'field', 'subfield', 'topic_name', 'share']].copy()
+        j_h = j_h.rename(columns={'topic_name': 'topic'})
         j_h['share'] = pd.to_numeric(j_h['share'], errors='coerce').fillna(0.0).astype(float)
         
         # Share normalization
@@ -213,11 +222,11 @@ def main():
     c_recent, l_recent, j_recent = process_period(works_df[recent_mask], "recent")
 
     # Combine results
-    merge_cols = ['country_code', 'domain', 'field', 'subfield', 'level']
+    merge_cols = ['country_code', 'domain', 'field', 'subfield', 'topic', 'level']
     final_country = pd.merge(c_full, c_recent, on=merge_cols, how='outer').fillna(0)
     final_latam = pd.merge(l_full, l_recent, on=merge_cols, how='outer').fillna(0)
     
-    merge_cols_j = ['journal_id', 'domain', 'field', 'subfield', 'level']
+    merge_cols_j = ['journal_id', 'domain', 'field', 'subfield', 'topic', 'level']
     final_journal = pd.merge(j_full, j_recent, on=merge_cols_j, how='outer').fillna(0)
 
     # Save
