@@ -12,7 +12,7 @@ print(f"DEBUG: DATA_DIR detectado como: {DATA_DIR.absolute()}")
 print(f"DEBUG: MAPPING_FILE detectado como: {MAPPING_FILE.absolute()}")
 
 # Test de API Local con una revista conocida (S4306423602 - Journal of Latin American Studies)
-test_journal = "S4306423602"
+test_journal = "S2737081250"
 url = f"{OPENALEX_LOCAL_API}/works"
 params = {
     'filter': f"primary_location.source.id:{test_journal}",
