@@ -122,27 +122,30 @@ if __name__ == "__main__":
     # --- FASE 2: ENRIQUECIMIENTO Y MÉTRICAS BASE ---
 
     if run_enrich:
-        # 3. Enriquecimiento API (Tópicos)
+        # 3. Enriquecimiento API (Tópicos de Revistas - Estructura)
         enrich_args = []
         if email:
             enrich_args = ["--email", email]
         
-        if not run_step(f"{PIPELINE_DIR}/enrich_journals_api.py", "Enriquecimiento Temático (API OpenAlex)", args=enrich_args):
-            print("⚠️ Advertencia: El enriquecimiento temático falló.")
+        run_step(f"{PIPELINE_DIR}/enrich_journals_api.py", "Enriquecimiento Temático de Revistas (Estructura Sunburst)", args=enrich_args)
+
+        # 4. Enriquecimiento Granular (Artículos -> Tópicos)
+        # Este paso es vital para la variación de indicadores por tema
+        run_step(f"{PIPELINE_DIR}/enrich_works_topics.py", "Mapeo Granular de Artículos (API Local / Tópicos)")
     else:
         print("⏭️ Omitiendo Fase de Enriquecimiento API")
 
     if run_compute:
-        # 4. Cálculo de métricas de desempeño (Paralelo)
+        # 5. Cálculo de métricas de desempeño (Paralelo)
         if not run_step(f"{PIPELINE_DIR}/precompute_metrics_parallel.py", "Cálculo de Métricas de Desempeño (Anuales y Periodo)"):
             sys.exit(1)
 
         # --- FASE 3: VISUALIZACIÓN ANALÍTICA ---
 
-        # 5. Métricas Temáticas (4 niveles + Indicadores)
+        # 6. Métricas Temáticas (4 niveles + Indicadores)
         run_step(f"{PIPELINE_DIR}/compute_topics_metrics_postgres.py", "Cálculo de Indicadores Jerárquicos (Sunburst 4 Niveles)")
 
-        # 6. Sunburst Regional
+        # 7. Sunburst Regional
         run_step(f"{PIPELINE_DIR}/generate_country_sunburst.py", "Generación de Sunburst a nivel País (Agregación)")
 
     # --- FASE 4: MAPAS Y PROYECCIONES ---
