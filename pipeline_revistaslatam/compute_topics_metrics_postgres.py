@@ -154,7 +154,8 @@ def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
         
     final_df = pd.concat(results_list, ignore_index=True)
     
-    # Renombrar columnas para el dashboard (como hace aggregate_hierarchy_from_agg)
+    # Renombrar columnas para el dashboard
+    # Suffix ya incluye el guion bajo si es necesario (ej: _recent)
     metric_cols = [c for c in final_df.columns if c not in (group_cols + levels + ['topic', 'level'])]
     rename_cols = {col: f"{col}{suffix}" for col in metric_cols}
     final_df = final_df.rename(columns=rename_cols)
@@ -207,8 +208,9 @@ def aggregate_hierarchy_from_agg(df, group_cols, suffix=""):
     
     # Apply suffix to metric columns
     if suffix:
-        cols_to_rename = {col: f"{col}_{suffix}" for col in final_df.columns if col not in (group_cols + levels + ['level'])}
-        final_df = final_df.rename(columns=cols_to_rename)
+        metric_cols = [c for c in final_df.columns if c not in (group_cols + levels + ['level'])]
+        rename_cols = {col: f"{col}{suffix}" for col in metric_cols}
+        final_df = final_df.rename(columns=rename_cols)
     
     return final_df
 
@@ -231,6 +233,10 @@ def main():
         'id', 'journal_id', 'fwci', 'citation_normalized_percentile', 
         'is_in_top_10_percent', 'is_in_top_1_percent', 'oa_status', 'publication_year'
     ])
+    
+    # Normalizar IDs (quitar prefijo https://openalex.org/)
+    works_df['id'] = works_df['id'].str.replace('https://openalex.org/', '', regex=False)
+    
     topics_df = pd.read_parquet(topics_file)
     journals_df = pd.read_parquet(journals_file, columns=['id', 'country_code'])
     
@@ -246,6 +252,8 @@ def main():
     if mapping_file.exists():
         print(f"📖 Cargando mapeo de tópicos granular: {mapping_file}")
         mapping_df = pd.read_parquet(mapping_file)
+        # Normalizar IDs en el mapeo también
+        mapping_df['work_id'] = mapping_df['work_id'].str.replace('https://openalex.org/', '', regex=False)
 
     # Function to process a specific dataframe subset
     def process_period(df_subset, period_suffix):
