@@ -1,3 +1,7 @@
+import pandas as pd
+import requests
+import time
+import os
 import argparse
 import json
 from pathlib import Path
@@ -146,67 +150,6 @@ def enrich_works_topics(email=None):
                     cursor = None
             
             # print(f"  [{i+1}/{len(ids_to_process)}] {clean_id}: {journal_works_found} artículos.")
-                # (conservando la lógica del cursor que escribí antes)
-                url = f"https://api.openalex.org/works"
-                params = {
-                    'filter': f"primary_location.source.id:{clean_id}",
-                    'select': 'id,topics',
-                    'per_page': 200,
-                    'cursor': cursor
-                }
-                if email:
-                    params['mailto'] = email
-                
-                resp = session.get(url, params=params, timeout=20)
-                
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = data.get('results', [])
-                    
-                    for work in results:
-                        work_id = work.get('id')
-                        topics = work.get('topics', [])
-                        
-                        if topics:
-                            for t in topics:
-                                new_mapping.append({
-                                    'work_id': work_id,
-                                    'journal_id': jid,
-                                    'topic_id': t.get('id'),
-                                    'topic_name': t.get('display_name'),
-                                    'subfield': t.get('subfield', {}).get('display_name'),
-                                    'field': t.get('field', {}).get('display_name'),
-                                    'domain': t.get('domain', {}).get('display_name'),
-                                    'score': t.get('score', 0)
-                                })
-                        else:
-                            # Guardar registro sin tópico para marcar que se procesó el artículo
-                            new_mapping.append({
-                                'work_id': work_id,
-                                'journal_id': jid,
-                                'topic_id': None,
-                                'topic_name': None,
-                                'subfield': 'Unknown',
-                                'field': 'Unknown',
-                                'domain': 'Unknown',
-                                'score': 0
-                            })
-                    
-                    journal_works_found += len(results)
-                    next_cursor = data.get('meta', {}).get('next_cursor')
-                    
-                    if not results or not next_cursor or next_cursor == cursor:
-                        cursor = None
-                    else:
-                        cursor = next_cursor
-                        
-                elif resp.status_code == 429:
-                    time.sleep(5)
-                else:
-                    print(f"  ❌ Error {resp.status_code} para revista {clean_id}")
-                    cursor = None
-            
-            # print(f"  [{i+1}/{len(ids_to_process)}] {clean_id}: {journal_works_found} artículos mapeados.")
             
         except Exception as e:
             print(f"  ❌ Excepción en revista {jid}: {e}")

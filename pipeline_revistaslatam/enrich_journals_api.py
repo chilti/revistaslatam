@@ -4,9 +4,17 @@ Descarga la jerarquía de tópicos (Topics -> Fields -> Domains) para generar el
 
 Este script hace peticiones a la API (1 por revista).
 """
+import pandas as pd
+import requests
+import time
+import os
 import argparse
 import json
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 # Directorio de datos
 DATA_DIR = Path(__file__).parent.parent / 'data'
@@ -183,7 +191,10 @@ if __name__ == "__main__":
     parser.add_argument('--email', help='Email for OpenAlex API politeness pool')
     args = parser.parse_args()
     
-    enrich_journals(email=args.email)
+    # Priorizar email de .env si no se pasa por argumento
+    email = args.email or os.environ.get('OPENALEX_EMAIL')
+    
+    enrich_journals(email=email)
     
     # También generar automáticamente el nivel país
     generate_country_sunburst()
