@@ -88,23 +88,35 @@ def calculate_from_agg(df):
     return pd.Series(res)
 
 def compute_thematic_evolution_legacy(works_df, topics_df, output_path):
-    print("\n📈 Computing LATAM Thematic Evolution (Legacy)...")
+    """
+    Calcula la evolución anual de indicadores a nivel de LATAM y por tema.
+    Asegura que existan columnas como pct_oa_diamond para los gráficos de tendencias.
+    """
+    print("\n📈 Computing LATAM Thematic Evolution (Full Metrics)...")
     
-    # 1. Group by journal and year (raw document counts)
-    j_year_counts = works_df.groupby(['journal_id', 'publication_year']).size().reset_index(name='num_documents')
+    # Agrupar por revista y año para calcular métricas completas
+    # (Usamos apply con calculate_metrics_for_group para consistencia)
+    try:
+        j_year_metrics = works_df.groupby(['journal_id', 'publication_year']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
+    except TypeError:
+        j_year_metrics = works_df.groupby(['journal_id', 'publication_year']).apply(calculate_metrics_for_group).reset_index()
+
+    # Calcular pct_oa_total (Suma de todas las vías OA)
+    oa_cols = ['pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze']
+    j_year_metrics['pct_oa_total'] = j_year_metrics[oa_cols].sum(axis=1).clip(0, 100)
     
-    # 2. Merge with topics/areas (multiple rows per journal)
-    df_evo = pd.merge(j_year_counts, topics_df[['journal_id', 'topic_name', 'subfield', 'field', 'domain']], on='journal_id')
+    # Renombrar para compatibilidad con el dashboard
+    j_year_metrics = j_year_metrics.rename(columns={'count': 'num_documents', 'publication_year': 'year'})
     
-    # 3. Use raw counts (no share multiplication as per user request)
-    # The counts will effectively represent "documents within this topic area"
+    # 2. Unir con los tópicos de las revistas para expandir la jerarquía
+    df_evo = pd.merge(j_year_metrics, topics_df[['journal_id', 'topic_name', 'subfield', 'field', 'domain']], on='journal_id')
     
-    # Rename to match expected dashboard schema
-    df_evo = df_evo.rename(columns={'topic_name': 'topic', 'publication_year': 'year'})
+    # Renombrar topic_name a topic
+    df_evo = df_evo.rename(columns={'topic_name': 'topic'})
     
     # Save base evolution
     df_evo.to_parquet(output_path, index=False)
-    print(f"  ✓ Saved legacy thematic evolution -> {len(df_evo)} records")
+    print(f"  ✓ Saved theme-year evolution with {len(df_evo)} records and full metrics.")
 
 def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
     """

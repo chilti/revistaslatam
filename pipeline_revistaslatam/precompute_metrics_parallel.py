@@ -31,6 +31,7 @@ def calculate_performance_metrics_from_df(works_df):
             'pct_top_10': 0.0,
             'pct_top_1': 0.0,
             'avg_percentile': 0.0,
+            'pct_oa_diamond': 0.0,
             'pct_oa_gold': 0.0,
             'pct_oa_green': 0.0,
             'pct_oa_hybrid': 0.0,
@@ -74,6 +75,7 @@ def calculate_performance_metrics_from_df(works_df):
         oa_counts = works_df['oa_status'].value_counts()
         
         oa_types = {
+            'pct_oa_diamond': (oa_counts.get('diamond', 0) / total) * 100,
             'pct_oa_gold': (oa_counts.get('gold', 0) / total) * 100,
             'pct_oa_green': (oa_counts.get('green', 0) / total) * 100,
             'pct_oa_hybrid': (oa_counts.get('hybrid', 0) / total) * 100,
@@ -82,6 +84,7 @@ def calculate_performance_metrics_from_df(works_df):
         }
     else:
         oa_types = {
+            'pct_oa_diamond': 0.0,
             'pct_oa_gold': 0.0,
             'pct_oa_green': 0.0,
             'pct_oa_hybrid': 0.0,
@@ -139,6 +142,18 @@ def process_country_parallel(args):
         (country_works['publication_year'] <= end_year)
     ]
     period_metrics = calculate_performance_metrics_from_df(period_works)
+    
+    # Language metrics for English (if language column exists)
+    if 'language' in country_works.columns:
+        total_p = len(period_works)
+        if total_p > 0:
+            pct_en = (period_works['language'].str.lower().str.startswith('en', na=False).sum() / total_p) * 100
+            period_metrics['pct_lang_en'] = round(pct_en, 2)
+        else:
+            period_metrics['pct_lang_en'] = 0.0
+    else:
+        period_metrics['pct_lang_en'] = 0.0
+    
     period_metrics.update(journal_metrics)
     period_metrics['country_code'] = country_code
     period_metrics['period'] = f'{start_year}-{end_year}'
@@ -188,6 +203,18 @@ def process_journal_parallel(args):
         (journal_works['publication_year'] <= end_year)
     ]
     period_metrics = calculate_performance_metrics_from_df(period_works)
+    
+    # English language metric (individual journal)
+    if 'language' in journal_works.columns:
+        total_p = len(period_works)
+        if total_p > 0:
+            pct_en = (period_works['language'].str.lower().str.startswith('en', na=False).sum() / total_p) * 100
+            period_metrics['pct_lang_en'] = round(pct_en, 2)
+        else:
+            period_metrics['pct_lang_en'] = 0.0
+    else:
+        period_metrics['pct_lang_en'] = 0.0
+        
     period_metrics['journal_id'] = journal_id
     period_metrics['period'] = f'{start_year}-{end_year}'
     # Add indexing info to period metrics
