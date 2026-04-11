@@ -106,7 +106,67 @@ def compute_thematic_evolution_legacy(works_df, topics_df, output_path):
     df_evo.to_parquet(output_path, index=False)
     print(f"  ✓ Saved legacy thematic evolution -> {len(df_evo)} records")
 
+def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
+    """
+    Agregación granular usando el mapeo de tópicos por artículo.
+    Permite que cada tema tenga sus propios indicadores.
+    """
+    if len(works_df) == 0:
+        return pd.DataFrame()
+
+    print(f"  → Agregando datos granulares para {len(works_df)} artículos ({suffix})...")
+    
+    # Unir trabajos con sus tópicos
+    merged = pd.merge(
+        works_df, 
+        mapping_df, 
+        left_on='id', 
+        right_on='work_id', 
+        how='inner'
+    )
+    
+    if merged.empty:
+        return pd.DataFrame()
+
+    results_list = []
+    levels = ['domain', 'field', 'subfield', 'topic_name']
+    
+    for i, level_col in enumerate(levels):
+        current_hierarchy = levels[:i+1]
+        grouping = group_cols + current_hierarchy
+        
+        # Agrupar y calcular
+        try:
+            agg = merged.groupby(grouping).apply(calculate_metrics_for_group, include_groups=False).reset_index()
+        except TypeError:
+            agg = merged.groupby(grouping).apply(calculate_metrics_for_group).reset_index()
+            
+        # Renombrar columna actual a 'topic'
+        agg['level'] = level_col.replace('_name', '')
+        agg['topic'] = agg[level_col]
+        
+        # Rellenar jerarquía faltante con 'ALL' para compatibilidad
+        for l_idx, l_name in enumerate(levels):
+            if l_name not in agg.columns:
+                agg[l_name] = 'ALL'
+        
+        results_list.append(agg)
+        
+    final_df = pd.concat(results_list, ignore_index=True)
+    
+    # Renombrar columnas para el dashboard (como hace aggregate_hierarchy_from_agg)
+    metric_cols = [c for c in final_df.columns if c not in (group_cols + levels + ['topic', 'level'])]
+    rename_cols = {col: f"{col}{suffix}" for col in metric_cols}
+    final_df = final_df.rename(columns=rename_cols)
+    
+    # Normalizar nombres de columnas de jerarquía para el merge final
+    if 'topic_name' in final_df.columns:
+        final_df = final_df.drop(columns=['topic_name'])
+        
+    return final_df
+
 def aggregate_hierarchy_from_agg(df, group_cols, suffix=""):
+    """Fallback: Agregación basada en perfiles de revista (uniforme)"""
     levels = ['domain', 'field', 'subfield', 'topic']
     all_results = []
     
@@ -180,48 +240,64 @@ def main():
     print("  → Merging works with journals...")
     works_df = pd.merge(works_df, journals_df, left_on='journal_id', right_on='id')
     
+    # Cargar mapeo de tópicos si existe
+    mapping_file = data_dir / 'works_topics_mapping.parquet'
+    mapping_df = None
+    if mapping_file.exists():
+        print(f"📖 Cargando mapeo de tópicos granular: {mapping_file}")
+        mapping_df = pd.read_parquet(mapping_file)
+
     # Function to process a specific dataframe subset
     def process_period(df_subset, period_suffix):
         print(f"\n📑 Processing Period: {period_suffix.upper()}...")
         
-        # Aggregation at journal level
-        try:
-            j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
-        except TypeError:
-            j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
+        if mapping_df is not None:
+            # MÉTODO A: Granular (Variación real por tema)
+            c_m = aggregate_granular(df_subset, mapping_df, ['country_code'], period_suffix)
+            l_m = aggregate_granular(df_subset, mapping_df, [], period_suffix)
+            if not l_m.empty: l_m['country_code'] = 'LATAM'
+            j_m = aggregate_granular(df_subset, mapping_df, ['journal_id'], period_suffix)
+        else:
+            # MÉTODO B: Fallback (Uniforme por revista)
+            print("⚠️ No hay mapeo granular. Los indicadores por tema serán uniformes a la revista.")
+            # Aggregation at journal level
+            try:
+                j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
+            except TypeError:
+                j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
+                
+            # Topic hierarchy metadata
+            j_h = topics_df[['journal_id', 'domain', 'field', 'subfield', 'topic_name', 'share']].copy()
+            j_h = j_h.rename(columns={'topic_name': 'topic'})
+            j_h['share'] = pd.to_numeric(j_h['share'], errors='coerce').fillna(0.0).astype(float)
             
-        # Topic hierarchy metadata
-        j_h = topics_df[['journal_id', 'domain', 'field', 'subfield', 'topic_name', 'share']].copy()
-        j_h = j_h.rename(columns={'topic_name': 'topic'})
-        j_h['share'] = pd.to_numeric(j_h['share'], errors='coerce').fillna(0.0).astype(float)
-        
-        # Share normalization
-        s_sum = j_h.groupby('journal_id')['share'].transform('sum')
-        mask_z = (s_sum <= 0)
-        if mask_z.any():
-            t_counts = j_h.groupby('journal_id')['journal_id'].transform('count')
-            j_h.loc[mask_z, 'share'] = 1.0 / t_counts[mask_z]
-        s_sum = j_h.groupby('journal_id')['share'].transform('sum')
-        j_h['share'] = j_h['share'] / s_sum
-        
-        # Merge metrics + topic hierarchy
-        enr = pd.merge(j_agg, j_h, on='journal_id')
-        enr['count'] = enr['count'] * enr['share']
-        
-        # Aggregate at hierarchy levels
-        c_m = aggregate_hierarchy_from_agg(enr, ['country_code'], period_suffix)
-        l_m = aggregate_hierarchy_from_agg(enr, [], period_suffix)
-        l_m['country_code'] = 'LATAM'
-        j_m = aggregate_hierarchy_from_agg(enr, ['journal_id'], period_suffix)
+            # Share normalization
+            s_sum = j_h.groupby('journal_id')['share'].transform('sum')
+            mask_z = (s_sum <= 0)
+            if mask_z.any():
+                t_counts = j_h.groupby('journal_id')['journal_id'].transform('count')
+                j_h.loc[mask_z, 'share'] = 1.0 / t_counts[mask_z]
+            s_sum = j_h.groupby('journal_id')['share'].transform('sum')
+            j_h['share'] = j_h['share'] / s_sum
+            
+            # Merge metrics + topic hierarchy
+            enr = pd.merge(j_agg, j_h, on='journal_id')
+            enr['count'] = enr['count'] * enr['share']
+            
+            # Aggregate at hierarchy levels
+            c_m = aggregate_hierarchy_from_agg(enr, ['country_code'], period_suffix)
+            l_m = aggregate_hierarchy_from_agg(enr, [], period_suffix)
+            l_m['country_code'] = 'LATAM'
+            j_m = aggregate_hierarchy_from_agg(enr, ['journal_id'], period_suffix)
         
         return c_m, l_m, j_m
 
     # PERIOD 1: Full
-    c_full, l_full, j_full = process_period(works_df, "full")
+    c_full, l_full, j_full = process_period(works_df, "_full")
     
     # PERIOD 2: Recent (2021-2025)
     recent_mask = (works_df['publication_year'] >= 2021)
-    c_recent, l_recent, j_recent = process_period(works_df[recent_mask], "recent")
+    c_recent, l_recent, j_recent = process_period(works_df[recent_mask], "_recent")
 
     # Combine results
     merge_cols = ['country_code', 'domain', 'field', 'subfield', 'topic', 'level']
