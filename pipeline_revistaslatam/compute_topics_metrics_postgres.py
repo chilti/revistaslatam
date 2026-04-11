@@ -146,13 +146,18 @@ def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
         agg['topic'] = agg[level_col]
         
         # Rellenar jerarquía faltante con 'ALL' para compatibilidad
-        for l_idx, l_name in enumerate(levels):
+        for l_name in ['domain', 'field', 'subfield', 'topic']:
             if l_name not in agg.columns:
                 agg[l_name] = 'ALL'
         
         results_list.append(agg)
         
     final_df = pd.concat(results_list, ignore_index=True)
+    
+    # Limpiar columnas de entrada que ya no necesitamos (usamos 'topic')
+    for col_to_drop in ['topic_name', 'domain_name', 'field_name', 'subfield_name']:
+        if col_to_drop in final_df.columns:
+            final_df = final_df.drop(columns=[col_to_drop])
     
     # Renombrar columnas para el dashboard
     # Suffix ya incluye el guion bajo si es necesario (ej: _recent)
@@ -161,8 +166,7 @@ def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
     final_df = final_df.rename(columns=rename_cols)
     
     # Normalizar nombres de columnas de jerarquía para el merge final
-    if 'topic_name' in final_df.columns:
-        final_df = final_df.drop(columns=['topic_name'])
+    # (Ya eliminados arriba)
         
     return final_df
 
