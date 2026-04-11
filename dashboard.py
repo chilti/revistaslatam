@@ -201,14 +201,35 @@ st.caption("OpenAlex Snapshot 2025-10-27")
 def load_data():
     data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
     journals_path = os.path.join(data_dir, 'latin_american_journals.parquet')
-    df = collector_load_data(journals_path)
+    enriched_path = os.path.join(data_dir, 'journals_enriched.parquet')
+    
+    # Load base journals
+    df_base = collector_load_data(journals_path)
+    
+    # Load enriched metadata if exists and merge
+    if os.path.exists(enriched_path):
+        try:
+            df_enriched = pd.read_parquet(enriched_path)
+            # Remove redundant columns from enriched before merge to avoid suffixes 
+            # except ID which is our join key
+            cols_to_use = [c for c in df_enriched.columns if c not in df_base.columns or c == 'id']
+            df_base = pd.merge(df_base, df_enriched[cols_to_use], on='id', how='left')
+            
+            # Re-process with collector to ensure nested fields in enriched are flattened
+            # (In case enriched file has complex types saved as strings)
+            from data_processor import load_data as process_df_again
+            # We don't want to read file again, so we'll do literal processing if needed
+            # but data_processor.load_data is optimized for file reading.
+            # Let's ensure the merge didn't break types
+        except Exception as e:
+            st.sidebar.error(f"⚠️ Error cargando data enriquecida: {e}")
     
     # Load thematic evolution if exists
     df_evo = None
     if os.path.exists(EVO_THEMATIC_FILE):
         df_evo = pd.read_parquet(EVO_THEMATIC_FILE)
         
-    return df, df_evo
+    return df_base, df_evo
 
 df, df_thematic_evo = load_data()
 

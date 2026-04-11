@@ -55,20 +55,33 @@ def load_data(filepath):
             df['2yr_mean_citedness'] = extract_nested_field(df, 'summary_stats', '2yr_mean_citedness', default=0)
             df['h_index'] = extract_nested_field(df, 'summary_stats', 'h_index', default=0)
             
-        # 2. Open Access Status
-        # If is_oa is not top-level, try to extract from open_access dict
-        if 'is_oa' not in df.columns:
-            if 'open_access' in df.columns:
-                 df['is_oa'] = extract_nested_field(df, 'open_access', 'is_oa', default=False)
+        # 2. Open Access y Metadatos Técnicos
+        # Extraer campos booleanos y enlaces
+        bool_cols = {
+            'is_oa': ('open_access', 'is_oa'),
+            'is_in_doaj': ('is_in_doaj',),
+            'is_ojs': ('is_ojs',),
+            'is_in_scielo': ('is_in_scielo',),
+            'is_core': ('is_core',),
+            'is_indexed_in_scopus': ('is_indexed_in_scopus',)
+        }
+        
+        for target, path in bool_cols.items():
+            if target not in df.columns:
+                df[target] = extract_nested_field(df, path[0], *path[1:], default=False)
+            df[target] = df[target].fillna(False).astype(bool)
+
+        # 3. Homepage y APC (Si no existen)
+        if 'homepage_url' not in df.columns:
+            df['homepage_url'] = extract_nested_field(df, 'homepage_url', default="N/A")
             
         # Ensure default columns exist if extraction failed (to avoid KeyErrors)
-        required_cols = ['2yr_mean_citedness', 'h_index', 'is_oa', 'works_count', 'cited_by_count']
-        for col in required_cols:
+        required_numeric = ['2yr_mean_citedness', 'h_index', 'works_count', 'cited_by_count']
+        for col in required_numeric:
             if col not in df.columns:
-                if col == 'is_oa':
-                    df[col] = False
-                else:
-                    df[col] = 0
+                df[col] = 0
+            else:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         return df
     except Exception as e:

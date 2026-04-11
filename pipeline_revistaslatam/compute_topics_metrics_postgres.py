@@ -260,7 +260,12 @@ def main():
     
     # Merge with journals to get country_code
     print("  → Merging works with journals...")
-    works_df = pd.merge(works_df, journals_df, left_on='journal_id', right_on='id')
+    # Renombrar id de revista para evitar colisión con id de artículo (KeyError: 'id')
+    journals_df = journals_df.rename(columns={'id': 'journal_id_check'})
+    works_df = pd.merge(works_df, journals_df, left_on='journal_id', right_on='journal_id_check')
+    # Eliminar columna auxiliar
+    if 'journal_id_check' in works_df.columns:
+        works_df = works_df.drop(columns=['journal_id_check'])
     
     # Cargar mapeo de tópicos si existe
     mapping_file = data_dir / 'works_topics_mapping.parquet'
