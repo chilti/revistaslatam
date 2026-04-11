@@ -129,9 +129,14 @@ def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
     print(f"  → Agregando datos granulares para {len(works_df)} artículos ({suffix})...")
     
     # Unir trabajos con sus tópicos
+    # Eliminar journal_id del mapeo si existe para evitar colisión con el de works_df
+    mapping_cols = mapping_df.columns.tolist()
+    if 'journal_id' in mapping_cols:
+        mapping_cols.remove('journal_id')
+    
     merged = pd.merge(
         works_df, 
-        mapping_df, 
+        mapping_df[mapping_cols], 
         left_on='id', 
         right_on='work_id', 
         how='inner'
