@@ -4,6 +4,7 @@ This script queries the local PostgreSQL database instead of the OpenAlex API.
 """
 import psycopg2
 import pandas as pd
+import numpy as np
 import json
 import os
 from pathlib import Path
@@ -137,30 +138,30 @@ def fetch_latin_american_journals():
         else:
             print("Warning: summary_stats column not found. Metrics will be 0.")
             df['h_index'] = 0
-            df['i10_index'] = 0 
-            df['2yr_mean_citedness'] = 0.0
+        if 'i10_index' not in df.columns:
+            df['i10_index'] = np.nan
+        if '2yr_mean_citedness' not in df.columns:
+            df['2yr_mean_citedness'] = np.nan
         
         # Añadir campos que no existen en PostgreSQL pero sí en el snapshot
-        # Estos campos se añadirán con valores por defecto
+        # Estos campos se añadirán con NaN para permitir enriquecimiento posterior
         if 'oa_works_count' not in df.columns:
-            print("⚠️ Campo 'oa_works_count' no existe en PostgreSQL. Usando works_count como aproximación.")
-            # Aproximación: si is_oa=True, entonces oa_works_count ≈ works_count
-            df['oa_works_count'] = df.apply(
-                lambda row: row['works_count'] if row.get('is_oa', False) else 0, 
-                axis=1
-            )
+            print("⚠️ Campo 'oa_works_count' no existe en PostgreSQL. Marcando como NaN.")
+            # Si queremos una aproximación, podríamos usar works_count, 
+            # pero por consistencia con la petición del usuario usamos NaN
+            df['oa_works_count'] = np.nan
         
         if 'is_in_scielo' not in df.columns:
-            print("⚠️ Campo 'is_in_scielo' no existe en PostgreSQL. Usando False por defecto.")
-            df['is_in_scielo'] = False
+            print("⚠️ Campo 'is_in_scielo' no existe en PostgreSQL. Usando NaN.")
+            df['is_in_scielo'] = np.nan
         
         if 'is_ojs' not in df.columns:
-            print("⚠️ Campo 'is_ojs' no existe en PostgreSQL. Usando False por defecto.")
-            df['is_ojs'] = False
+            print("⚠️ Campo 'is_ojs' no existe en PostgreSQL. Usando NaN.")
+            df['is_ojs'] = np.nan
         
         if 'is_core' not in df.columns:
-            print("⚠️ Campo 'is_core' no existe en PostgreSQL. Usando False por defecto.")
-            df['is_core'] = False
+            print("⚠️ Campo 'is_core' no existe en PostgreSQL. Usando NaN.")
+            df['is_core'] = np.nan
 
         print(f"Found {len(df)} Latin American journals.")
         

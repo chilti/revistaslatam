@@ -2429,29 +2429,44 @@ elif level == "Revista":
     openalex_url = journal_data['id']
     st.caption(f"ISSN: {journal_data['issn_l']} | [Ver en OpenAlex]({openalex_url}) | Homepage: {journal_data.get('homepage_url', 'N/A')}")
     
+    # Helper for formatting technically missing data
+    def fmt_bool(val):
+        if pd.isna(val): return "⚠️ N/D"
+        return "✅ Sí" if val else "❌ No"
+    
+    def fmt_num(val, format_str="{:,}", default="N/D"):
+        if pd.isna(val): return default
+        try:
+            return format_str.format(val)
+        except:
+            return str(val)
+
     # Metrics - Primera Fila: Producción y Citación
     st.markdown("#### 📊 Producción y Citación")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Documentos (OpenAlex)", f"{journal_data['works_count']:,}")
-    m2.metric("Total Citas", f"{journal_data['cited_by_count']:,}")
-    m3.metric("Impacto (2yr)", f"{journal_data.get('2yr_mean_citedness', 0):.3f}")
-    m4.metric("Índice H", journal_data.get('h_index', 0))
+    m1.metric("Total Documentos (OpenAlex)", fmt_num(journal_data.get('works_count')))
+    m2.metric("Total Citas", fmt_num(journal_data.get('cited_by_count')))
+    m3.metric("Impacto (2yr)", fmt_num(journal_data.get('2yr_mean_citedness'), format_str="{:.3f}"))
+    m4.metric("Índice H", fmt_num(journal_data.get('h_index'), format_str="{}"))
     
     # Metrics - Segunda Fila: Índices y Acceso Abierto
     st.markdown("#### 📈 Índices y Acceso Abierto")
     m5, m6, m7, m8 = st.columns(4)
-    m5.metric("Índice i10", journal_data.get('i10_index', 0))
-    m6.metric("Trabajos OA", f"{journal_data.get('oa_works_count', 0):,}")
-    m7.metric("Es OA", "✅ Sí" if journal_data.get('is_oa', False) else "❌ No")
-    m8.metric("En DOAJ", "✅ Sí" if journal_data.get('is_in_doaj', False) else "❌ No")
+    m5.metric("Índice i10", fmt_num(journal_data.get('i10_index'), format_str="{}"))
+    m44 = journal_data.get('oa_works_count')
+    m6.metric("Trabajos OA", fmt_num(m44))
+    m7.metric("Es OA", fmt_bool(journal_data.get('is_oa')))
+    m8.metric("En DOAJ", fmt_bool(journal_data.get('is_in_doaj')))
     
     # Metrics - Tercera Fila: Indexación
     st.markdown("#### 🔍 Indexación")
     m9, m10, m11, m12 = st.columns(4)
-    m9.metric("En SciELO", "✅ Sí" if journal_data.get('is_in_scielo', False) else "❌ No")
-    m10.metric("Usa OJS", "✅ Sí" if journal_data.get('is_ojs', False) else "❌ No")
-    m11.metric("En CORE", "✅ Sí" if journal_data.get('is_core', False) else "❌ No")
-    m12.metric("En Scopus", "✅ Sí" if journal_data.get('is_scopus', False) else "❌ No")
+    m9.metric("En SciELO", fmt_bool(journal_data.get('is_in_scielo')))
+    m10.metric("Usa OJS", fmt_bool(journal_data.get('is_ojs')))
+    m11.metric("En CORE", fmt_bool(journal_data.get('is_core')))
+    m12.metric("En Scopus", fmt_bool(journal_data.get('is_scopus')))
+    
+    st.caption("💡 Los indicadores marcados como **N/D** no se encontraron en la base de datos local y requieren ejecutar el paso de **Enriquecimiento API**.")
     
     # --- Sunburst de Temáticas (Journal Level) ---
     SUNBURST_METRICS_JOURNAL = os.path.join(BASE_PATH, 'data', 'cache', 'sunburst_metrics_journal.parquet')
