@@ -90,33 +90,57 @@ def calculate_from_agg(df):
 def compute_thematic_evolution_legacy(works_df, topics_df, output_path):
     """
     Calcula la evolución anual de indicadores a nivel de LATAM y por tema.
-    Asegura que existan columnas como pct_oa_diamond para los gráficos de tendencias.
+    Asegura que los totales no se inflen y que, si hay mapeo granular, se use.
     """
-    print("\n📈 Computing LATAM Thematic Evolution (Full Metrics)...")
+    print("\n📈 Computing LATAM Thematic Evolution...")
     
-    # Agrupar por revista y año para calcular métricas completas
-    # (Usamos apply con calculate_metrics_for_group para consistencia)
-    try:
-        j_year_metrics = works_df.groupby(['journal_id', 'publication_year']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
-    except TypeError:
-        j_year_metrics = works_df.groupby(['journal_id', 'publication_year']).apply(calculate_metrics_for_group).reset_index()
+    data_dir = Path(output_path).parent.parent
+    mapping_file = data_dir / 'works_topics_mapping.parquet'
+    
+    if mapping_file.exists():
+        print("  → Usando mapeo granular para la evolución histórica (Precisión Máxima)")
+        mapping_df = pd.read_parquet(mapping_file)
+        mapping_df['work_id'] = mapping_df['work_id'].str.replace('https://openalex.org/', '', regex=False)
+        
+        # Merge works with their specific topics
+        # Eliminar journal_id del mapeo para evitar colisión
+        m_cols = [c for c in mapping_df.columns if c != 'journal_id']
+        merged_evo = pd.merge(works_df, mapping_df[m_cols], left_on='id', right_on='work_id')
+        
+        # Agrupar por revista, año y jerarquía
+        group_cols = ['journal_id', 'publication_year', 'domain', 'field', 'subfield', 'topic_name']
+        try:
+            df_evo = merged_evo.groupby(group_cols).apply(calculate_metrics_for_group, include_groups=False).reset_index()
+        except TypeError:
+            df_evo = merged_evo.groupby(group_cols).apply(calculate_metrics_for_group).reset_index()
+        
+        df_evo = df_evo.rename(columns={'topic_name': 'topic', 'publication_year': 'year', 'count': 'num_documents'})
+    else:
+        print("  ⚠️ Usando método uniforme con 'share' para evitar inflación (Legacy Mode)")
+        # 1. Agrupar por revista y año
+        try:
+            j_year_metrics = works_df.groupby(['journal_id', 'publication_year']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
+        except TypeError:
+            j_year_metrics = works_df.groupby(['journal_id', 'publication_year']).apply(calculate_metrics_for_group).reset_index()
+        
+        j_year_metrics = j_year_metrics.rename(columns={'count': 'num_documents', 'publication_year': 'year'})
+        
+        # 2. Unir con los tópicos de las revistas pero aplicando el share
+        df_evo = pd.merge(j_year_metrics, topics_df[['journal_id', 'topic_name', 'subfield', 'field', 'domain', 'share']], on='journal_id')
+        
+        # CORRECCIÓN DE INFLACIÓN: Multiplicar conteos por el share del tema
+        df_evo['num_documents'] = df_evo['num_documents'] * df_evo['share']
+        df_evo = df_evo.rename(columns={'topic_name': 'topic'})
 
-    # Calcular pct_oa_total (Suma de todas las vías OA)
+    # 3. Calcular pct_oa_total (Suma de todas las vías OA) para compatibilidad
     oa_cols = ['pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze']
-    j_year_metrics['pct_oa_total'] = j_year_metrics[oa_cols].sum(axis=1).clip(0, 100)
-    
-    # Renombrar para compatibilidad con el dashboard
-    j_year_metrics = j_year_metrics.rename(columns={'count': 'num_documents', 'publication_year': 'year'})
-    
-    # 2. Unir con los tópicos de las revistas para expandir la jerarquía
-    df_evo = pd.merge(j_year_metrics, topics_df[['journal_id', 'topic_name', 'subfield', 'field', 'domain']], on='journal_id')
-    
-    # Renombrar topic_name a topic
-    df_evo = df_evo.rename(columns={'topic_name': 'topic'})
+    for col in oa_cols:
+        if col not in df_evo.columns: df_evo[col] = 0
+    df_evo['pct_oa_total'] = df_evo[oa_cols].sum(axis=1).clip(0, 100)
     
     # Save base evolution
     df_evo.to_parquet(output_path, index=False)
-    print(f"  ✓ Saved theme-year evolution with {len(df_evo)} records and full metrics.")
+    print(f"  ✓ Saved evolution with {len(df_evo)} records.")
 
 def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
     """
