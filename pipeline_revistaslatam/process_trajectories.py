@@ -11,11 +11,14 @@ Trajectory Analysis Pipeline v2.0 (Multi-Map)
 """
 import pandas as pd
 import numpy as np
-import os
-from pathlib import Path
 import logging
-from sklearn.preprocessing import StandardScaler
+import time
 import warnings
+from pathlib import Path
+from sklearn.preprocessing import StandardScaler
+
+# Silenciar avisos de UMAP (Spectral initialization y random_state parallelism)
+warnings.filterwarnings("ignore", category=UserWarning, module="umap")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -90,7 +93,8 @@ def run_umap_projection(df, metrics_cols, n_neighbors=15, min_dist=0.1):
         result_df = df.copy()
         result_df['x'] = embedding[:, 0]
         result_df['y'] = embedding[:, 1]
-        return result_df[['id', 'name', 'type', 'year', 'country_code', 'x', 'y']] # Keep metadata
+        # Return a COPY to avoid SettingWithCopyWarning in callers
+        return result_df[['id', 'name', 'type', 'year', 'country_code', 'x', 'y']].copy()
     except Exception as e:
         logger.warning(f"UMAP failed: {e}")
         return None

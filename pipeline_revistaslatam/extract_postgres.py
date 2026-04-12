@@ -381,13 +381,14 @@ def fetch_works_for_journal(journal_id, journal_name, journal_country_code, conn
     return works_df
 
 
-def update_data_from_postgres(update_journals=True, update_works=True):
+def update_data_from_postgres(update_journals=True, update_works=True, force_works=False):
     """
     Main function to update data from PostgreSQL database.
     
     Args:
         update_journals: If True, fetch and update journal metadata
         update_works: If True, fetch works for all journals
+        force_works: If True, ignore existing data and fetch all works (default False)
     """
     # Ensure data directory exists
     DATA_DIR.mkdir(exist_ok=True)
@@ -416,43 +417,50 @@ def update_data_from_postgres(update_journals=True, update_works=True):
     
     # Step 2: Fetch works
     if update_works:
+        _mode_text = "(FORCE MODE)" if force_works else "(OPTIMIZED MODE)"
         print("\n" + "="*70)
-        print("FETCHING WORKS FROM POSTGRESQL (OPTIMIZED MODE)")
+        print(f"FETCHING WORKS FROM POSTGRESQL {_mode_text}")
         print("="*70)
         
         # Directory for partial files
         PARTS_DIR = DATA_DIR / 'works_parts'
         PARTS_DIR.mkdir(exist_ok=True)
         
-        # Check which journals already have works
+        # Check which journals already have works (only if not forcing)
         downloaded_journal_ids = set()
         
-        # 1. Check main file if exists
-        if WORKS_FILE.exists():
-            try:
-                print("Reading existing IDs from main file...")
-                existing_works = pd.read_parquet(WORKS_FILE, columns=['journal_id'])
-                ids_main = set(existing_works['journal_id'].unique())
-                downloaded_journal_ids.update(ids_main)
-                print(f"  - Found {len(ids_main)} journals in main file")
-            except Exception as e:
-                print(f"  Warning reading main file: {e}")
-        
-        # 2. Check partial files
-        print("Reading existing IDs from partial files...")
-        part_files = list(PARTS_DIR.glob('*.parquet'))
-        for f in part_files:
-            try:
-                # Read only necessary column, very fast
-                ids_part = pd.read_parquet(f, columns=['journal_id'])['journal_id'].unique()
-                downloaded_journal_ids.update(ids_part)
-            except Exception:
-                continue
-                
-        print(f"Total unique journals already downloaded: {len(downloaded_journal_ids)}")
+        if not force_works:
+            # 1. Check main file if exists
+            if WORKS_FILE.exists():
+                try:
+                    print("Reading existing IDs from main file...")
+                    existing_works = pd.read_parquet(WORKS_FILE, columns=['journal_id'])
+                    ids_main = set(existing_works['journal_id'].unique())
+                    downloaded_journal_ids.update(ids_main)
+                    print(f"  - Found {len(ids_main)} journals in main file")
+                except Exception as e:
+                    print(f"  Warning reading main file: {e}")
+            
+            # 2. Check partial files
+            print("Reading existing IDs from partial files...")
+            part_files = list(PARTS_DIR.glob('*.parquet'))
+            for f in part_files:
+                try:
+                    # Read only necessary column, very fast
+                    ids_part = pd.read_parquet(f, columns=['journal_id'])['journal_id'].unique()
+                    downloaded_journal_ids.update(ids_part)
+                except Exception:
+                    continue
+                    
+            print(f"Total unique journals already downloaded: {len(downloaded_journal_ids)}")
+        else:
+            print("Force mode active: Skipping check for existing data.")
         
         # Filter journals to process
-        journals_to_process = journals_df[~journals_df['id'].isin(downloaded_journal_ids)]
+        if force_works:
+            journals_to_process = journals_df
+        else:
+            journals_to_process = journals_df[~journals_df['id'].isin(downloaded_journal_ids)]
         
         if len(journals_to_process) == 0:
             print("All journals already have works downloaded!")
@@ -545,9 +553,15 @@ if __name__ == "__main__":
     parser.add_argument('--journals-only', action='store_true', help='Only fetch journals, not works')
     parser.add_argument('--works-only', action='store_true', help='Only fetch works, not journals')
     
+    parser.add_argument('--force', action='store_true', help='Force refetch of all works even if they exist')
+    
     args = parser.parse_args()
     
     update_journals = not args.works_only
     update_works = not args.journals_only
     
-    update_data_from_postgres(update_journals=update_journals, update_works=update_works)
+    update_data_from_postgres(
+        update_journals=update_journals, 
+        update_works=update_works, 
+        force_works=args.force
+    )
