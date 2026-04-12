@@ -53,6 +53,7 @@ def fetch_journals_clickhouse(client):
     print("🚀 Extrayendo revistas latinoamericanas (Optimizado)...")
     
     # Usamos las columnas físicas materializadas recientemente
+    # Usamos las columnas físicas materializadas recientemente
     query = """
     SELECT 
         id,
