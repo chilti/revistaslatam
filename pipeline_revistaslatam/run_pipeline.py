@@ -109,8 +109,8 @@ if __name__ == "__main__":
 
     # --- FASE 1: DATOS CRUDOS ---
     if run_infra:
-        # 1. Extracción de datos
-        if not run_step(f"{PIPELINE_DIR}/extract_postgres.py", "Extracción de Datos (Postgres -> Parquet Parts)"):
+        # 1. Extracción de datos (MIGRADO A CLICKHOUSE)
+        if not run_step(f"{PIPELINE_DIR}/extract_clickhouse.py", "Extracción de Datos (ClickHouse -> Parquet Parts)"):
             sys.exit(1)
 
         # 2. Consolidación
