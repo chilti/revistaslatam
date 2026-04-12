@@ -61,14 +61,14 @@ def fetch_journals_clickhouse(client):
         argMax(JSONExtractArrayRaw(raw_data, 'issn'), updated_date) as issn_array,
         argMax(display_name, updated_date) as display_name,
         argMax(JSONExtractString(raw_data, 'publisher'), updated_date) as publisher,
-        argMax(works_count, updated_date) as works_count,
+        argMax(works_count, updated_date) as works_count_val,
         argMax(cited_by_count, updated_date) as cited_by_count,
         argMax(JSONExtractBool(raw_data, 'is_oa'), updated_date) as is_oa,
         argMax(JSONExtractBool(raw_data, 'is_in_doaj'), updated_date) as is_in_doaj,
         argMax(JSONExtractString(raw_data, 'homepage_url'), updated_date) as homepage_url,
         argMax(JSONExtractString(raw_data, 'works_api_url'), updated_date) as works_api_url,
         max(updated_date) as updated_date,
-        argMax(country_code, updated_date) as country_code,
+        argMax(country_code, updated_date) as country_code_val,
         argMax(JSONExtractInt(raw_data, 'summary_stats', 'h_index'), updated_date) as h_index,
         argMax(JSONExtractInt(raw_data, 'summary_stats', 'i10_index'), updated_date) as i10_index,
         argMax(JSONExtractFloat(raw_data, 'summary_stats', '2yr_mean_citedness'), updated_date) as citedness_2yr,
@@ -84,6 +84,12 @@ def fetch_journals_clickhouse(client):
     """.format(countries=tuple(LATAM_COUNTRIES))
     
     df = client.query_df(query)
+    
+    # Renombrar columnas para evitar el conflicto del parser de ClickHouse
+    df = df.rename(columns={
+        'works_count_val': 'works_count',
+        'country_code_val': 'country_code'
+    })
     
     # Procesar ISSN (ClickHouse devuelve lista o string JSON)
     def clean_issn(val):
