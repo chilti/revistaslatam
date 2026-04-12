@@ -79,8 +79,16 @@ def fetch_journals_clickhouse(client):
     
     df = client.query_df(query)
     
-    # Procesar ISSN (ClickHouse devuelve string JSON para arrays)
-    df['issn'] = df['issn_array'].apply(lambda x: ",".join(json.loads(x)) if x else "")
+    # Procesar ISSN (Asegurar que manejamos tanto listas como strings JSON)
+    def clean_json_list(val):
+        if not val: return ""
+        if isinstance(val, list): return ",".join(val)
+        try:
+            return ",".join(json.loads(val))
+        except:
+            return str(val)
+
+    df['issn'] = df['issn_array'].apply(clean_json_list)
     df = df.drop(columns=['issn_array'])
     
     # Metadatos de descarga
@@ -134,7 +142,8 @@ def process_domestic_authorship(df_works, df_journals):
         if not target_country: return False
         
         try:
-            authors = json.loads(row['authors_raw'])
+            val = row['authors_raw']
+            authors = val if isinstance(val, list) else json.loads(val)
             for auth in authors:
                 inst_country = auth.get('author_institution', {}).get('country_code')
                 if inst_country == target_country:
