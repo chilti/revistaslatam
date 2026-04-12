@@ -24,22 +24,12 @@ def main():
         )
         print(f"✅ Conectado a ClickHouse: {CH_HOST}:{CH_PORT} (DB: {CH_DATABASE})\n")
         
-        # 1. Listar Tablas y su tamaño aproximado
+        # 1. Listar Tablas (Usando SHOW TABLES para evitar problemas de permisos)
         print("📊 TABLAS ENCONTRADAS")
         print("-" * 50)
-        query_tables = f"""
-        SELECT 
-            table, 
-            formatReadableSize(sum(data_compressed_bytes)) as compressed,
-            formatReadableSize(sum(data_uncompressed_bytes)) as uncompressed,
-            count() as parts
-        FROM system.parts
-        WHERE database = '{CH_DATABASE}' AND active
-        GROUP BY table
-        ORDER BY sum(data_uncompressed_bytes) DESC
-        """
-        tables = client.query_df(query_tables)
-        print(tables.to_string(index=False))
+        tables_res = client.query("SHOW TABLES")
+        for row in tables_res.result_rows:
+            print(f" - {row[0]}")
         
         # 2. Listar Columnas Materializadas por Tabla
         print("\n💎 COLUMNAS MATERIALIZADAS (Cálculo Físico)")
