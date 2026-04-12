@@ -67,7 +67,7 @@ def fetch_journals_clickhouse(client):
         argMax(JSONExtractBool(raw_data, 'is_in_doaj'), updated_date) as is_in_doaj,
         argMax(JSONExtractString(raw_data, 'homepage_url'), updated_date) as homepage_url,
         argMax(JSONExtractString(raw_data, 'works_api_url'), updated_date) as works_api_url,
-        max(updated_date) as updated_date,
+        max(updated_date) as updated_date_val,
         argMax(country_code, updated_date) as country_code_val,
         argMax(JSONExtractInt(raw_data, 'summary_stats', 'h_index'), updated_date) as h_index,
         argMax(JSONExtractInt(raw_data, 'summary_stats', 'i10_index'), updated_date) as i10_index,
@@ -88,7 +88,8 @@ def fetch_journals_clickhouse(client):
     # Renombrar columnas para evitar el conflicto del parser de ClickHouse
     df = df.rename(columns={
         'works_count_val': 'works_count',
-        'country_code_val': 'country_code'
+        'country_code_val': 'country_code',
+        'updated_date_val': 'updated_date'
     })
     
     # Procesar ISSN (ClickHouse devuelve lista o string JSON)
