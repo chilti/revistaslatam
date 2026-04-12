@@ -56,28 +56,29 @@ def fetch_journals_clickhouse(client):
     query = """
     SELECT 
         id,
-        issn_l,
-        JSONExtractArrayRaw(raw_data, 'issn') as issn_array,
-        display_name,
-        JSONExtractString(raw_data, 'publisher') as publisher,
-        works_count,
-        cited_by_count,
-        JSONExtractBool(raw_data, 'is_oa') as is_oa,
-        JSONExtractBool(raw_data, 'is_in_doaj') as is_in_doaj,
-        JSONExtractString(raw_data, 'homepage_url') as homepage_url,
-        JSONExtractString(raw_data, 'works_api_url') as works_api_url,
-        updated_date,
-        country_code,
-        JSONExtractInt(raw_data, 'summary_stats', 'h_index') as h_index,
-        JSONExtractInt(raw_data, 'summary_stats', 'i10_index') as i10_index,
-        JSONExtractFloat(raw_data, 'summary_stats', '2yr_mean_citedness') as citedness_2yr,
-        JSONExtractBool(raw_data, 'is_in_scielo') as is_in_scielo,
-        JSONExtractBool(raw_data, 'is_ojs') as is_ojs,
-        JSONExtractBool(raw_data, 'is_core') as is_core
+        argMax(issn_l, updated_date) as issn_l,
+        argMax(JSONExtractArrayRaw(raw_data, 'issn'), updated_date) as issn_array,
+        argMax(display_name, updated_date) as display_name,
+        argMax(JSONExtractString(raw_data, 'publisher'), updated_date) as publisher,
+        argMax(works_count, updated_date) as works_count,
+        argMax(cited_by_count, updated_date) as cited_by_count,
+        argMax(JSONExtractBool(raw_data, 'is_oa'), updated_date) as is_oa,
+        argMax(JSONExtractBool(raw_data, 'is_in_doaj'), updated_date) as is_in_doaj,
+        argMax(JSONExtractString(raw_data, 'homepage_url'), updated_date) as homepage_url,
+        argMax(JSONExtractString(raw_data, 'works_api_url'), updated_date) as works_api_url,
+        max(updated_date) as updated_date,
+        argMax(country_code, updated_date) as country_code,
+        argMax(JSONExtractInt(raw_data, 'summary_stats', 'h_index'), updated_date) as h_index,
+        argMax(JSONExtractInt(raw_data, 'summary_stats', 'i10_index'), updated_date) as i10_index,
+        argMax(JSONExtractFloat(raw_data, 'summary_stats', '2yr_mean_citedness'), updated_date) as citedness_2yr,
+        argMax(JSONExtractBool(raw_data, 'is_in_scielo'), updated_date) as is_in_scielo,
+        argMax(JSONExtractBool(raw_data, 'is_ojs'), updated_date) as is_ojs,
+        argMax(JSONExtractBool(raw_data, 'is_core'), updated_date) as is_core
     FROM sources
     WHERE country_code IN {countries}
       AND type = 'journal'
-      AND works_count > 0
+    GROUP BY id
+    HAVING works_count > 0
     ORDER BY works_count DESC
     """.format(countries=tuple(LATAM_COUNTRIES))
     
@@ -124,26 +125,30 @@ def fetch_works_batch(client, journal_id_to_country, batch_num):
     query = """
     SELECT 
         id,
-        doi,
-        title,
-        publication_year,
-        JSONExtractString(raw_data, 'publication_date') as publication_date,
-        type,
-        cited_by_count,
-        JSONExtractBool(raw_data, 'is_retracted') as is_retracted,
-        JSONExtractBool(raw_data, 'is_paratext') as is_paratext,
-        JSONExtractString(raw_data, 'language') as language,
-        JSONExtractFloat(raw_data, 'fwci') as fwci,
-        JSONExtractFloat(raw_data, 'citation_normalized_percentile') as percentile,
-        source_id as journal_id,
-        JSONExtractString(raw_data, 'open_access', 'oa_status') as oa_status,
+        argMax(doi, updated_date) as doi,
+        argMax(title, updated_date) as title,
+        argMax(publication_year, updated_date) as publication_year,
+        argMax(JSONExtractString(raw_data, 'publication_date'), updated_date) as publication_date,
+        argMax(type, updated_date) as type,
+        argMax(cited_by_count, updated_date) as cited_by_count,
+        argMax(JSONExtractBool(raw_data, 'is_retracted'), updated_date) as is_retracted,
+        argMax(JSONExtractBool(raw_data, 'is_paratext'), updated_date) as is_paratext,
+        argMax(JSONExtractString(raw_data, 'language'), updated_date) as language,
+        argMax(JSONExtractFloat(raw_data, 'fwci'), updated_date) as fwci,
+        argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile'), updated_date) as percentile,
+        argMax(source_id, updated_date) as journal_id,
+        argMax(JSONExtractString(raw_data, 'open_access', 'oa_status'), updated_date) as oa_status,
         -- Cálculo NATIVO de domesticidad
-        CASE 
-            {cases}
-            ELSE False
-        END as is_domestic_author
+        argMax(
+            CASE 
+                {cases}
+                ELSE False
+            END,
+            updated_date
+        ) as is_domestic_author
     FROM works
     WHERE source_id IN {jids}
+    GROUP BY id
     """.format(
         cases=" ".join(domestic_cases),
         jids=tuple(journal_ids)
