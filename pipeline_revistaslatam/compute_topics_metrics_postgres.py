@@ -163,8 +163,13 @@ def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
         mapping_df[mapping_cols], 
         left_on='id', 
         right_on='work_id', 
-        how='inner'
+        how='left'
     )
+    
+    # Manejar artículos sin tópicos (Data Integrity)
+    hierarchy_cols = ['domain', 'field', 'subfield', 'topic_name']
+    for col in hierarchy_cols:
+        merged[col] = merged[col].fillna('Sin Clasificación')
     
     if merged.empty:
         return pd.DataFrame()

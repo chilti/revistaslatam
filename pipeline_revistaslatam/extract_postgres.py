@@ -170,21 +170,23 @@ def fetch_latin_american_journals():
         conn.close()
 
 
-def fetch_works_for_journal(journal_id, journal_name, conn):
+def fetch_works_for_journal(journal_id, journal_name, journal_country_code, conn):
     """
     Fetch all works for a specific journal from PostgreSQL.
     
     Args:
         journal_id: OpenAlex ID of the journal
         journal_name: Display name of the journal
+        journal_country_code: Country code of the journal (e.g. 'MX', 'BR')
         conn: Database connection
     
     Returns:
         DataFrame with works data
     """
-    print(f"  Fetching works for: {journal_name}...")
+    print(f"  Fetching works for: {journal_name} ({journal_country_code})...")
     
-    # Main works query
+    # Main works query with Domestic authorship check
+    # We check if at least one author belongs to the SAME country as the journal
     query = """
     SELECT 
         w.id,
@@ -202,17 +204,22 @@ def fetch_works_for_journal(journal_id, journal_name, conn):
         w.language,
         w.fwci,
         w.citation_normalized_percentile,
-        wpl.source_id as journal_id
+        wpl.source_id as journal_id,
+        EXISTS (
+            SELECT 1 FROM openalex.works_authorships wa 
+            JOIN openalex.institutions i ON wa.institution_id = i.id 
+            WHERE wa.work_id = w.id AND i.country_code = %s
+        ) as is_domestic_author
     FROM openalex.works w
     INNER JOIN openalex.works_primary_location wpl ON wpl.work_id = w.id
     WHERE wpl.source_id = %s;
     """
     
     try:
-        works_df = pd.read_sql_query(query, conn, params=(journal_id,))
+        works_df = pd.read_sql_query(query, conn, params=(journal_country_code, journal_id))
     except Exception as e:
-        print(f"  ⚠️ Error querying columns (fwci/percentile missing?): {e}")
-        # Fallback query without new columns IF database schema is old
+        print(f"  ⚠️ Error querying columns (fwci/percentile or authorship table missing?): {e}")
+        # Fallback query without new columns
         query_fallback = """
         SELECT 
             w.id,
@@ -228,7 +235,8 @@ def fetch_works_for_journal(journal_id, journal_name, conn):
             w.cited_by_api_url,
             w.abstract_inverted_index,
             w.language,
-            wpl.source_id as journal_id
+            wpl.source_id as journal_id,
+            False as is_domestic_author
         FROM openalex.works w
         INNER JOIN openalex.works_primary_location wpl ON wpl.work_id = w.id
         WHERE wpl.source_id = %s;
@@ -256,6 +264,25 @@ def fetch_works_for_journal(journal_id, journal_name, conn):
         
         # Top 1%: Percentile >= 99.0
         works_df['is_in_top_1_percent'] = pct_col >= 99.0
+    
+    # --- SAVE PARTITIONED JOURNAL WORKS ---
+    try:
+        parts_dir = DATA_DIR / 'works_parts'
+        parts_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Normalize ID for filename (e.g. S123 -> S123.parquet)
+        jid_safe = journal_id.split('/')[-1]
+        out_file = parts_dir / f"{jid_safe}.parquet"
+        
+        # Save essential columns for the dashboard table to keep it small
+        cols_to_save = ['id', 'doi', 'title', 'publication_year', 'type', 'cited_by_count', 'fwci', 'is_domestic_author']
+        # Also include topics if they exist (will be merged later if needed, but for now essential meta)
+        available_cols = [c for c in cols_to_save if c in works_df.columns]
+        
+        works_df[available_cols].to_parquet(out_file, index=False)
+        # print(f"    ✓ Saved journal partition: {jid_safe}.parquet")
+    except Exception as e:
+        print(f"  ⚠️ Error saving journal partition: {e}")
     
     # Fetch additional data for each work
     print(f"  Fetching additional data for {len(works_df)} works...")
@@ -441,10 +468,11 @@ def update_data_from_postgres(update_journals=True, update_works=True):
             batch_count = 0
             
             for idx, journal in journals_to_process.iterrows():
-                print(f"[{idx+1}/{len(journals_to_process)}] {journal['display_name']} ({journal.get('country_code', 'UNKNOWN')})")
+                country_code = journal.get('country_code', 'UNKNOWN')
+                print(f"[{idx+1}/{len(journals_to_process)}] {journal['display_name']} ({country_code})")
                 
                 try:
-                    works_df = fetch_works_for_journal(journal['id'], journal['display_name'], conn)
+                    works_df = fetch_works_for_journal(journal['id'], journal['display_name'], country_code, conn)
                     
                     if len(works_df) > 0:
                         all_works.append(works_df)

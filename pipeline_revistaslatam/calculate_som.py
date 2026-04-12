@@ -41,9 +41,8 @@ if not country_file.exists():
 df_country = pd.read_parquet(country_file)
 print(f"Loaded {len(df_country)} countries")
 
-# Select features (Same as UMAP)
+# Select features (Pure Performance Indicators)
 feature_cols = [
-    'num_journals',       # Revistas
     'pct_oa_diamond',     # OA Diamante
     'fwci_avg',           # FWCI Promedio
     'pct_top_10',         # % Top 10%

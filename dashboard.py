@@ -1783,7 +1783,7 @@ elif level == "País":
                 # UMAP Visualization for Journals in this Country
                 st.markdown("---")
                 st.subheader("Mapa de Similitud entre Revistas (UMAP)")
-                st.caption("Visualización 2D basada en: Documentos, OA Diamante, FWCI, % Top 10%, % Top 1%, Percentil Promedio, **% Inglés** (datos anuales)")
+                st.caption("Visualización 2D basada en: FWCI, Percentil Promedio, Top 1%, Top 10%, % Inglés, OA Diamante (datos anuales)")
                 
                 umap_journals_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_journals_recent.parquet')
                 
@@ -1923,7 +1923,8 @@ elif level == "País":
                             '% OA Green': 'pct_oa_green',
                             '% OA Hybrid': 'pct_oa_hybrid',
                             '% OA Bronze': 'pct_oa_bronze',
-                            '% Cerrado': 'pct_oa_closed'
+                            '% Cerrado': 'pct_oa_closed',
+                            'Autoría Doméstica (%)': 'pct_authors_domestic'
                         }
                         
                         # Filter to only available columns
@@ -2342,7 +2343,9 @@ elif level == "País":
                                              '% OA Total', '% OA Diamante', '% OA Gold', 
                                              '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
                                              '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
-                                             'Percentil Prom.', '% Top 10', '% Top 1']
+                                             'Percentil Prom.', '% Top 10', '% Top 1', '% Autoría Doméstica']
+                            
+                            cols_map_c['pct_authors_domestic'] = '% Autoría Doméstica'
                             
                             df_display = df_work.rename(columns=cols_map_c)
                             final_cols = [c for c in desired_order_c if c in df_display.columns]
@@ -2491,9 +2494,15 @@ elif level == "Revista":
                 # Determinar columna de tamaño
                 size_col_j = 'count_recent' if '_recent' in ind_col_j else 'count_full'
                 
+                # Toggle de filtrado para clasificación temática
+                show_unclassified = st.toggle("Sincronizar con total de artículos (incluye 'Sin Clasificación')", value=True)
+                
                 ids, labels, parents, values, colors = [], [], [], [], []
                 # Filtrar por volumen positivo
                 df_plot_j = df_sun_j[df_sun_j[size_col_j] > 0]
+                
+                if not show_unclassified:
+                    df_plot_j = df_plot_j[df_plot_j['domain'] != 'Sin Clasificación']
                 
                 for _, row in df_plot_j.iterrows():
                     if row['level'] == 'domain':
@@ -2576,7 +2585,7 @@ elif level == "Revista":
                 st.markdown("### Periodo Completo")
                 period_data = journal_period_data.iloc[0]
                 
-                col1, col2, col3, col4, col5 = st.columns(5)
+                col1, col2, col3, col4, col5, col6 = st.columns(6)
                 with col1:
                     premium_metric("Documentos", f"{period_data.get('num_documents', 0):,}")
                 with col2:
@@ -2587,6 +2596,8 @@ elif level == "Revista":
                     premium_metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
                 with col5:
                     premium_metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
+                with col6:
+                    premium_metric("% Autoría Doméstica", f"{period_data.get('pct_authors_domestic', 0):.1f}%")
 
                 # Recent Period
                 if journal_period_recent is not None:
@@ -2798,11 +2809,13 @@ elif level == "Revista":
                     'pct_lang_it': '% Italiano'
                 }
                 
+                cols_map_j['pct_authors_domestic'] = '% Autoría Doméstica'
+                
                 desired_order_j = ['Año', 'Documentos', 'FWCI', 
                                  '% OA Total', '% OA Diamante', '% OA Gold', 
                                  '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
-                                 '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
-                                 'Percentil Prom.', '% Top 10', '% Top 1']
+                                 '% Español', '% Inglés', '% Portugué', '% Francés', '% Alemán', '% Italiano',
+                                 'Percentil Prom.', '% Top 10', '% Top 1', '% Autoría Doméstica']
                 
                 # Prepare DF (Full history, not just recent)
                 df_display_j = journal_annual_data[cols_metrics_j].copy().sort_values('year', ascending=False)
@@ -2811,6 +2824,59 @@ elif level == "Revista":
                 final_cols_j = [c for c in desired_order_j if c in df_display_j.columns]
                 
                 st.dataframe(df_display_j[final_cols_j], use_container_width=True, hide_index=True)
+
+                # --- LISTADO DETALLADO DE ARTÍCULOS ---
+                st.markdown("---")
+                st.subheader("Listado Detallado de Artículos")
+                st.caption("Consulta los artículos específicos de esta revista descargados para este análisis.")
+                
+                # Normalize ID for filename
+                jid_safe = journal_data['id'].split('/')[-1]
+                parts_file = os.path.join(BASE_PATH, 'data', 'works_parts', f"{jid_safe}.parquet")
+                
+                if os.path.exists(parts_file):
+                    try:
+                        df_parts = pd.read_parquet(parts_file)
+                        
+                        if not df_parts.empty:
+                            # year Filter
+                            years = sorted(df_parts['publication_year'].unique().tolist(), reverse=True)
+                            selected_years_j = st.multiselect("Filtrar por Año:", options=years, default=years[:2] if len(years) > 2 else years)
+                            
+                            df_table = df_parts[df_parts['publication_year'].isin(selected_years_j)].copy()
+                            
+                            if not df_table.empty:
+                                # Formatting
+                                df_table = df_table.sort_values(['publication_year', 'cited_by_count'], ascending=[False, False])
+                                
+                                # Visual indicators
+                                df_table['Autoría Doméstica'] = df_table['is_domestic_author'].apply(lambda x: "🏠" if x else "🌍")
+                                
+                                # Rename cols
+                                cols_art = {
+                                    'title': 'Título',
+                                    'publication_year': 'Año',
+                                    'doi': 'DOI',
+                                    'type': 'Tipo',
+                                    'cited_by_count': 'Citas',
+                                    'fwci': 'FWCI'
+                                }
+                                df_art_disp = df_table.rename(columns=cols_art)
+                                # Make DOI clickable if not None
+                                if 'DOI' in df_art_disp.columns:
+                                    df_art_disp['DOI'] = df_art_disp['DOI'].apply(lambda x: f"https://doi.org/{x}" if x and x != "None" else "-")
+                                
+                                final_art_cols = ['Título', 'Año', 'Autoría Doméstica', 'DOI', 'Tipo', 'Citas', 'FWCI']
+                                st.dataframe(df_art_disp[[c for c in final_art_cols if c in df_art_disp.columns]], 
+                                            use_container_width=True, hide_index=True)
+                            else:
+                                st.info("Selecciona al menos un año para visualizar los artículos.")
+                        else:
+                            st.info("No hay artículos registrados para esta revista en el almacenamiento local.")
+                    except Exception as e:
+                        st.warning(f"No se pudo cargar el listado de artículos: {e}")
+                else:
+                    st.info("ℹ️ Para ver el listado detallado de artículos, ejecuta el paso de extracción en el pipeline.")
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
@@ -2818,7 +2884,7 @@ elif level == "Revista":
     st.markdown("---")
     st.subheader("Trayectoria de Desempeño (Perfil Multidimensional)")
     st.markdown("""
-    Esta visualización proyecta **7 indicadores** (Documentos, FWCI, Percentil Promedio, Top 1%, Top 10%, % Inglés, OA Diamante) 
+    Esta visualización proyecta **6 indicadores** (FWCI, Percentil Promedio, Top 1%, Top 10%, % Inglés, OA Diamante) 
     en un plano 2D para observar la evolución del desempeño a lo largo del tiempo.
     """)
 
@@ -2983,7 +3049,8 @@ elif level == "Revista":
                         'Percentil': 'percentile',
                         'Citas': 'cited_by_count',
                         'Top 1%': 'is_top_1',
-                        'Top 10%': 'is_top_10'
+                        'Top 10%': 'is_top_10',
+                        'Autoría Doméstica': 'is_domestic_author'
                     }
                     
                     # Filter to only available columns

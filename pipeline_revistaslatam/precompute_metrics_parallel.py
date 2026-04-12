@@ -92,12 +92,19 @@ def calculate_performance_metrics_from_df(works_df):
             'pct_oa_closed': 0.0
         }
     
+    # % Articles with at least one author from the same country as the journal
+    if 'is_domestic_author' in works_df.columns:
+        pct_domestic = (works_df['is_domestic_author'].fillna(False).astype(bool).sum() / num_documents) * 100
+    else:
+        pct_domestic = 0.0
+
     metrics = {
         'num_documents': num_documents,
         'fwci_avg': round(fwci_avg, 2) if pd.notna(fwci_avg) else 0.0,
         'pct_top_10': round(pct_top_10, 2),
         'pct_top_1': round(pct_top_1, 2),
-        'avg_percentile': round(avg_percentile, 2) if pd.notna(avg_percentile) else 0.0
+        'avg_percentile': round(avg_percentile, 2) if pd.notna(avg_percentile) else 0.0,
+        'pct_authors_domestic': round(pct_domestic, 2)
     }
     
     metrics.update({k: round(v, 2) for k, v in oa_types.items()})
@@ -136,29 +143,27 @@ def process_country_parallel(args):
     
     annual_metrics_df = pd.DataFrame(annual_data)
     
-    # Period metrics
+    # Period metrics (Total)
     period_works = country_works[
         (country_works['publication_year'] >= start_year) & 
         (country_works['publication_year'] <= end_year)
     ]
     period_metrics = calculate_performance_metrics_from_df(period_works)
-    
-    # Language metrics for English (if language column exists)
-    if 'language' in country_works.columns:
-        total_p = len(period_works)
-        if total_p > 0:
-            pct_en = (period_works['language'].str.lower().str.startswith('en', na=False).sum() / total_p) * 100
-            period_metrics['pct_lang_en'] = round(pct_en, 2)
-        else:
-            period_metrics['pct_lang_en'] = 0.0
-    else:
-        period_metrics['pct_lang_en'] = 0.0
-    
     period_metrics.update(journal_metrics)
     period_metrics['country_code'] = country_code
     period_metrics['period'] = f'{start_year}-{end_year}'
     
-    return country_code, annual_metrics_df, period_metrics
+    # Period metrics (Recent: 2021-2025)
+    period_recent_works = country_works[
+        (country_works['publication_year'] >= 2021) & 
+        (country_works['publication_year'] <= 2025)
+    ]
+    period_recent_metrics = calculate_performance_metrics_from_df(period_recent_works)
+    period_recent_metrics.update(journal_metrics)
+    period_recent_metrics['country_code'] = country_code
+    period_recent_metrics['period'] = '2021-2025'
+    
+    return country_code, annual_metrics_df, period_metrics, period_recent_metrics
 
 def process_journal_parallel(args):
     """Worker function to process a single journal."""
@@ -197,30 +202,27 @@ def process_journal_parallel(args):
     
     annual_metrics_df = pd.DataFrame(annual_data)
     
-    # Period metrics
+    # Period metrics (Total)
     period_works = journal_works[
         (journal_works['publication_year'] >= start_year) & 
         (journal_works['publication_year'] <= end_year)
     ]
     period_metrics = calculate_performance_metrics_from_df(period_works)
-    
-    # English language metric (individual journal)
-    if 'language' in journal_works.columns:
-        total_p = len(period_works)
-        if total_p > 0:
-            pct_en = (period_works['language'].str.lower().str.startswith('en', na=False).sum() / total_p) * 100
-            period_metrics['pct_lang_en'] = round(pct_en, 2)
-        else:
-            period_metrics['pct_lang_en'] = 0.0
-    else:
-        period_metrics['pct_lang_en'] = 0.0
-        
     period_metrics['journal_id'] = journal_id
     period_metrics['period'] = f'{start_year}-{end_year}'
-    # Add indexing info to period metrics
     period_metrics.update(journal_indexing)
     
-    return annual_metrics_df, period_metrics
+    # Period metrics (Recent: 2021-2025)
+    period_recent_works = journal_works[
+        (journal_works['publication_year'] >= 2021) & 
+        (journal_works['publication_year'] <= 2025)
+    ]
+    period_recent_metrics = calculate_performance_metrics_from_df(period_recent_works)
+    period_recent_metrics['journal_id'] = journal_id
+    period_recent_metrics['period'] = '2021-2025'
+    period_recent_metrics.update(journal_indexing)
+    
+    return annual_metrics_df, period_metrics, period_recent_metrics
 
 def main():
     data_dir = Path(__file__).parent.parent / 'data'
@@ -292,12 +294,19 @@ def main():
     latam_annual = pd.DataFrame(latam_annual_data)
     latam_annual.to_parquet(cache_dir / 'metrics_latam_annual.parquet', index=False)
     
-    # Period
+    # Period (Total)
     period_works = works_df[(works_df['publication_year'] >= start_year) & (works_df['publication_year'] <= end_year)]
     latam_period = calculate_performance_metrics_from_df(period_works)
     latam_period.update(journal_metrics)
     latam_period['period'] = f'{start_year}-{end_year}'
     pd.DataFrame([latam_period]).to_parquet(cache_dir / 'metrics_latam_period.parquet', index=False)
+
+    # Period (Recent: 2021-2025)
+    recent_works = works_df[(works_df['publication_year'] >= 2021) & (works_df['publication_year'] <= 2025)]
+    latam_recent = calculate_performance_metrics_from_df(recent_works)
+    latam_recent.update(journal_metrics)
+    latam_recent['period'] = '2021-2025'
+    pd.DataFrame([latam_recent]).to_parquet(cache_dir / 'metrics_latam_period_2021_2025.parquet', index=False)
     
     latam_time = time.time() - latam_start
     print(f"  ✓ LATAM metrics completed in {latam_time:.1f}s")
@@ -326,12 +335,15 @@ def main():
     # Collect results
     country_annual_list = []
     country_period_list = []
+    country_recent_list = []
     
-    for country_code, annual, period in results:
+    for country_code, annual, period, period_recent in results:
         if annual is not None:
             country_annual_list.append(annual)
         if period is not None:
             country_period_list.append(period)
+        if period_recent is not None:
+            country_recent_list.append(period_recent)
     
     # Save
     if country_annual_list:
@@ -342,7 +354,12 @@ def main():
     if country_period_list:
         country_period_df = pd.DataFrame(country_period_list)
         country_period_df.to_parquet(cache_dir / 'metrics_country_period.parquet', index=False)
-        print(f"  ✓ Saved country period metrics: {len(country_period_df)} countries")
+        print(f"  ✓ Saved country total period metrics: {len(country_period_df)} countries")
+
+    if country_recent_list:
+        country_recent_df = pd.DataFrame(country_recent_list)
+        country_recent_df.to_parquet(cache_dir / 'metrics_country_period_2021_2025.parquet', index=False)
+        print(f"  ✓ Saved country recent period metrics (2021-2025): {len(country_recent_df)} countries")
     
     country_time = time.time() - country_start
     print(f"  ✓ Country metrics completed in {country_time:.1f}s")
@@ -370,12 +387,15 @@ def main():
     # Collect results
     journal_annual_list = []
     journal_period_list = []
+    journal_recent_list = []
     
-    for annual, period in results:
+    for annual, period, period_recent in results:
         if annual is not None and len(annual) > 0:
             journal_annual_list.append(annual)
         if period is not None:
             journal_period_list.append(period)
+        if period_recent is not None:
+            journal_recent_list.append(period_recent)
     
     # Save
     if journal_annual_list:
@@ -386,7 +406,12 @@ def main():
     if journal_period_list:
         journal_period_df = pd.DataFrame(journal_period_list)
         journal_period_df.to_parquet(cache_dir / 'metrics_journal_period.parquet', index=False)
-        print(f"  ✓ Saved journal period metrics: {len(journal_period_df)} journals")
+        print(f"  ✓ Saved journal total period metrics: {len(journal_period_df)} journals")
+
+    if journal_recent_list:
+        journal_recent_df = pd.DataFrame(journal_recent_list)
+        journal_recent_df.to_parquet(cache_dir / 'metrics_journal_period_2021_2025.parquet', index=False)
+        print(f"  ✓ Saved journal recent period metrics (2021-2025): {len(journal_recent_df)} journals")
     
     journal_time = time.time() - journal_start
     print(f"  ✓ Journal metrics completed in {journal_time:.1f}s")

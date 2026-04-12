@@ -45,10 +45,8 @@ if not traj_file.exists():
 df_traj = pd.read_parquet(traj_file)
 print(f"Loaded {len(df_traj)} trajectory points (Entities x Years)")
 
-# Identificamos los features que se utilizaron para UMAP en process_trajectories.py
-# y los reutilizamos para que el SOM represente la misma dimensionalidad.
+# Identificamos los features (Pure Performance Indicators)
 feature_cols = [
-    'num_documents', 
     'fwci_avg', 
     'avg_percentile',
     'pct_top_1', 

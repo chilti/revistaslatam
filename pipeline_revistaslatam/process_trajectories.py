@@ -24,14 +24,14 @@ logger = logging.getLogger(__name__)
 # Constants
 CACHE_DIR = Path(__file__).parent.parent / 'data' / 'cache'
 
-# Metrics used for UMAP projection
+# Metrics used for UMAP projection (Pure Performance Indicators)
 METRICS_COLS_COUNTRY = [
-    'num_documents', 'fwci_avg', 'avg_percentile',
-    'pct_top_1', 'pct_top_10', 'pct_lang_en'
+    'fwci_avg', 'avg_percentile', 'pct_top_1', 
+    'pct_top_10', 'pct_lang_en', 'pct_oa_diamond'
 ]
 METRICS_COLS_JOURNAL = [
-    'num_documents', 'fwci_avg', 'avg_percentile',
-    'pct_top_1', 'pct_top_10', 'pct_lang_en', 'pct_oa_diamond'
+    'fwci_avg', 'avg_percentile', 'pct_top_1', 
+    'pct_top_10', 'pct_lang_en', 'pct_oa_diamond'
 ]
 # Union of all UMAP metrics (for smoothing)
 ALL_METRICS_COLS = list(dict.fromkeys(METRICS_COLS_COUNTRY + METRICS_COLS_JOURNAL))

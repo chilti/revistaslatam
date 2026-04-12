@@ -40,7 +40,6 @@ else:
     
     # Select features for UMAP
     feature_cols = [
-        'num_journals',       # Revistas (Cambiado de Documentos)
         'pct_oa_diamond',     # OA Diamante
         'fwci_avg',           # FWCI Promedio
         'pct_top_10',         # % Top 10%
@@ -128,12 +127,11 @@ else:
     
     # Select features for UMAP (same as countries for consistency)
     feature_cols = [
-        'num_documents',      # Documentos
         'pct_oa_diamond',     # OA Diamante
         'fwci_avg',           # FWCI Promedio
         'pct_top_10',         # % Top 10%
         'pct_top_1',          # % Top 1%
-        'avg_percentile',     # Percentil Promedio (corregido)
+        'avg_percentile',     # Percentil Promedio
         'pct_lang_en'         # % Inglés
     ]
     
