@@ -23,24 +23,29 @@ def debug_query():
             print(f"\n--- CHECKING WORKS FOR ID: {sample_id} ---")
             
             # Check format in works_primary_location
-            query_wpl = "SELECT source_id, COUNT(*) as count FROM openalex.works_primary_location WHERE source_id IS NOT NULL GROUP BY source_id LIMIT 5;"
-            df_wpl = pd.read_sql_query(query_wpl, conn)
-            print("\nSample source_ids in works_primary_location:")
+            query_wpl = "SELECT work_id, source_id FROM openalex.works_primary_location WHERE source_id = %s LIMIT 3;"
+            df_wpl = pd.read_sql_query(query_wpl, conn, params=(sample_id,))
+            print("\nIDs in works_primary_location for this source:")
             print(df_wpl)
             
-            # Direct count for the sample ID
-            query_count = "SELECT COUNT(*) FROM openalex.works_primary_location WHERE source_id = %s;"
-            with conn.cursor() as cur:
-                cur.execute(query_count, (sample_id,))
-                count = cur.fetchone()[0]
-                print(f"\nWorks count for {sample_id}: {count}")
+            if not df_wpl.empty:
+                sample_work_id = df_wpl.iloc[0]['work_id']
+                print(f"\n--- CHECKING FORMAT IN works TABLE FOR: {sample_work_id} ---")
                 
-            # Try with short ID just in case
-            short_id = sample_id.split('/')[-1]
-            if short_id != sample_id:
-                cur.execute(query_count, (short_id,))
-                count_short = cur.fetchone()[0]
-                print(f"Works count for short ID {short_id}: {count_short}")
+                query_w = "SELECT id, title FROM openalex.works WHERE id = %s LIMIT 1;"
+                df_w = pd.read_sql_query(query_w, conn, params=(sample_work_id,))
+                print("\nMatch in works table:")
+                print(df_w)
+                
+                if df_w.empty:
+                    short_work_id = sample_work_id.split('/')[-1]
+                    print(f"No match with long ID. Trying short ID: {short_work_id}")
+                    query_w_short = "SELECT id, title FROM openalex.works WHERE id = %s LIMIT 1;"
+                    df_w_short = pd.read_sql_query(query_w_short, conn, params=(short_work_id,))
+                    print("Match with short ID:")
+                    print(df_w_short)
+                else:
+                    print("Found match with long ID in works table.")
 
         conn.close()
     except Exception as e:
