@@ -46,147 +46,115 @@ def get_ch_client():
         raise
 
 def fetch_journals_clickhouse(client):
-    """Extrae metadatos de revistas LATAM desde ClickHouse."""
-    print("🚀 Extrayendo revistas latinoamericanas desde ClickHouse...")
+    """
+    Extrae metadatos de revistas LATAM desde ClickHouse.
+    OPTIMIZADO: Usa columnas materializadas.
+    """
+    print("🚀 Extrayendo revistas latinoamericanas (Optimizado)...")
     
+    # Usamos las columnas físicas materializadas recientemente
     query = """
     SELECT 
         id,
-        JSONExtractString(raw_data, 'issn_l') as issn_l,
+        issn_l,
         JSONExtractArrayRaw(raw_data, 'issn') as issn_array,
-        JSONExtractString(raw_data, 'display_name') as display_name,
+        display_name,
         JSONExtractString(raw_data, 'publisher') as publisher,
-        JSONExtractInt(raw_data, 'works_count') as works_count,
-        JSONExtractInt(raw_data, 'cited_by_count') as cited_by_count,
+        works_count,
+        cited_by_count,
         JSONExtractBool(raw_data, 'is_oa') as is_oa,
         JSONExtractBool(raw_data, 'is_in_doaj') as is_in_doaj,
         JSONExtractString(raw_data, 'homepage_url') as homepage_url,
         JSONExtractString(raw_data, 'works_api_url') as works_api_url,
-        JSONExtractString(raw_data, 'updated_date') as updated_date,
-        country_code as country_code_index,
-        JSONExtractString(raw_data, 'country_code') as country_code_json,
+        updated_date,
+        country_code,
         JSONExtractInt(raw_data, 'summary_stats', 'h_index') as h_index,
         JSONExtractInt(raw_data, 'summary_stats', 'i10_index') as i10_index,
         JSONExtractFloat(raw_data, 'summary_stats', '2yr_mean_citedness') as citedness_2yr,
-        -- Campos técnicos que suelen faltar en Postgres
         JSONExtractBool(raw_data, 'is_in_scielo') as is_in_scielo,
         JSONExtractBool(raw_data, 'is_ojs') as is_ojs,
         JSONExtractBool(raw_data, 'is_core') as is_core
     FROM sources
     WHERE country_code IN {countries}
-      AND JSONExtractString(raw_data, 'type') = 'journal'
+      AND type = 'journal'
+      AND works_count > 0
     ORDER BY works_count DESC
     """.format(countries=tuple(LATAM_COUNTRIES))
     
     df = client.query_df(query)
     
-    # --- DOBLE CHEQUEO DE PAÍS EN PYTHON ---
-    # Consolidar country_code y filtrar
-    def get_final_country(row):
-        # Preferimos el del JSON si existe, si no el del índice
-        c = row['country_code_json'] if row['country_code_json'] else row['country_code_index']
-        return c
-
-    df['country_code'] = df.apply(get_final_country, axis=1)
-    
-    # Filtrar solo si está en la lista LATAM Y tiene al menos un trabajo
-    # Este doble filtro reduce el ruido de los 22k journals
-    initial_count = len(df)
-    df = df[
-        (df['country_code'].isin(LATAM_COUNTRIES)) & 
-        (df['works_count'] > 0)
-    ].copy()
-    
-    filtered_count = len(df)
-    print(f"🔍 Doble chequeo completado: {initial_count} -> {filtered_count} revistas (filtrando vacías y verificando país).")
-    
-    # Eliminar columnas temporales
-    df = df.drop(columns=['country_code_index', 'country_code_json'])
-    
-    # Procesar ISSN (Asegurar que manejamos tanto listas como strings JSON)
-    def clean_json_list(val):
+    # Procesar ISSN (ClickHouse devuelve lista o string JSON)
+    def clean_issn(val):
         if not val: return ""
         if isinstance(val, list): return ",".join(val)
-        try:
-            return ",".join(json.loads(val))
-        except:
-            return str(val)
+        try: return ",".join(json.loads(val))
+        except: return str(val)
 
-    df['issn'] = df['issn_array'].apply(clean_json_list)
+    df['issn'] = df['issn_array'].apply(clean_issn)
     df = df.drop(columns=['issn_array'])
     
     # Metadatos de descarga
     df['download_date'] = datetime.now().isoformat()
     
-    print(f"✅ Encontradas {len(df)} revistas LATAM.")
+    print(f"✅ Encontradas {len(df)} revistas LATAM activas.")
     return df
 
-def fetch_works_batch(client, journal_ids, batch_num):
-    """Extrae trabajos de un lote de revistas."""
+def fetch_works_batch(client, journal_id_to_country, batch_num):
+    """
+    Extrae trabajos de un lote de revistas.
+    OPTIMIZADO: Usa cálculo nativo de domesticidad y columnas físicas.
+    """
+    journal_ids = list(journal_id_to_country.keys())
     print(f"📦 Procesando lote {batch_num} ({len(journal_ids)} revistas)...")
     
-    # Query optimizada con Autoría Doméstica nativa
-    # Nota: Usamos una subquery o JOIN para obtener el país de la revista
-    # pero aquí es más fácil pasar los IDs y comparar contra el país del autor
-    # dado que ya conocemos el país de cada revista en el DataFrame principal.
+    # Construir un CASE statement para la domesticidad según el país de cada revista del lote
+    # Esto es mucho más rápido que hacerlo en el loop de Python
+    domestic_cases = []
+    for jid, country in journal_id_to_country.items():
+        # Lógica: Si el jid coincide, ver si algún ROR de la institución del autor es de ese país
+        # O usar institution_ids cruzados con la tabla institutions
+        case_line = f"""
+        WHEN source_id = '{jid}' THEN arrayExists(
+            inst_id -> inst_id IN (SELECT id FROM institutions WHERE country_code = '{country}'), 
+            institution_ids
+        )
+        """
+        domestic_cases.append(case_line)
     
     query = """
     SELECT 
-        w.id as id,
-        JSONExtractString(raw_data, 'doi') as doi,
-        JSONExtractString(raw_data, 'title') as title,
-        JSONExtractInt(raw_data, 'publication_year') as publication_year,
+        id,
+        doi,
+        title,
+        publication_year,
         JSONExtractString(raw_data, 'publication_date') as publication_date,
-        JSONExtractString(raw_data, 'type') as type,
-        JSONExtractInt(raw_data, 'cited_by_count') as cited_by_count,
+        type,
+        cited_by_count,
         JSONExtractBool(raw_data, 'is_retracted') as is_retracted,
         JSONExtractBool(raw_data, 'is_paratext') as is_paratext,
         JSONExtractString(raw_data, 'language') as language,
         JSONExtractFloat(raw_data, 'fwci') as fwci,
         JSONExtractFloat(raw_data, 'citation_normalized_percentile') as percentile,
-        JSONExtractString(raw_data, 'primary_location', 'source', 'id') as journal_id,
+        source_id as journal_id,
         JSONExtractString(raw_data, 'open_access', 'oa_status') as oa_status,
-        -- Lista de países de los autores (para cálculo de domesticidad en Python o aquí)
-        JSONExtractArrayRaw(raw_data, 'authorships') as authors_raw
-    FROM works w
-    WHERE journal_id IN {jids}
-    """.format(jids=tuple(journal_ids))
+        -- Cálculo NATIVO de domesticidad
+        CASE 
+            {cases}
+            ELSE False
+        END as is_domestic_author
+    FROM works
+    WHERE source_id IN {jids}
+    """.format(
+        cases=" ".join(domestic_cases),
+        jids=tuple(journal_ids)
+    )
     
     df = client.query_df(query)
     return df
 
-def process_domestic_authorship(df_works, df_journals):
-    """Calcula si un artículo tiene al menos un autor del país de la revista."""
-    # Crear lookup de país por revista
-    journal_countries = df_journals.set_index('id')['country_code'].to_dict()
-    
-    def check_domestic(row):
-        jid = row['journal_id']
-        target_country = journal_countries.get(jid)
-        if not target_country: return False
-        
-        try:
-            val = row['authors_raw']
-            authors = val if isinstance(val, list) else json.loads(val)
-            for auth in authors:
-                inst_country = auth.get('author_institution', {}).get('country_code')
-                if inst_country == target_country:
-                    return True
-        except:
-            pass
-        return False
-
-    df_works['is_domestic_author'] = df_works.apply(check_domestic, axis=1)
-    
-    # Limpiar columnas temporales
-    if 'authors_raw' in df_works.columns:
-        df_works = df_works.drop(columns=['authors_raw'])
-    
-    return df_works
-
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Extractor de OpenAlex desde ClickHouse (Sustituto Postgres)')
+    parser = argparse.ArgumentParser(description='Extractor ClickHouse Optimizado (V2 Materializado)')
     parser.add_argument('--force', action='store_true', help='Forzar descarga de todos los artículos')
     args = parser.parse_args()
 
@@ -195,7 +163,7 @@ def main():
     
     client = get_ch_client()
     
-    # 1. Journals
+    # 1. Journals (Usa columnas físicas)
     journals_df = fetch_journals_clickhouse(client)
     journals_df.to_parquet(JOURNALS_FILE, index=False)
     
@@ -210,42 +178,40 @@ def main():
     journals_to_process = journals_df[~journals_df['id'].isin(downloaded_ids)]
     
     if len(journals_to_process) == 0:
-        print("✅ Todos los artículos están descargados. Usa --force para re-descargar.")
+        print("✅ Todos los artículos están descargados.")
         return
 
-    print(f"📂 Procesando {len(journals_to_process)} revistas faltantes...")
+    print(f"📂 Procesando {len(journals_to_process)} revistas...")
     
-    # Procesar por lotes de revistas para mayor estabilidad
-    batch_size = 50
-    journal_list = journals_to_process['id'].tolist()
+    # Procesar por lotes
+    batch_size = 30 # Reducido ligeramente por la complejidad del CASE statement
+    journal_list = journals_to_process[['id', 'country_code']].to_dict('records')
     
     for i in range(0, len(journal_list), batch_size):
-        batch_ids = journal_list[i:i+batch_size]
+        batch_items = journal_list[i:i+batch_size]
+        batch_map = {item['id']: item['country_code'] for item in batch_items}
+        
         try:
-            works_df = fetch_works_batch(client, batch_ids, (i//batch_size)+1)
+            works_df = fetch_works_batch(client, batch_map, (i//batch_size)+1)
             
             if not works_df.empty:
-                # Calcular domesticidad
-                works_df = process_domestic_authorship(works_df, journals_df)
-                
-                # Guardar individualmente por revista (el Dashboard espera esto)
+                # Guardar individualmente por revista
                 for jid, group in works_df.groupby('journal_id'):
                     jid_short = jid.split('/')[-1]
                     out_file = PARTS_DIR / f"{jid_short}.parquet"
                     
-                    # Añadir flags de excelencia (Top 10, Top 1)
+                    # Añadir flags de excelencia
                     if 'percentile' in group.columns:
                         group['is_top_10'] = group['percentile'] >= 90.0
                         group['is_top_1'] = group['percentile'] >= 99.0
                     
                     group.to_parquet(out_file, index=False)
             
-            time.sleep(0.5) # Respirar
+            print(f"  ✓ Lote completado. Artículos procesados: {len(works_df)}")
         except Exception as e:
             print(f"❌ Error en lote {i}: {e}")
 
-    print("\n✅ EXTRACCIÓN DESDE CLICKHOUSE FINALIZADA.")
-    print(f"Recuerda correr 'python pipeline_revistaslatam/consolidate_files.py' para unir los resultados.")
+    print("\n✅ EXTRACCIÓN OPTIMIZADA FINALIZADA.")
 
 if __name__ == "__main__":
     main()

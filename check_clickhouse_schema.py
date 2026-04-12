@@ -58,10 +58,12 @@ def main():
                 formatted_group = group[['name', 'type', 'default_kind', 'default_expression']]
                 print(formatted_group.to_string(index=False))
         
-        # 3. Identificar si existe el motor de búsqueda
+        # 3. Identificar si existe el motor de búsqueda y mostrar resumen
         print("\n🚀 RESUMEN DE OPTIMIZACIÓN")
         print("-" * 50)
-        for table_name in tables['table'].unique():
+        # Obtener lista de tablas desde el DataFrame o el resultado de SHOW TABLES
+        all_tables = [row[0] for row in tables_res.result_rows]
+        for table_name in all_tables:
             table_cols = cols[cols['table'] == table_name]['name'].tolist()
             if 'raw_data' in table_cols:
                 print(f" - {table_name}: Usa 'raw_data' (JSON).")
