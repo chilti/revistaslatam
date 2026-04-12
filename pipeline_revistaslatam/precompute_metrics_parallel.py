@@ -118,7 +118,7 @@ def process_country_parallel(args):
     num_journals = len(country_journals)
     
     if len(country_works) == 0:
-        return None, None, None
+        return None, None, None, None
     
     # Journal indexing metrics
     pct_scopus = (country_journals.apply(lambda x: safe_get(x, 'is_indexed_in_scopus', default=False), axis=1).sum() / num_journals) * 100
@@ -170,7 +170,7 @@ def process_journal_parallel(args):
     journal_id, journal_works, journal_info, start_year, end_year = args
     
     if journal_info is None or len(journal_info) == 0:
-        return None, None
+        return None, None, None
     
     if isinstance(journal_info, pd.DataFrame):
         journal_info = journal_info.iloc[0]
@@ -187,7 +187,7 @@ def process_journal_parallel(args):
     }
     
     if len(journal_works) == 0:
-        return None, None
+        return None, None, None
     
     # Annual metrics
     annual_data = []

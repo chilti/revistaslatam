@@ -20,7 +20,6 @@ CACHE_DIR = BASE_PATH / 'data' / 'cache'
 
 # Features idénticos a los del paper/LATAM
 feature_cols = [
-    'num_journals',       # Volumen
     'pct_oa_diamond',     # Acceso Diamante
     'fwci_avg',           # Impacto Numérico
     'pct_top_10',         # Excelencia de Calidad

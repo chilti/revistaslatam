@@ -40,10 +40,10 @@ def _build_topic_hierarchy_query(group_col, min_year=None):
     query = f"""
     SELECT
         {grouping}
-        JSONExtractString(primary_topic, 'domain', 'display_name') as domain,
-        JSONExtractString(primary_topic, 'field', 'display_name') as field,
-        JSONExtractString(primary_topic, 'subfield', 'display_name') as subfield,
-        JSONExtractString(primary_topic, 'display_name') as topic,
+        if(JSONExtractString(primary_topic, 'domain', 'display_name') = '', 'Sin Clasificación', JSONExtractString(primary_topic, 'domain', 'display_name')) as domain,
+        if(JSONExtractString(primary_topic, 'field', 'display_name') = '', 'Sin Clasificación', JSONExtractString(primary_topic, 'field', 'display_name')) as field,
+        if(JSONExtractString(primary_topic, 'subfield', 'display_name') = '', 'Sin Clasificación', JSONExtractString(primary_topic, 'subfield', 'display_name')) as subfield,
+        if(JSONExtractString(primary_topic, 'display_name') = '', 'Sin Clasificación', JSONExtractString(primary_topic, 'display_name')) as topic,
         
         -- Metrics
         count() as count,
@@ -62,7 +62,7 @@ def _build_topic_hierarchy_query(group_col, min_year=None):
         (sum(if(JSONExtractString(raw_data, 'oa_status') = 'closed', 1, 0)) / count()) * 100 as pct_oa_closed
         
     FROM works
-    WHERE domain != '' {where_clause}
+    WHERE 1=1 {where_clause}
     GROUP BY {grouping} domain, field, subfield, topic WITH ROLLUP
     """
     return query

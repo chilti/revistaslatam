@@ -94,6 +94,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def fmt_num(val, format_str="{:.1f}", suffix=""):
+    """Formatea números manejando NaN."""
+    if pd.isna(val) or val is None:
+        return "N/D"
+    return format_str.format(val) + suffix
+
+def fmt_bool(val, label_true="Sí", label_false="No"):
+    """Formatea booleanos manejando NaN."""
+    if pd.isna(val) or val is None:
+        return "⚠️ N/D"
+    return label_true if val else label_false
+
 def premium_metric(label, value, delta=None):
     delta_html = ""
     if delta:
@@ -188,14 +200,17 @@ if level == "1. Mundo (Macro)":
         
         total_docs = df_latest['num_documents'].sum() if not df_latest.empty else 0
         total_journals = df_latest['num_journals'].sum() if not df_latest.empty else 0
-        total_diamond = (df_latest['num_documents'] * (df_latest['pct_oa_diamond']/100)).sum() if not df_latest.empty else 0
+        total_diamond = (df_latest['num_documents'] * (df_latest['pct_oa_diamond'].fillna(0)/100)).sum() if not df_latest.empty else 0
+        
+        # Promedio global de autoría doméstica (si existe)
+        avg_domestic = df_latest['pct_authors_domestic'].mean() if 'pct_authors_domestic' in df_latest.columns else np.nan
         
         with col1:
             premium_metric("Producción Mundial", f"{int(total_docs):,}", "+4.2% vs prev")
         with col2:
             premium_metric("Revistas Globales", f"{int(total_journals):,}", "+156 nuevas")
         with col3:
-            premium_metric("Acceso Diamante", f"{int(total_diamond):,}", "Estimado")
+            premium_metric("% Autoría Doméstica", fmt_num(avg_domestic, suffix="%"), "Perfil de Localidad")
         st.markdown('</div>', unsafe_allow_html=True)
         
         st.markdown("---")
@@ -294,6 +309,7 @@ if level == "1. Mundo (Macro)":
             'year': 'Año',
             'num_documents': 'Documentos',
             'fwci_avg': 'FWCI',
+            'pct_authors_domestic': '% Aut. Dom.',
             'pct_oa_diamond': '% OA Diam.',
             'pct_oa_gold': '% OA Gold',
             'pct_oa_green': '% OA Verde',
@@ -303,9 +319,6 @@ if level == "1. Mundo (Macro)":
             'pct_lang_es': '% Es',
             'pct_lang_en': '% En',
             'pct_lang_pt': '% Pt',
-            'pct_lang_fr': '% Fr',
-            'pct_lang_de': '% De',
-            'pct_lang_it': '% It',
             'avg_percentile': 'Perc.',
             'pct_top_10': '% T10',
             'pct_top_1': '% T1'
@@ -592,12 +605,11 @@ elif level == "2. Exploración por Región":
                 country_table_cols = {
                     'country_code': 'País',
                     'num_documents': 'Docs',
-                    'num_journals': 'Rev (Prom)',
+                    'num_journals': 'Rev (P)',
                     'fwci_avg': 'FWCI',
+                    'pct_authors_domestic': '% Aut. Dom.',
                     'pct_oa_diamond': '% Diam',
                     'pct_oa_gold': '% Gold',
-                    'pct_lang_es': '% Es',
-                    'pct_lang_en': '% En',
                     'avg_percentile': 'Perc',
                     'pct_top_10': '% T10',
                     'pct_top_1': '% T1'
@@ -1189,7 +1201,9 @@ elif level == "4. Buscador de Revista":
                 with mcol2:
                     premium_metric("Total Citas", f"{df_j_history['total_citations'].sum():,}")
                 with mcol3:
-                    premium_metric("Citas/Doc (2yr)", f"{journal_info.get('citedness_2yr', 0):.2f}")
+                    # Autoría Doméstica en Revista
+                    val_dom = latest_j.get('pct_authors_domestic', np.nan)
+                    premium_metric("% Autoría Doméstica", fmt_num(val_dom, suffix="%"))
                 with mcol4:
                     premium_metric("H-Index", f"{journal_info.get('h_index', 0)}")
                 with mcol5:
@@ -1200,23 +1214,34 @@ elif level == "4. Buscador de Revista":
                 st.markdown('<div class="metric-container">', unsafe_allow_html=True)
                 ecol1, ecol2, ecol3, ecol4 = st.columns(4)
                 with ecol1:
-                    premium_metric("% Top 10%", f"{latest_j['pct_top_10']:.1f}%")
+                    premium_metric("% Top 10%", fmt_num(latest_j['pct_top_10'], suffix="%"))
                 with ecol2:
-                    premium_metric("% Top 1%", f"{latest_j['pct_top_1']:.1f}%")
+                    premium_metric("% Top 1%", fmt_num(latest_j['pct_top_1'], suffix="%"))
                 with ecol3:
-                    premium_metric("Percentil Prom.", f"{latest_j['avg_percentile']:.1f}")
+                    premium_metric("Percentil Prom.", fmt_num(latest_j['avg_percentile']))
                 with ecol4:
-                    premium_metric("FWCI Prom.", f"{latest_j['fwci_avg']:.2f}")
+                    premium_metric("FWCI Prom.", fmt_num(latest_j['fwci_avg'], format_str="{:.2f}"))
                 st.markdown('</div>', unsafe_allow_html=True)
 
                 # --- INDEXACIÓN ---
-                st.write("🔍 **Indexación y Propiedades**")
+                st.write("🔍 **Indexación y Propiedades Técnicas**")
                 idx1, idx2, idx3, idx4, idx5 = st.columns(5)
-                idx1.checkbox("En DOAJ", value=bool(journal_info.get('is_in_doaj', False)), disabled=True)
-                idx2.checkbox("En Scopus", value=bool(journal_info.get('in_scopus', 0)), disabled=True)
-                idx3.checkbox("En SciELO", value=bool(journal_info.get('in_scielo', 0)), disabled=True)
-                idx4.checkbox("En CORE", value=bool(journal_info.get('in_core', 0)), disabled=True)
-                idx5.checkbox("Usa OJS", value="OJS" in str(journal_info.get('display_name', '')), disabled=True)
+                
+                def idx_box(col, label, val):
+                    color = "rgba(16, 185, 129, 0.1)" if val is True else "rgba(100, 116, 139, 0.05)"
+                    txt = fmt_bool(val)
+                    col.markdown(f"""
+                    <div style="background: {color}; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid rgba(0,0,0,0.05);">
+                        <div style="font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase;">{label}</div>
+                        <div style="font-size: 1rem; font-weight: 700;">{txt}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                idx_box(idx1, "En DOAJ", journal_info.get('is_in_doaj'))
+                idx_box(idx2, "Scopus", journal_info.get('in_scopus'))
+                idx_box(idx3, "SciELO", journal_info.get('in_scielo'))
+                idx_box(idx4, "CORE", journal_info.get('in_core'))
+                idx_box(idx5, "Usa OJS", journal_info.get('is_ojs'))
                 
                 # --- TABLA DE INDICADORES ANUALES (Chilti Request) ---
                 st.markdown("---")
@@ -1224,23 +1249,14 @@ elif level == "4. Buscador de Revista":
                 
                 table_cols = {
                     'year': 'Año',
-                    'num_documents': 'Documentos',
+                    'num_documents': 'Docs',
                     'fwci_avg': 'FWCI',
-                    'pct_oa_diamond': '% OA Diamante',
-                    'pct_oa_gold': '% OA Gold',
-                    'pct_oa_green': '% OA Verde',
-                    'pct_oa_hybrid': '% OA Híbrido',
-                    'pct_oa_bronze': '% OA Bronce',
-                    'pct_oa_closed': '% Cerrado',
-                    'pct_lang_es': '% Español',
-                    'pct_lang_en': '% Inglés',
-                    'pct_lang_pt': '% Portugués',
-                    'pct_lang_fr': '% Francés',
-                    'pct_lang_de': '% Alemán',
-                    'pct_lang_it': '% Italiano',
-                    'avg_percentile': 'Percentil Prom.',
-                    'pct_top_10': '% Top 10',
-                    'pct_top_1': '% Top 1'
+                    'pct_authors_domestic': '% Aut. Dom.',
+                    'pct_oa_diamond': '% OA Diam.',
+                    'pct_oa_gold': '% Gold',
+                    'avg_percentile': 'Perc.',
+                    'pct_top_10': '% T10',
+                    'pct_top_1': '% T1'
                 }
                 
                 # Filtrar columnas existentes y renombrar

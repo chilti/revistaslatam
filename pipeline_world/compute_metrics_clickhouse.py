@@ -64,44 +64,59 @@ def _build_journal_analytics_query(country_list: list):
     
     return f"""
     SELECT 
-        JSONExtractString(raw_data, 'primary_location', 'source', 'id') AS journal_id,
-        toUInt16(JSONExtractInt(raw_data, 'publication_year')) AS year,
+        w.journal_id AS journal_id,
+        w.year AS year,
         
         -- Volumetría e Impacto Básico
         count() AS num_documents,
-        sum(toUInt32OrZero(JSONExtractString(raw_data, 'cited_by_count'))) AS total_citations,
-        avg(toFloat32OrZero(JSONExtractString(raw_data, 'fwci'))) AS fwci_avg,
+        sum(toUInt32OrZero(JSONExtractString(w.raw_data, 'cited_by_count'))) AS total_citations,
+        avg(toFloat32OrZero(JSONExtractString(w.raw_data, 'fwci'))) AS fwci_avg,
         
-        -- Impacto 2yr (Aproximación por CITAS en trabajos de ese año)
-        -- Nota: En OpenAlex el '2yr_mean_citedness' suele venir en el objeto Source, 
-        -- pero aquí lo calculamos como citas_acumuladas/docs_acumulados si fuera necesario.
-        -- Por ahora extraemos el valor reportado si existe en el works (Metadata enriquecida)
-        avg(toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile', 'value'))) AS avg_percentile,
+        -- Impacto Percentil
+        avg(toFloat32OrZero(JSONExtractString(w.raw_data, 'citation_normalized_percentile', 'value'))) AS avg_percentile,
         
-        -- Top 10 y Top 1 (OpenAlex usa escala 0-1 para percentiles)
-        sum(if(toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile', 'value')) >= 0.90, 1, 0)) AS top_10_count,
-        sum(if(toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile', 'value')) >= 0.99, 1, 0)) AS top_1_count,
+        -- Top 10 y Top 1
+        sum(if(toFloat32OrZero(JSONExtractString(w.raw_data, 'citation_normalized_percentile', 'value')) >= 0.90, 1, 0)) AS top_10_count,
+        sum(if(toFloat32OrZero(JSONExtractString(w.raw_data, 'citation_normalized_percentile', 'value')) >= 0.99, 1, 0)) AS top_1_count,
         
+        -- Autoría Doméstica (Cruce con el país de la revista)
+        sum(if(
+            s.country != '' AND arrayExists(
+                x -> JSONExtractString(x, 'institutions', 1, 'country_code') = s.country, 
+                JSONExtractArrayRaw(w.raw_data, 'authorships')
+            ), 1, 0)
+        ) AS domestic_count,
+
         -- Open Access Detallado
-        sum(if(JSONExtractString(raw_data, 'open_access', 'is_oa') = 'true', 1, 0)) AS oa_count,
-        sum(if(JSONExtractString(raw_data, 'open_access', 'oa_status') = 'gold', 1, 0)) AS oa_gold_count,
-        sum(if(JSONExtractString(raw_data, 'open_access', 'oa_status') = 'green', 1, 0)) AS oa_green_count,
-        sum(if(JSONExtractString(raw_data, 'open_access', 'oa_status') = 'hybrid', 1, 0)) AS oa_hybrid_count,
-        sum(if(JSONExtractString(raw_data, 'open_access', 'oa_status') = 'bronze', 1, 0)) AS oa_bronze_count,
-        sum(if(JSONExtractString(raw_data, 'open_access', 'oa_status') = 'closed', 1, 0)) AS oa_closed_count,
-        sum(if(JSONExtractString(raw_data, 'open_access', 'oa_status') = 'diamond', 1, 0)) AS oa_diamond_count,
+        sum(if(JSONExtractString(w.raw_data, 'open_access', 'is_oa') = 'true', 1, 0)) AS oa_count,
+        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'gold', 1, 0)) AS oa_gold_count,
+        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'green', 1, 0)) AS oa_green_count,
+        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'hybrid', 1, 0)) AS oa_hybrid_count,
+        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'bronze', 1, 0)) AS oa_bronze_count,
+        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'closed', 1, 0)) AS oa_closed_count,
+        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'diamond', 1, 0)) AS oa_diamond_count,
 
         -- Language
-        sum(if(JSONExtractString(raw_data, 'language') = 'en', 1, 0)) AS lang_en_count,
-        sum(if(JSONExtractString(raw_data, 'language') = 'es', 1, 0)) AS lang_es_count,
-        sum(if(JSONExtractString(raw_data, 'language') = 'pt', 1, 0)) AS lang_pt_count,
-        sum(if(JSONExtractString(raw_data, 'language') = 'fr', 1, 0)) AS lang_fr_count,
-        sum(if(JSONExtractString(raw_data, 'language') = 'de', 1, 0)) AS lang_de_count,
-        sum(if(JSONExtractString(raw_data, 'language') = 'it', 1, 0)) AS lang_it_count
+        sum(if(JSONExtractString(w.raw_data, 'language') = 'en', 1, 0)) AS lang_en_count,
+        sum(if(JSONExtractString(w.raw_data, 'language') = 'es', 1, 0)) AS lang_es_count,
+        sum(if(JSONExtractString(w.raw_data, 'language') = 'pt', 1, 0)) AS lang_pt_count
         
-    FROM works
-    WHERE JSONExtractString(raw_data, 'primary_location', 'source', 'id') != ''
-      AND year >= 2000
+    FROM (
+        SELECT 
+            raw_data,
+            JSONExtractString(raw_data, 'primary_location', 'source', 'id') AS journal_id,
+            toUInt16(JSONExtractInt(raw_data, 'publication_year')) AS year
+        FROM works
+        WHERE journal_id != ''
+          AND year >= 2000
+    ) w
+    LEFT JOIN (
+        SELECT 
+            id, 
+            JSONExtractString(raw_data, 'country_code') as country 
+        FROM sources
+        WHERE country != ''
+    ) s ON w.journal_id = s.id
     GROUP BY 
         journal_id, year
     ORDER BY 
@@ -136,9 +151,10 @@ def transform_counts_to_pcts(df: pd.DataFrame) -> pd.DataFrame:
     res['pct_lang_en'] = (res['lang_en_count'] / doc_count) * 100
     res['pct_lang_es'] = (res['lang_es_count'] / doc_count) * 100
     res['pct_lang_pt'] = (res['lang_pt_count'] / doc_count) * 100
-    res['pct_lang_fr'] = (res['lang_fr_count'] / doc_count) * 100
-    res['pct_lang_de'] = (res['lang_de_count'] / doc_count) * 100
-    res['pct_lang_it'] = (res['lang_it_count'] / doc_count) * 100
+    
+    # Porcentaje de Autoría Doméstica
+    if 'domestic_count' in res.columns:
+        res['pct_authors_domestic'] = (res['domestic_count'] / doc_count) * 100
     
     # Dropear counts intermedios
     cols_to_drop = [c for c in res.columns if c.endswith('_count') and c != 'num_documents']
