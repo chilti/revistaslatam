@@ -13,39 +13,42 @@ def debug_query():
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         
-        print("--- SAMPLE SOURCES ---")
-        query_sources = "SELECT id, display_name FROM openalex.sources LIMIT 5;"
-        df_sources = pd.read_sql_query(query_sources, conn)
-        print(df_sources)
+        print("--- TABLE STATS ---")
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM openalex.sources;")
+            print(f"Sources count: {cur.fetchone()[0]}")
+            cur.execute("SELECT COUNT(*) FROM openalex.works;")
+            print(f"Works count: {cur.fetchone()[0]}")
+            cur.execute("SELECT COUNT(*) FROM openalex.works_primary_location;")
+            print(f"Works_primary_location count: {cur.fetchone()[0]}")
         
-        if not df_sources.empty:
-            sample_id = df_sources.iloc[0]['id']
-            print(f"\n--- CHECKING WORKS FOR ID: {sample_id} ---")
-            
-            # Check format in works_primary_location
-            query_wpl = "SELECT work_id, source_id FROM openalex.works_primary_location WHERE source_id = %s LIMIT 3;"
-            df_wpl = pd.read_sql_query(query_wpl, conn, params=(sample_id,))
-            print("\nIDs in works_primary_location for this source:")
-            print(df_wpl)
-            
-            if not df_wpl.empty:
-                sample_work_id = df_wpl.iloc[0]['work_id']
-                print(f"\n--- CHECKING FORMAT IN works TABLE FOR: {sample_work_id} ---")
-                
-                query_w = "SELECT id, title FROM openalex.works WHERE id = %s LIMIT 1;"
-                df_w = pd.read_sql_query(query_w, conn, params=(sample_work_id,))
-                print("\nMatch in works table:")
-                print(df_w)
-                
-                if df_w.empty:
-                    short_work_id = sample_work_id.split('/')[-1]
-                    print(f"No match with long ID. Trying short ID: {short_work_id}")
-                    query_w_short = "SELECT id, title FROM openalex.works WHERE id = %s LIMIT 1;"
-                    df_w_short = pd.read_sql_query(query_w_short, conn, params=(short_work_id,))
-                    print("Match with short ID:")
-                    print(df_w_short)
-                else:
-                    print("Found match with long ID in works table.")
+        print("\n--- SAMPLE WORKS IDs ---")
+        query_works = "SELECT id, title FROM openalex.works LIMIT 10;"
+        df_works = pd.read_sql_query(query_works, conn)
+        print(df_works)
+        
+        print("\n--- TRYING CROSS-TABLE MATCH ---")
+        query_cross = """
+        SELECT wpl.work_id as wpl_id, w.id as w_id 
+        FROM openalex.works_primary_location wpl 
+        INNER JOIN openalex.works w ON w.id = wpl.work_id 
+        LIMIT 5;
+        """
+        df_cross = pd.read_sql_query(query_cross, conn)
+        print("Direct Join Result:")
+        print(df_cross)
+        
+        if df_cross.empty:
+            print("\nNo direct match found! Checking for format difference (Short vs Long)...")
+            query_format = """
+            SELECT wpl.work_id as wpl_id, w.id as w_id 
+            FROM openalex.works_primary_location wpl, openalex.works w 
+            WHERE w.id = split_part(wpl.work_id, '/', 4) 
+            LIMIT 5;
+            """
+            df_format = pd.read_sql_query(query_format, conn)
+            print("Join with Split Result (w.id = short):")
+            print(df_format)
 
         conn.close()
     except Exception as e:
