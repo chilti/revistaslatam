@@ -79,8 +79,8 @@ def fetch_journals_clickhouse(client):
     WHERE country_code IN {countries}
       AND type = 'journal'
     GROUP BY id
-    HAVING works_count > 0
-    ORDER BY works_count DESC
+    HAVING works_count_val > 0
+    ORDER BY works_count_val DESC
     """.format(countries=tuple(LATAM_COUNTRIES))
     
     df = client.query_df(query)
