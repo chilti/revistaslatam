@@ -63,7 +63,8 @@ def fetch_journals_clickhouse(client):
         JSONExtractString(raw_data, 'homepage_url') as homepage_url,
         JSONExtractString(raw_data, 'works_api_url') as works_api_url,
         JSONExtractString(raw_data, 'updated_date') as updated_date,
-        JSONExtractString(raw_data, 'country_code') as country_code,
+        country_code as country_code_index,
+        JSONExtractString(raw_data, 'country_code') as country_code_json,
         JSONExtractInt(raw_data, 'summary_stats', 'h_index') as h_index,
         JSONExtractInt(raw_data, 'summary_stats', 'i10_index') as i10_index,
         JSONExtractFloat(raw_data, 'summary_stats', '2yr_mean_citedness') as citedness_2yr,
@@ -78,6 +79,29 @@ def fetch_journals_clickhouse(client):
     """.format(countries=tuple(LATAM_COUNTRIES))
     
     df = client.query_df(query)
+    
+    # --- DOBLE CHEQUEO DE PAÍS EN PYTHON ---
+    # Consolidar country_code y filtrar
+    def get_final_country(row):
+        # Preferimos el del JSON si existe, si no el del índice
+        c = row['country_code_json'] if row['country_code_json'] else row['country_code_index']
+        return c
+
+    df['country_code'] = df.apply(get_final_country, axis=1)
+    
+    # Filtrar solo si está en la lista LATAM Y tiene al menos un trabajo
+    # Este doble filtro reduce el ruido de los 22k journals
+    initial_count = len(df)
+    df = df[
+        (df['country_code'].isin(LATAM_COUNTRIES)) & 
+        (df['works_count'] > 0)
+    ].copy()
+    
+    filtered_count = len(df)
+    print(f"🔍 Doble chequeo completado: {initial_count} -> {filtered_count} revistas (filtrando vacías y verificando país).")
+    
+    # Eliminar columnas temporales
+    df = df.drop(columns=['country_code_index', 'country_code_json'])
     
     # Procesar ISSN (Asegurar que manejamos tanto listas como strings JSON)
     def clean_json_list(val):
