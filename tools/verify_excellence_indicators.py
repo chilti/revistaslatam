@@ -53,23 +53,37 @@ def main():
     # OpenAlex fields: is_in_top_1_percent, is_in_top_10_percent
     print("Calculando indicadores de excelencia para artículos en estas revistas...")
     
-    # Query optimizada: Usamos una subconsulta para evitar el error de tamaño máximo de consulta
-    # y comparamos con percentil >= 0.90 dado que la escala parece ser 0-1
+    # Query optimizada y DEDUPLICADA:
+    # 1. Obtenemos IDs de revistas únicas (latest record)
+    # 2. Obtenemos artículos únicos (latest record)
     
     query = f"""
     SELECT 
         count() as total,
-        sum(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent')) as top_10_native,
-        sum(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent')) as top_1_native,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.90) as top_10_calc,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.99) as top_1_calc,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') > 0) as has_percentile,
-        countIf(JSONExtractFloat(raw_data, 'fwci') > 0) as has_fwci
-    FROM works
-    WHERE source_id IN (
-        SELECT id FROM sources 
-        WHERE country_code IN {tuple(latam_countries)} 
-        AND type = 'journal'
+        sum(top_10_native) as top_10_native,
+        sum(top_1_native) as top_1_native,
+        sum(top_10_calc) as top_10_calc,
+        sum(top_1_calc) as top_1_calc,
+        countIf(percentile > 0) as has_percentile,
+        countIf(fwci > 0) as has_fwci
+    FROM (
+        SELECT 
+            id,
+            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) as top_10_native,
+            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) as top_1_native,
+            argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.90, updated_date) as top_10_calc,
+            argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.99, updated_date) as top_1_calc,
+            argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value'), updated_date) as percentile,
+            argMax(JSONExtractFloat(raw_data, 'fwci'), updated_date) as fwci
+        FROM works
+        WHERE source_id IN (
+            SELECT id FROM sources 
+            WHERE country_code IN {tuple(latam_countries)} 
+            AND type = 'journal'
+            GROUP BY id
+            HAVING argMax(JSONExtractInt(raw_data, 'works_count'), updated_date) > 0
+        )
+        GROUP BY id
     )
     """
     
