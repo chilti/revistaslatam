@@ -144,18 +144,18 @@ def fetch_works_batch(client, journal_id_to_country, batch_num):
         argMax(JSONExtractString(raw_data, 'language'), updated_date) as language,
         argMax(JSONExtractFloat(raw_data, 'fwci'), updated_date) as fwci,
         argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value'), updated_date) as percentile,
-        -- FALLBACK: Algunos registros tienen la estructura vieja, otros la nueva (anidada)
+        -- FALLBACK ROBUSTO: Usamos Nullable para que coalesce funcione si la ruta no existe
         argMax(
             coalesce(
-                JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'),
-                JSONExtractBool(raw_data, 'is_in_top_10_percent')
+                JSONExtract(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent', 'Nullable(Bool)'),
+                JSONExtract(raw_data, 'is_in_top_10_percent', 'Nullable(Bool)')
             ), 
             updated_date
         ) as is_in_top_10_percent,
         argMax(
             coalesce(
-                JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'),
-                JSONExtractBool(raw_data, 'is_in_top_1_percent')
+                JSONExtract(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent', 'Nullable(Bool)'),
+                JSONExtract(raw_data, 'is_in_top_1_percent', 'Nullable(Bool)')
             ), 
             updated_date
         ) as is_in_top_1_percent,
@@ -196,14 +196,16 @@ def main():
     journals_df.to_parquet(JOURNALS_FILE, index=False)
     
     # 2. Determinar qué journals descargar
-    downloaded_ids = set()
-    if not args.force:
+    if args.force:
+        print("🔥 Modo FORCE activo: Se procesarán todas las revistas.")
+        journals_to_process = journals_df
+    else:
         print("🔍 Comprobando journals ya descargados...")
         part_files = list(PARTS_DIR.glob('*.parquet'))
+        downloaded_ids = set()
         for f in part_files:
             downloaded_ids.add(f"https://openalex.org/{f.stem}")
-            
-    journals_to_process = journals_df[~journals_df['id'].isin(downloaded_ids)]
+        journals_to_process = journals_df[~journals_df['id'].isin(downloaded_ids)]
     
     if len(journals_to_process) == 0:
         print("✅ Todos los artículos están descargados.")
