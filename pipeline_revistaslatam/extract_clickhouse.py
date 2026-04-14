@@ -143,7 +143,9 @@ def fetch_works_batch(client, journal_id_to_country, batch_num):
         argMax(JSONExtractBool(raw_data, 'is_paratext'), updated_date) as is_paratext,
         argMax(JSONExtractString(raw_data, 'language'), updated_date) as language,
         argMax(JSONExtractFloat(raw_data, 'fwci'), updated_date) as fwci,
-        argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile'), updated_date) as percentile,
+        argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value'), updated_date) as percentile,
+        argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) as is_in_top_10_percent,
+        argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) as is_in_top_1_percent,
         argMax(source_id, updated_date) as journal_id,
         argMax(JSONExtractString(raw_data, 'open_access', 'oa_status'), updated_date) as oa_status,
         -- Cálculo NATIVO de domesticidad
@@ -208,17 +210,12 @@ def main():
             works_df = fetch_works_batch(client, batch_map, (i//batch_size)+1)
             
             if not works_df.empty:
-                # Guardar individualmente por revista
-                for jid, group in works_df.groupby('journal_id'):
-                    jid_short = jid.split('/')[-1]
-                    out_file = PARTS_DIR / f"{jid_short}.parquet"
-                    
-                    # Añadir flags de excelencia
-                    if 'percentile' in group.columns:
-                        group['is_top_10'] = group['percentile'] >= 90.0
-                        group['is_top_1'] = group['percentile'] >= 99.0
-                    
-                    group.to_parquet(out_file, index=False)
+                    # Guardar individualmente por revista
+                    for jid, group in works_df.groupby('journal_id'):
+                        jid_short = jid.split('/')[-1]
+                        out_file = PARTS_DIR / f"{jid_short}.parquet"
+                        
+                        group.to_parquet(out_file, index=False)
             
             print(f"  ✓ Lote completado. Artículos procesados: {len(works_df)}")
         except Exception as e:

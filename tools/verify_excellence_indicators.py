@@ -59,11 +59,11 @@ def main():
     query = f"""
     SELECT 
         count() as total,
-        sum(JSONExtractBool(raw_data, 'is_in_top_10_percent')) as top_10_native,
-        sum(JSONExtractBool(raw_data, 'is_in_top_1_percent')) as top_1_native,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile') >= 0.90) as top_10_calc,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile') >= 0.99) as top_1_calc,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile') > 0) as has_percentile,
+        sum(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent')) as top_10_native,
+        sum(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent')) as top_1_native,
+        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.90) as top_10_calc,
+        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.99) as top_1_calc,
+        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') > 0) as has_percentile,
         countIf(JSONExtractFloat(raw_data, 'fwci') > 0) as has_fwci
     FROM works
     WHERE source_id IN (

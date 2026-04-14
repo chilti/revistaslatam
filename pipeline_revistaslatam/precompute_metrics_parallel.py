@@ -107,7 +107,10 @@ def calculate_performance_metrics_from_df(works_df):
         'pct_authors_domestic': round(pct_domestic, 2)
     }
     
-    metrics.update({k: round(v, 2) for k, v in oa_types.items()})
+    # Always ensure ALL OA types are present in metrics
+    all_oa_keys = ['pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed']
+    for k in all_oa_keys:
+        metrics[k] = round(oa_types.get(k, 0.0), 2)
     
     return metrics
 
