@@ -69,53 +69,68 @@ def _build_journal_analytics_query(country_list: list):
         
         -- Volumetría e Impacto Básico
         count() AS num_documents,
-        sum(toUInt32OrZero(JSONExtractString(w.raw_data, 'cited_by_count'))) AS total_citations,
-        avg(toFloat32OrZero(JSONExtractString(w.raw_data, 'fwci'))) AS fwci_avg,
+        sum(cited_by_count) AS total_citations,
+        avg(fwci) AS fwci_avg,
         
         -- Impacto Percentil
-        avg(toFloat32OrZero(JSONExtractString(w.raw_data, 'citation_normalized_percentile', 'value'))) AS avg_percentile,
+        avg(percentile) AS avg_percentile,
         
-        -- Top 10 y Top 1
-        sum(if(toFloat32OrZero(JSONExtractString(w.raw_data, 'citation_normalized_percentile', 'value')) >= 0.90, 1, 0)) AS top_10_count,
-        sum(if(toFloat32OrZero(JSONExtractString(w.raw_data, 'citation_normalized_percentile', 'value')) >= 0.99, 1, 0)) AS top_1_count,
+        -- Top 10 y Top 1 (NATIVOS)
+        sum(if(is_top_10, 1, 0)) AS top_10_count,
+        sum(if(is_top_1, 1, 0)) AS top_1_count,
         
         -- Autoría Doméstica (Cruce con el país de la revista)
         sum(if(
             s.country != '' AND arrayExists(
                 x -> JSONExtractString(x, 'institutions', 1, 'country_code') = s.country, 
-                JSONExtractArrayRaw(w.raw_data, 'authorships')
+                authorships
             ), 1, 0)
         ) AS domestic_count,
 
         -- Open Access Detallado
-        sum(if(JSONExtractString(w.raw_data, 'open_access', 'is_oa') = 'true', 1, 0)) AS oa_count,
-        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'gold', 1, 0)) AS oa_gold_count,
-        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'green', 1, 0)) AS oa_green_count,
-        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'hybrid', 1, 0)) AS oa_hybrid_count,
-        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'bronze', 1, 0)) AS oa_bronze_count,
-        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'closed', 1, 0)) AS oa_closed_count,
-        sum(if(JSONExtractString(w.raw_data, 'open_access', 'oa_status') = 'diamond', 1, 0)) AS oa_diamond_count,
+        sum(if(is_oa = 'true', 1, 0)) AS oa_count,
+        sum(if(oa_status = 'gold', 1, 0)) AS oa_gold_count,
+        sum(if(oa_status = 'green', 1, 0)) AS oa_green_count,
+        sum(if(oa_status = 'hybrid', 1, 0)) AS oa_hybrid_count,
+        sum(if(oa_status = 'bronze', 1, 0)) AS oa_bronze_count,
+        sum(if(oa_status = 'closed', 1, 0)) AS oa_closed_count,
+        sum(if(oa_status = 'diamond', 1, 0)) AS oa_diamond_count,
 
         -- Language
-        sum(if(JSONExtractString(w.raw_data, 'language') = 'en', 1, 0)) AS lang_en_count,
-        sum(if(JSONExtractString(w.raw_data, 'language') = 'es', 1, 0)) AS lang_es_count,
-        sum(if(JSONExtractString(w.raw_data, 'language') = 'pt', 1, 0)) AS lang_pt_count
+        sum(if(language = 'en', 1, 0)) AS lang_en_count,
+        sum(if(language = 'es', 1, 0)) AS lang_es_count,
+        sum(if(language = 'pt', 1, 0)) AS lang_pt_count,
+        sum(if(language = 'fr', 1, 0)) AS lang_fr_count,
+        sum(if(language = 'de', 1, 0)) AS lang_de_count,
+        sum(if(language = 'it', 1, 0)) AS lang_it_count
         
     FROM (
+        -- DEDUPLICACIÓN DE TRABAJOS (WORKS)
         SELECT 
-            raw_data,
-            JSONExtractString(raw_data, 'primary_location', 'source', 'id') AS journal_id,
-            toUInt16(JSONExtractInt(raw_data, 'publication_year')) AS year
+            id,
+            argMax(toUInt16(JSONExtractInt(raw_data, 'publication_year')), updated_date) AS year,
+            argMax(JSONExtractString(raw_data, 'primary_location', 'source', 'id'), updated_date) AS journal_id,
+            argMax(toUInt32OrZero(JSONExtractString(raw_data, 'cited_by_count')), updated_date) AS cited_by_count,
+            argMax(toFloat32OrZero(JSONExtractString(raw_data, 'fwci')), updated_date) AS fwci,
+            argMax(toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile', 'value')), updated_date) AS percentile,
+            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) AS is_top_10,
+            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) AS is_top_1,
+            argMax(JSONExtractString(raw_data, 'open_access', 'is_oa'), updated_date) AS is_oa,
+            argMax(JSONExtractString(raw_data, 'open_access', 'oa_status'), updated_date) AS oa_status,
+            argMax(JSONExtractString(raw_data, 'language'), updated_date) AS language,
+            argMax(JSONExtractArrayRaw(raw_data, 'authorships'), updated_date) AS authorships
         FROM works
-        WHERE journal_id != ''
-          AND year >= 2000
+        GROUP BY id
+        HAVING journal_id != '' AND year >= 2000
     ) w
     LEFT JOIN (
+        -- DEDUPLICACIÓN DE REVISTAS (SOURCES)
         SELECT 
             id, 
-            JSONExtractString(raw_data, 'country_code') as country 
+            argMax(JSONExtractString(raw_data, 'country_code'), updated_date) as country 
         FROM sources
-        WHERE country != ''
+        GROUP BY id
+        HAVING country != ''
     ) s ON w.journal_id = s.id
     GROUP BY 
         journal_id, year
@@ -151,6 +166,9 @@ def transform_counts_to_pcts(df: pd.DataFrame) -> pd.DataFrame:
     res['pct_lang_en'] = (res['lang_en_count'] / doc_count) * 100
     res['pct_lang_es'] = (res['lang_es_count'] / doc_count) * 100
     res['pct_lang_pt'] = (res['lang_pt_count'] / doc_count) * 100
+    res['pct_lang_fr'] = (res['lang_fr_count'] / doc_count) * 100
+    res['pct_lang_de'] = (res['lang_de_count'] / doc_count) * 100
+    res['pct_lang_it'] = (res['lang_it_count'] / doc_count) * 100
     
     # Porcentaje de Autoría Doméstica
     if 'domestic_count' in res.columns:

@@ -60,6 +60,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='Orquestador del Pipeline Global (ClickHouse)')
+    parser.add_argument('--skip-enrich', action='store_true', help='Omite el enriquecimiento de revistas de referencia')
     parser.add_argument('--skip-metrics', action='store_true', help='Salta el cálculo OLAP en ClickHouse (usa Parquets existentes)')
     parser.add_argument('--skip-maps', action='store_true', help='Omite el cálculo de mapas UMAP/SOM')
     
@@ -72,11 +73,22 @@ if __name__ == "__main__":
     
     total_start = time.time()
 
-    # --- FASE 1: CÁLCULO ANALÍTICO (OLAP) ---
+    # --- FASE 0: INTEGRIDAD ---
+    CACHE_DIR = BASE_DIR.parent / 'data' / 'cache'
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # --- FASE 1: ENRIQUECIMIENTO (OPCIONAL) ---
+    if not args.skip_enrich:
+        run_step(f"{PIPELINE_DIR}/enrich_journals_global.py", "Enriquecimiento de Revistas de Referencia (Nature, Science, etc.)")
+
+    # --- FASE 2: CÁLCULO ANALÍTICO (OLAP) ---
     if not args.skip_metrics:
-        # 1. Ejecutar métricas base, sunburst y evolución temática en ClickHouse
+        # 1. Ejecutar métricas base y evolución temática en ClickHouse
         if not run_step(f"{PIPELINE_DIR}/compute_metrics_clickhouse.py", "Cálculo de Métricas Globales (OLAP - ClickHouse)"):
             sys.exit(1)
+        
+        # 2. Ejecutar métricas jerárquicas temáticas (Optimizado con ROLLUP)
+        run_step(f"{PIPELINE_DIR}/compute_topics_metrics_clickhouse.py", "Cálculo Jerárquico de Tópicos (Sunburst Global)")
     else:
         print("⏭️ Omitiendo Fase de Métricas ClickHouse (usando archivos Parquet locales)")
 

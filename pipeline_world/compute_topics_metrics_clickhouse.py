@@ -40,29 +40,46 @@ def _build_topic_hierarchy_query(group_col, min_year=None):
     query = f"""
     SELECT
         {grouping}
-        if(JSONExtractString(primary_topic, 'domain', 'display_name') = '', 'Sin Clasificación', JSONExtractString(primary_topic, 'domain', 'display_name')) as domain,
-        if(JSONExtractString(primary_topic, 'field', 'display_name') = '', 'Sin Clasificación', JSONExtractString(primary_topic, 'field', 'display_name')) as field,
-        if(JSONExtractString(primary_topic, 'subfield', 'display_name') = '', 'Sin Clasificación', JSONExtractString(primary_topic, 'subfield', 'display_name')) as subfield,
-        if(JSONExtractString(primary_topic, 'display_name') = '', 'Sin Clasificación', JSONExtractString(primary_topic, 'display_name')) as topic,
+        if(domain = '', 'Sin Clasificación', domain) as domain,
+        if(field = '', 'Sin Clasificación', field) as field,
+        if(subfield = '', 'Sin Clasificación', subfield) as subfield,
+        if(topic = '', 'Sin Clasificación', topic) as topic,
         
         -- Metrics
         count() as count,
-        avg(toFloat32OrZero(JSONExtractString(raw_data, 'fwci'))) as fwci_avg,
-        avg(toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile'))) as avg_percentile,
+        avg(fwci) as fwci_avg,
+        avg(percentile) as avg_percentile,
         
-        -- High impact
-        (sum(if(JSONExtractString(raw_data, 'is_in_top_10_percent') = 'true' OR JSONExtractString(raw_data, 'is_in_top_10_percent') = '1', 1, 0)) / count()) * 100 as pct_top_10,
-        (sum(if(JSONExtractString(raw_data, 'is_in_top_1_percent') = 'true' OR JSONExtractString(raw_data, 'is_in_top_1_percent') = '1', 1, 0)) / count()) * 100 as pct_top_1,
+        -- High impact (NATIVOS)
+        (sum(if(is_top_10, 1, 0)) / count()) * 100 as pct_top_10,
+        (sum(if(is_top_1, 1, 0)) / count()) * 100 as pct_top_1,
         
         -- OA Status
-        (sum(if(JSONExtractString(raw_data, 'oa_status') = 'gold', 1, 0)) / count()) * 100 as pct_oa_gold,
-        (sum(if(JSONExtractString(raw_data, 'oa_status') = 'green', 1, 0)) / count()) * 100 as pct_oa_green,
-        (sum(if(JSONExtractString(raw_data, 'oa_status') = 'hybrid', 1, 0)) / count()) * 100 as pct_oa_hybrid,
-        (sum(if(JSONExtractString(raw_data, 'oa_status') = 'bronze', 1, 0)) / count()) * 100 as pct_oa_bronze,
-        (sum(if(JSONExtractString(raw_data, 'oa_status') = 'closed', 1, 0)) / count()) * 100 as pct_oa_closed
+        (sum(if(oa_status = 'gold', 1, 0)) / count()) * 100 as pct_oa_gold,
+        (sum(if(oa_status = 'green', 1, 0)) / count()) * 100 as pct_oa_green,
+        (sum(if(oa_status = 'hybrid', 1, 0)) / count()) * 100 as pct_oa_hybrid,
+        (sum(if(oa_status = 'bronze', 1, 0)) / count()) * 100 as pct_oa_bronze,
+        (sum(if(oa_status = 'closed', 1, 0)) / count()) * 100 as pct_oa_closed
         
-    FROM works
-    WHERE 1=1 {where_clause}
+    FROM (
+        -- DEDUPLICACIÓN DE TRABAJOS (WORKS)
+        SELECT 
+            id,
+            argMax(JSONExtractString(raw_data, 'primary_location', 'source', 'id'), updated_date) as journal_id,
+            argMax(JSONExtractString(raw_data, 'primary_topic', 'domain', 'display_name'), updated_date) as domain,
+            argMax(JSONExtractString(raw_data, 'primary_topic', 'field', 'display_name'), updated_date) as field,
+            argMax(JSONExtractString(raw_data, 'primary_topic', 'subfield', 'display_name'), updated_date) as subfield,
+            argMax(JSONExtractString(raw_data, 'primary_topic', 'display_name'), updated_date) as topic,
+            argMax(toFloat32OrZero(JSONExtractString(raw_data, 'fwci')), updated_date) as fwci,
+            argMax(toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile', 'value')), updated_date) as percentile,
+            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) as is_top_10,
+            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) as is_top_1,
+            argMax(JSONExtractString(raw_data, 'open_access', 'oa_status'), updated_date) as oa_status,
+            argMax(toUInt16(JSONExtractInt(raw_data, 'publication_year')), updated_date) as pub_year
+        FROM works
+        GROUP BY id
+    )
+    WHERE 1=1 {where_clause.replace('toInt32OrZero(JSONExtractString(raw_data, \'publication_year\'))', 'pub_year')}
     GROUP BY {grouping} domain, field, subfield, topic WITH ROLLUP
     """
     return query

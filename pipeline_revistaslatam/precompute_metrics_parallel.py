@@ -117,11 +117,11 @@ def calculate_performance_metrics_from_df(works_df):
 
     metrics = {
         'num_documents': num_documents,
-        'fwci_avg': round(fwci_avg, 2) if pd.notna(fwci_avg) else 0.0,
-        'pct_top_10': round(pct_top_10, 2),
-        'pct_top_1': round(pct_top_1, 2),
-        'avg_percentile': round(avg_percentile, 2) if pd.notna(avg_percentile) else 0.0,
-        'pct_authors_domestic': round(pct_domestic, 2)
+        'fwci_avg': round(fwci_avg, 3) if pd.notna(fwci_avg) else 0.0,
+        'pct_top_10': round(pct_top_10, 4),
+        'pct_top_1': round(pct_top_1, 4),
+        'avg_percentile': round(avg_percentile, 3) if pd.notna(avg_percentile) else 0.0,
+        'pct_authors_domestic': round(pct_domestic, 3)
     }
     
     # Always ensure ALL OA types are present in metrics

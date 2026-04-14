@@ -510,9 +510,9 @@ if level == "Region (Latinoamérica)":
             with col2:
                 premium_metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
             with col3:
-                premium_metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
+                premium_metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.3f}%")
             with col4:
-                premium_metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
+                premium_metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.3f}%")
             with col5:
                 premium_metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
             
@@ -526,9 +526,9 @@ if level == "Region (Latinoamérica)":
                 with c2:
                     premium_metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
                 with c3:
-                    premium_metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
+                    premium_metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.3f}%")
                 with c4:
-                    premium_metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
+                    premium_metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.3f}%")
                 with c5:
                     premium_metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
             
@@ -1165,8 +1165,8 @@ if level == "Region (Latinoamérica)":
                             'num_journals': ':,',
                             'fwci_avg': ':.2f',
                             'avg_percentile': ':.1f',
-                            'pct_top_10': ':.1f',
-                            'pct_top_1': ':.1f',
+                            'pct_top_10': ':.3f',
+                            'pct_top_1': ':.3f',
                             'pct_oa_diamond': ':.1f',
                             'umap_x': False,
                             'umap_y': False
@@ -2605,15 +2605,15 @@ elif level == "Revista":
                 with col1:
                     premium_metric("Documentos", f"{period_data.get('num_documents', 0):,}")
                 with col2:
-                    premium_metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
+                    premium_metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.3f}")
                 with col3:
-                    premium_metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
+                    premium_metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.3f}%")
                 with col4:
-                    premium_metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
+                    premium_metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.3f}%")
                 with col5:
-                    premium_metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
+                    premium_metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.3f}")
                 with col6:
-                    premium_metric("% Autoría Doméstica", f"{period_data.get('pct_authors_domestic', 0):.1f}%")
+                    premium_metric("% Autoría Doméstica", f"{period_data.get('pct_authors_domestic', 0):.3f}%")
 
                 # Recent Period
                 if journal_period_recent is not None:
@@ -2627,9 +2627,9 @@ elif level == "Revista":
                         with c2:
                             premium_metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
                         with c3:
-                            premium_metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
+                            premium_metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.3f}%")
                         with c4:
-                            premium_metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
+                            premium_metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.3f}%")
                         with c5:
                             premium_metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
                         
@@ -3128,8 +3128,8 @@ elif level == "Revista":
                             # Prepare hover data
                             hover_cols = {
                                 'title': True,
-                                x_col_w: ':.2f' if x_col_w not in ['is_in_top_1_percent', 'is_in_top_10_percent'] else True,
-                                y_col_w: ':.2f' if y_col_w not in ['is_in_top_1_percent', 'is_in_top_10_percent'] else True,
+                                x_col_w: ':.3f' if 'pct_top' in x_col_w or 'is_in_top' in x_col_w else ':.2f',
+                                y_col_w: ':.3f' if 'pct_top' in y_col_w or 'is_in_top' in y_col_w else ':.2f',
                             }
                             
                             # Add publication year if available
