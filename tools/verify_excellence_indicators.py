@@ -53,47 +53,52 @@ def main():
     # OpenAlex fields: is_in_top_1_percent, is_in_top_10_percent
     print("Calculando indicadores de excelencia para artículos en estas revistas...")
     
-    # Vamos a procesar por partes para no saturar si hay millones
-    batch_size = 500
-    total_works = 0
-    top_10_count = 0
-    top_1_count = 0
-    works_with_percentile = 0
-    works_with_fwci = 0
-    
-    # Query optimizada para contar directamente en ClickHouse
-    # Nota: Usamos JSONExtractBool para extraer del campo raw_data
-    # Pero primero verificamos si existen como columnas materializadas o en el JSON
+    # Query optimizada: Usamos una subconsulta para evitar el error de tamaño máximo de consulta
+    # y comparamos con percentil >= 0.90 dado que la escala parece ser 0-1
     
     query = f"""
     SELECT 
         count() as total,
-        sum(JSONExtractBool(raw_data, 'is_in_top_10_percent')) as top_10,
-        sum(JSONExtractBool(raw_data, 'is_in_top_1_percent')) as top_1,
+        sum(JSONExtractBool(raw_data, 'is_in_top_10_percent')) as top_10_native,
+        sum(JSONExtractBool(raw_data, 'is_in_top_1_percent')) as top_1_native,
+        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile') >= 0.90) as top_10_calc,
+        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile') >= 0.99) as top_1_calc,
         countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile') > 0) as has_percentile,
         countIf(JSONExtractFloat(raw_data, 'fwci') > 0) as has_fwci
     FROM works
-    WHERE source_id IN {tuple(journal_ids)}
+    WHERE source_id IN (
+        SELECT id FROM sources 
+        WHERE country_code IN {tuple(latam_countries)} 
+        AND type = 'journal'
+    )
     """
     
     print("Ejecutando query de agregación en ClickHouse (puede tardar)...")
     result = client.query(query)
     
     for row in result.result_set:
-        total, top_10, top_1, has_percentile, has_fwci = row
+        total, top_10_native, top_1_native, top_10_calc, top_1_calc, has_percentile, has_fwci = row
         
         print("\n" + "="*50)
         print("RESULTADOS DE EXCELENCIA (LATAM JOURNALS)")
         print("="*50)
         print(f"Artículos totales: {total:,}")
-        print(f"En Top 10%:        {top_10:,} ({ (top_10/total*100) if total > 0 else 0:.2f}%)")
-        print(f"En Top 1%:         {top_10:,} ({ (top_1/total*100) if total > 0 else 0:.4f}%)")
+        print("\n--- Campos Nativos (JSON) ---")
+        print(f"Top 10% (native):  {top_10_native:,} ({ (top_10_native/total*100) if total > 0 else 0:.2f}%)")
+        print(f"Top 1% (native):   {top_1_native:,} ({ (top_1_native/total*100) if total > 0 else 0:.4f}%)")
+        print("\n--- Campos Calculados (Percentil Escala 0-1) ---")
+        # Aquí confirmamos mi sospecha de la escala
+        print(f"Top 10% (calc 0.9): {top_10_calc:,} ({ (top_10_calc/total*100) if total > 0 else 0:.2f}%)")
+        print(f"Top 1% (calc 0.99): {top_1_calc:,} ({ (top_1_calc/total*100) if total > 0 else 0:.4f}%)")
         print("-" * 50)
         print(f"Con Percentil > 0: {has_percentile:,} ({ (has_percentile/total*100) if total > 0 else 0:.2f}%)")
         print(f"Con FWCI > 0:      {has_fwci:,} ({ (has_fwci/total*100) if total > 0 else 0:.2f}%)")
         print("="*50)
         
-        if top_10 == 0:
+        if top_10_native == 0 and top_10_calc > 0:
+            print("\nLOGRADO: Se confirma que el campo nativo 'is_in_top_10_percent' es cero,")
+            print("pero los artículos SÍ tienen percentiles altos (>0.90).")
+            print("Debemos calcular los indicadores basándonos en el percentil.")
             print("\nALERTA: El indicador Top 10% es CERO absoluto en la base de datos.")
             print("Posibles causas:")
             print("1. El campo 'is_in_top_10_percent' no existe en el JSON raw_data de este snapshot.")
