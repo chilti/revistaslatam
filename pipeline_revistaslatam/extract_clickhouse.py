@@ -24,7 +24,7 @@ CH_PASSWORD = os.environ.get('CH_PASSWORD', '')
 CH_DATABASE = os.environ.get('CH_DATABASE', 'rag')
 
 # Lista de países LATAM para filtrado inicial
-LATAM_COUNTRIES = ["AR", "BO", "BR", "CL", "CO", "CR", "CU", "DO", "EC", "SV", "GT", "HN", "MX", "NI", "PA", "PY", "PE", "PR", "UY", "VE"]
+LATAM_COUNTRIES = ["AR", "BO", "BR", "CL", "CO", "CR", "CU", "DO", "EC", "SV", "GT", "HN", "MX", "NI", "PA", "PY", "PE", "PR", "UY", "VE", "JM", "TT"]
 
 # Directorios de datos
 DATA_DIR = Path(__file__).parent.parent / 'data'
@@ -77,7 +77,7 @@ def fetch_journals_clickhouse(client):
         argMax(JSONExtractBool(raw_data, 'is_core'), updated_date) as is_core
     FROM sources
     WHERE country_code IN {countries}
-      AND type = 'journal'
+      AND type IN ('journal', 'conference')
     GROUP BY id
     HAVING works_count_val > 0
     ORDER BY works_count_val DESC
@@ -144,8 +144,21 @@ def fetch_works_batch(client, journal_id_to_country, batch_num):
         argMax(JSONExtractString(raw_data, 'language'), updated_date) as language,
         argMax(JSONExtractFloat(raw_data, 'fwci'), updated_date) as fwci,
         argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value'), updated_date) as percentile,
-        argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) as is_in_top_10_percent,
-        argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) as is_in_top_1_percent,
+        -- FALLBACK: Algunos registros tienen la estructura vieja, otros la nueva (anidada)
+        argMax(
+            coalesce(
+                JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'),
+                JSONExtractBool(raw_data, 'is_in_top_10_percent')
+            ), 
+            updated_date
+        ) as is_in_top_10_percent,
+        argMax(
+            coalesce(
+                JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'),
+                JSONExtractBool(raw_data, 'is_in_top_1_percent')
+            ), 
+            updated_date
+        ) as is_in_top_1_percent,
         argMax(source_id, updated_date) as journal_id,
         argMax(JSONExtractString(raw_data, 'open_access', 'oa_status'), updated_date) as oa_status,
         -- Cálculo NATIVO de domesticidad

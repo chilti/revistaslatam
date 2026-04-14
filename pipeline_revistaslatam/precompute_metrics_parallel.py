@@ -48,16 +48,17 @@ def calculate_performance_metrics_from_df(works_df):
     else:
         fwci_avg = 0.0
     
-    # % Top 10% - convert to boolean
+    # % Top 10% - convert to boolean robustly
     if 'is_in_top_10_percent' in works_df.columns:
-        top_10_values = pd.to_numeric(works_df['is_in_top_10_percent'], errors='coerce').fillna(0).astype(bool)
+        # Manejar mixtos (bool, str, int)
+        top_10_values = works_df['is_in_top_10_percent'].astype(str).str.lower().isin(['true', '1', '1.0'])
         pct_top_10 = (top_10_values.sum() / num_documents) * 100
     else:
         pct_top_10 = 0.0
     
-    # % Top 1% - convert to boolean
+    # % Top 1% - convert to boolean robustly
     if 'is_in_top_1_percent' in works_df.columns:
-        top_1_values = pd.to_numeric(works_df['is_in_top_1_percent'], errors='coerce').fillna(0).astype(bool)
+        top_1_values = works_df['is_in_top_1_percent'].astype(str).str.lower().isin(['true', '1', '1.0'])
         pct_top_1 = (top_1_values.sum() / num_documents) * 100
     else:
         pct_top_1 = 0.0

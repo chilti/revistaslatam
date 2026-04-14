@@ -72,8 +72,20 @@ def _build_topic_hierarchy_query(group_col, min_year=None):
             argMax(JSONExtractString(raw_data, 'primary_topic', 'display_name'), updated_date) as topic,
             argMax(toFloat32OrZero(JSONExtractString(raw_data, 'fwci')), updated_date) as fwci,
             argMax(toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile', 'value')), updated_date) as percentile,
-            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) as is_top_10,
-            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) as is_top_1,
+            argMax(
+                coalesce(
+                    JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'),
+                    JSONExtractBool(raw_data, 'is_in_top_10_percent')
+                ), 
+                updated_date
+            ) as is_top_10,
+            argMax(
+                coalesce(
+                    JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'),
+                    JSONExtractBool(raw_data, 'is_in_top_1_percent')
+                ), 
+                updated_date
+            ) as is_top_1,
             argMax(JSONExtractString(raw_data, 'open_access', 'oa_status'), updated_date) as oa_status,
             argMax(toUInt16(JSONExtractInt(raw_data, 'publication_year')), updated_date) as pub_year
         FROM works

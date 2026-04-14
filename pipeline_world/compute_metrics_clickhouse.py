@@ -113,8 +113,20 @@ def _build_journal_analytics_query(country_list: list):
             argMax(toUInt32OrZero(JSONExtractString(raw_data, 'cited_by_count')), updated_date) AS cited_by_count,
             argMax(toFloat32OrZero(JSONExtractString(raw_data, 'fwci')), updated_date) AS fwci,
             argMax(toFloat32OrZero(JSONExtractString(raw_data, 'citation_normalized_percentile', 'value')), updated_date) AS percentile,
-            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) AS is_top_10,
-            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) AS is_top_1,
+            argMax(
+                coalesce(
+                    JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'),
+                    JSONExtractBool(raw_data, 'is_in_top_10_percent')
+                ), 
+                updated_date
+            ) AS is_top_10,
+            argMax(
+                coalesce(
+                    JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'),
+                    JSONExtractBool(raw_data, 'is_in_top_1_percent')
+                ), 
+                updated_date
+            ) AS is_top_1,
             argMax(JSONExtractString(raw_data, 'open_access', 'is_oa'), updated_date) AS is_oa,
             argMax(JSONExtractString(raw_data, 'open_access', 'oa_status'), updated_date) AS oa_status,
             argMax(JSONExtractString(raw_data, 'language'), updated_date) AS language,
