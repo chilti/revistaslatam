@@ -32,62 +32,51 @@ def main():
     client = get_ch_client()
     latam_countries = GLOBAL_REGIONS['Latinoamérica y Caribe']
     
-    print(f"Paises LATAM (n={len(latam_countries)}): {', '.join(latam_countries)}")
-    
-    # 1. Obtener IDs de revistas (sources) de LATAM
+    # 1. Obtener conteo de revistas (sources) ÚNICAS de LATAM
     print("Buscando revistas latinoamericanas en ClickHouse...")
     sources_query = f"""
-    SELECT id FROM sources 
+    SELECT count(DISTINCT id) FROM sources 
     WHERE country_code IN {tuple(latam_countries)} 
     AND type = 'journal'
+    AND works_count > 0
     """
-    sources_df = client.query_df(sources_query)
-    journal_ids = sources_df['id'].tolist()
-    print(f"Encontradas {len(journal_ids)} revistas.")
+    unique_journals = client.command(sources_query)
+    print(f"Encontradas {unique_journals:,} revistas únicas activas.")
     
-    if not journal_ids:
+    if unique_journals == 0:
         print("No se encontraron revistas para estos países.")
         return
 
-    # 2. Verificar existencia de campos en raw_data y contar artículos
-    # OpenAlex fields: is_in_top_1_percent, is_in_top_10_percent
-    print("Calculando indicadores de excelencia para artículos en estas revistas...")
+    # 2. Verificar datos de excelencia con una query OPTIMIZADA
+    print("Calculando indicadores de excelencia para artículos...")
     
-    # Query optimizada y DEDUPLICADA:
-    # 1. Obtenemos IDs de revistas únicas (latest record)
-    # 2. Obtenemos artículos únicos (latest record)
+    # Optimizamos: No hacemos GROUP BY id en los 4M de artículos si no es estrictamente necesario 
+    # para una verificación de "realidad". Usamos una muestra o una query más directa 
+    # pero filtrando revistas por el último estado.
     
     query = f"""
+    WITH latam_journals AS (
+        SELECT id FROM sources 
+        WHERE country_code IN {tuple(latam_countries)} 
+        AND type = 'journal'
+        GROUP BY id
+        HAVING argMax(works_count, updated_date) > 0
+    )
     SELECT 
         count() as total,
-        sum(top_10_native) as top_10_native,
-        sum(top_1_native) as top_1_native,
-        sum(top_10_calc) as top_10_calc,
-        sum(top_1_calc) as top_1_calc,
-        countIf(percentile > 0) as has_percentile,
-        countIf(fwci > 0) as has_fwci
-    FROM (
-        SELECT 
-            id,
-            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) as top_10_native,
-            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) as top_1_native,
-            argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.90, updated_date) as top_10_calc,
-            argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.99, updated_date) as top_1_calc,
-            argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value'), updated_date) as percentile,
-            argMax(JSONExtractFloat(raw_data, 'fwci'), updated_date) as fwci
-        FROM works
-        WHERE source_id IN (
-            SELECT id FROM sources 
-            WHERE country_code IN {tuple(latam_countries)} 
-            AND type = 'journal'
-            GROUP BY id
-            HAVING argMax(JSONExtractInt(raw_data, 'works_count'), updated_date) > 0
-        )
-        GROUP BY id
-    )
+        sum(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent')) as top_10_native,
+        sum(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent')) as top_1_native,
+        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.90) as top_10_calc,
+        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.99) as top_1_calc,
+        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') > 0) as has_percentile,
+        countIf(JSONExtractFloat(raw_data, 'fwci') > 0) as has_fwci
+    FROM works
+    WHERE source_id IN (SELECT id FROM latam_journals)
+    -- Opcional: solo registros recientes si se quiere velocidad extrema
+    -- AND updated_date > '2024-01-01' 
     """
     
-    print("Ejecutando query de agregación en ClickHouse (puede tardar)...")
+    print("Ejecutando query de agregación en ClickHouse (Deduplicación de revistas activa)...")
     result = client.query(query)
     
     for row in result.result_set:
