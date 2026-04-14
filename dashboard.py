@@ -1566,14 +1566,14 @@ if level == "Region (Latinoamérica)":
             if df_list:
                 df_full = pd.concat(df_list, ignore_index=True)
                 
-                # Metrics columns to smooth
                 cols_metrics = [
                     'num_journals', 'num_documents', 'fwci_avg', 
                     'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
                     'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
                     'avg_percentile', 'pct_top_10', 'pct_top_1',
                     'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
-                    'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
+                    'pct_lang_fr', 'pct_lang_de', 'pct_lang_it',
+                    'pct_authors_domestic'
                 ]
                 # Filter useful columns only
                 cols_metrics = [c for c in cols_metrics if c in df_full.columns]
@@ -1617,14 +1617,15 @@ if level == "Region (Latinoamérica)":
                         'pct_lang_pt': '% Portugués',
                         'pct_lang_fr': '% Francés',
                         'pct_lang_de': '% Alemán',
-                        'pct_lang_it': '% Italiano'
+                        'pct_lang_it': '% Italiano',
+                        'pct_authors_domestic': '% Autoría Doméstica'
                     }
                     
                     desired_order = ['Código_Año', 'Revistas', 'Documentos', 'FWCI', 
                                      '% OA Total', '% OA Diamante', '% OA Gold', 
                                      '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
                                      '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
-                                     'Percentil Prom.', '% Top 10', '% Top 1']
+                                     'Percentil Prom.', '% Top 10', '% Top 1', '% Autoría Doméstica']
                     
                     final_cols = [c for c in desired_order if c in cols_map.values()]
                     
@@ -2296,7 +2297,8 @@ elif level == "País":
                             'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
                             'avg_percentile', 'pct_top_10', 'pct_top_1',
                             'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
-                            'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
+                            'pct_lang_fr', 'pct_lang_de', 'pct_lang_it',
+                            'pct_authors_domestic'
                         ]
                         
                         # Calculate OA total if missing
@@ -2336,7 +2338,8 @@ elif level == "País":
                                 'pct_lang_pt': '% Portugués',
                                 'pct_lang_fr': '% Francés',
                                 'pct_lang_de': '% Alemán',
-                                'pct_lang_it': '% Italiano'
+                                'pct_lang_it': '% Italiano',
+                                'pct_authors_domestic': '% Autoría Doméstica'
                             }
                             
                             desired_order_c = ['Año', 'Revistas', 'Documentos', 'FWCI', 
@@ -2344,8 +2347,6 @@ elif level == "País":
                                              '% OA Verde', '% OA Híbrido', '% OA Bronce', '% Cerrado',
                                              '% Español', '% Inglés', '% Portugués', '% Francés', '% Alemán', '% Italiano',
                                              'Percentil Prom.', '% Top 10', '% Top 1', '% Autoría Doméstica']
-                            
-                            cols_map_c['pct_authors_domestic'] = '% Autoría Doméstica'
                             
                             df_display = df_work.rename(columns=cols_map_c)
                             final_cols = [c for c in desired_order_c if c in df_display.columns]
@@ -2631,6 +2632,11 @@ elif level == "Revista":
                             premium_metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
                         with c5:
                             premium_metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
+                        
+                        st.markdown(" ") # Spacer
+                        cc1, cc2 = st.columns(2)
+                        with cc1:
+                            premium_metric("% Autoría Doméstica", f"{rec_data.get('pct_authors_domestic', 0):.1f}%")
                 
                 st.markdown("#### Distribución y Características de las Publicaciones")
                 col_chart1, col_chart2 = st.columns(2)
@@ -2690,8 +2696,8 @@ elif level == "Revista":
                         row_rec = rec_row.iloc[0]
                         
                         # Indicators to plot
-                        radar_indicators = ['fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 'pct_oa_diamond']
-                        radar_labels = ['FWCI', 'Percentil Norm.', 'Top 10%', 'Top 1%', 'OA Diamante']
+                        radar_indicators = ['fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 'pct_oa_diamond', 'pct_authors_domestic']
+                        radar_labels = ['FWCI', 'Percentil Norm.', 'Top 10%', 'Top 1%', 'OA Diamante', 'Aut. Doméstica']
                         
                         valid_ind = []
                         valid_lbl = []
@@ -2789,14 +2795,14 @@ elif level == "Revista":
                 st.markdown("---")
                 st.markdown("### Tabla de Indicadores Anuales")
                 
-                # Metrics columns to show
                 cols_metrics_j = [
                     'year', 'num_documents', 'fwci_avg', 
                     'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 
                     'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed',
                     'avg_percentile', 'pct_top_10', 'pct_top_1',
                     'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 
-                    'pct_lang_fr', 'pct_lang_de', 'pct_lang_it'
+                    'pct_lang_fr', 'pct_lang_de', 'pct_lang_it',
+                    'pct_authors_domestic'
                 ]
                 # Filter useful columns only
                 cols_metrics_j = [c for c in cols_metrics_j if c in journal_annual_data.columns]
@@ -3063,8 +3069,8 @@ elif level == "Revista":
                         'FWCI': 'fwci',
                         'Percentil': 'percentile',
                         'Citas': 'cited_by_count',
-                        'Top 1%': 'is_top_1',
-                        'Top 10%': 'is_top_10',
+                        'Top 1%': 'is_in_top_1_percent',
+                        'Top 10%': 'is_in_top_10_percent',
                         'Autoría Doméstica': 'is_domestic_author'
                     }
                     
@@ -3122,8 +3128,8 @@ elif level == "Revista":
                             # Prepare hover data
                             hover_cols = {
                                 'title': True,
-                                x_col_w: ':.2f' if x_col_w not in ['is_top_1', 'is_top_10'] else True,
-                                y_col_w: ':.2f' if y_col_w not in ['is_top_1', 'is_top_10'] else True,
+                                x_col_w: ':.2f' if x_col_w not in ['is_in_top_1_percent', 'is_in_top_10_percent'] else True,
+                                y_col_w: ':.2f' if y_col_w not in ['is_in_top_1_percent', 'is_in_top_10_percent'] else True,
                             }
                             
                             # Add publication year if available

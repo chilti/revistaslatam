@@ -63,8 +63,8 @@ def calculate_performance_metrics_from_df(works_df):
         pct_top_1 = 0.0
     
     # Average Percentile - convert to numeric first
-    if 'citation_normalized_percentile' in works_df.columns:
-        percentile_values = pd.to_numeric(works_df['citation_normalized_percentile'], errors='coerce')
+    if 'percentile' in works_df.columns:
+        percentile_values = pd.to_numeric(works_df['percentile'], errors='coerce')
         avg_percentile = percentile_values.mean()
     else:
         avg_percentile = 0.0
@@ -91,12 +91,29 @@ def calculate_performance_metrics_from_df(works_df):
             'pct_oa_bronze': 0.0,
             'pct_oa_closed': 0.0
         }
-    
     # % Articles with at least one author from the same country as the journal
     if 'is_domestic_author' in works_df.columns:
         pct_domestic = (works_df['is_domestic_author'].fillna(False).astype(bool).sum() / num_documents) * 100
     else:
         pct_domestic = 0.0
+
+    # Language distribution
+    if 'language' in works_df.columns:
+        lang_counts = works_df['language'].value_counts()
+        total_lang = len(works_df)
+        lang_metrics = {
+            'pct_lang_es': (lang_counts.get('es', 0) / total_lang) * 100,
+            'pct_lang_en': (lang_counts.get('en', 0) / total_lang) * 100,
+            'pct_lang_pt': (lang_counts.get('pt', 0) / total_lang) * 100,
+            'pct_lang_fr': (lang_counts.get('fr', 0) / total_lang) * 100,
+            'pct_lang_de': (lang_counts.get('de', 0) / total_lang) * 100,
+            'pct_lang_it': (lang_counts.get('it', 0) / total_lang) * 100,
+        }
+        # Others
+        calculated_sum = sum(lang_metrics.values())
+        lang_metrics['pct_lang_other'] = max(0, 100 - calculated_sum)
+    else:
+        lang_metrics = {k: 0.0 for k in ['pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 'pct_lang_fr', 'pct_lang_de', 'pct_lang_it', 'pct_lang_other']}
 
     metrics = {
         'num_documents': num_documents,
@@ -111,6 +128,10 @@ def calculate_performance_metrics_from_df(works_df):
     all_oa_keys = ['pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed']
     for k in all_oa_keys:
         metrics[k] = round(oa_types.get(k, 0.0), 2)
+    
+    # Add language metrics
+    for k, v in lang_metrics.items():
+        metrics[k] = round(v, 2)
     
     return metrics
 
