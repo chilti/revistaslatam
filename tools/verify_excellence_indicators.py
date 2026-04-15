@@ -1,6 +1,7 @@
 import os
 import sys
 import pandas as pd
+import argparse
 from pathlib import Path
 from dotenv import load_dotenv
 import clickhouse_connect
@@ -29,36 +30,49 @@ def get_ch_client():
         sys.exit(1)
 
 def main():
+    parser = argparse.ArgumentParser(description="Verificar indicadores de excelencia en ClickHouse")
+    parser.add_argument("--country", type=str, help="Filtrar por código de país (ej. MX)")
+    parser.add_argument("--journal", type=str, help="Filtrar por nombre de revista (ej. 'Estudios Demográficos y Urbanos')")
+    args = parser.parse_args()
+
     client = get_ch_client()
     latam_countries = GLOBAL_REGIONS['Latinoamérica y Caribe']
     
+    # Construcción dinámica de filtros para SQLite/Clickhouse
+    filters = ["type IN ('journal', 'conference')"]
+    if args.journal:
+        safe_journal = args.journal.replace("'", "''")
+        filters.append(f"display_name ILIKE '%{safe_journal}%'")
+    
+    if args.country:
+        filters.append(f"country_code = '{args.country.upper()}'")
+    elif not args.journal:
+        # Solo aplicar filtro LATAM si no hay revista epecífica ni país
+        filters.append(f"country_code IN {tuple(latam_countries)}")
+        
+    filter_clause = " AND ".join(filters)
+    
     # 1. Obtener conteo de revistas (sources) ÚNICAS de LATAM
-    print("Buscando revistas latinoamericanas en ClickHouse...")
+    print(f"Buscando revistas en ClickHouse con filtros: {filter_clause} ...")
     sources_query = f"""
     SELECT count(DISTINCT id) FROM sources 
-    WHERE country_code IN {tuple(latam_countries)} 
-    AND type = 'journal'
+    WHERE {filter_clause}
     AND works_count > 0
     """
     unique_journals = client.command(sources_query)
     print(f"Encontradas {unique_journals:,} revistas únicas activas.")
     
     if unique_journals == 0:
-        print("No se encontraron revistas para estos países.")
+        print("No se encontraron revistas para estos filtros.")
         return
 
     # 2. Verificar datos de excelencia con una query OPTIMIZADA
     print("Calculando indicadores de excelencia para artículos...")
     
-    # Optimizamos: No hacemos GROUP BY id en los 4M de artículos si no es estrictamente necesario 
-    # para una verificación de "realidad". Usamos una muestra o una query más directa 
-    # pero filtrando revistas por el último estado.
-    
     query = f"""
-    WITH latam_journals AS (
+    WITH filtered_journals AS (
         SELECT id FROM sources 
-        WHERE country_code IN {tuple(latam_countries)} 
-        AND type = 'journal'
+        WHERE {filter_clause}
         GROUP BY id
         HAVING argMax(works_count, updated_date) > 0
     )
@@ -71,9 +85,7 @@ def main():
         countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') > 0) as has_percentile,
         countIf(JSONExtractFloat(raw_data, 'fwci') > 0) as has_fwci
     FROM works
-    WHERE source_id IN (SELECT id FROM latam_journals)
-    -- Opcional: solo registros recientes si se quiere velocidad extrema
-    -- AND updated_date > '2024-01-01' 
+    WHERE source_id IN (SELECT id FROM filtered_journals)
     """
     
     print("Ejecutando query de agregación en ClickHouse (Deduplicación de revistas activa)...")
@@ -82,8 +94,9 @@ def main():
     for row in result.result_set:
         total, top_10_native, top_1_native, top_10_calc, top_1_calc, has_percentile, has_fwci = row
         
+        context_name = args.journal or args.country or "LATAM JOURNALS"
         print("\n" + "="*50)
-        print("RESULTADOS DE EXCELENCIA (LATAM JOURNALS)")
+        print(f"RESULTADOS DE EXCELENCIA ({context_name})")
         print("="*50)
         print(f"Artículos totales: {total:,}")
         print("\n--- Campos Nativos (JSON) ---")
@@ -112,7 +125,7 @@ def main():
             print("\nInspeccionando un registro aleatorio que debería tener estos campos...")
             sample_query = f"""
             SELECT raw_data FROM works 
-            WHERE source_id IN {tuple(journal_ids)}
+            WHERE source_id IN (SELECT id FROM sources WHERE {filter_clause})
             LIMIT 1
             """
             sample = client.command(sample_query)
