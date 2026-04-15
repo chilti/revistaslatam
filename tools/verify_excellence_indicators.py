@@ -69,23 +69,34 @@ def main():
     # 2. Verificar datos de excelencia con una query OPTIMIZADA
     print("Calculando indicadores de excelencia para artículos...")
     
+    # Optimizamos: Deduplicamos por id de obra usando argMax para tener conteos reales (Unique IDs)
     query = f"""
     WITH filtered_journals AS (
         SELECT id FROM sources 
         WHERE {filter_clause}
         GROUP BY id
         HAVING argMax(works_count, updated_date) > 0
+    ),
+    dedup_works AS (
+        SELECT 
+            id,
+            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent'), updated_date) as top_10_native,
+            argMax(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent'), updated_date) as top_1_native,
+            argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value'), updated_date) as percentile_val,
+            argMax(JSONExtractFloat(raw_data, 'fwci'), updated_date) as fwci_val
+        FROM works
+        WHERE source_id IN (SELECT id FROM filtered_journals)
+        GROUP BY id
     )
     SELECT 
         count() as total,
-        sum(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent')) as top_10_native,
-        sum(JSONExtractBool(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent')) as top_1_native,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.90) as top_10_calc,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') >= 0.99) as top_1_calc,
-        countIf(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value') > 0) as has_percentile,
-        countIf(JSONExtractFloat(raw_data, 'fwci') > 0) as has_fwci
-    FROM works
-    WHERE source_id IN (SELECT id FROM filtered_journals)
+        sum(top_10_native) as top_10_n,
+        sum(top_1_native) as top_1_n,
+        countIf(percentile_val >= 0.90) as top_10_c,
+        countIf(percentile_val >= 0.99) as top_1_c,
+        countIf(percentile_val > 0) as has_percentile,
+        countIf(fwci_val > 0) as has_fwci
+    FROM dedup_works
     """
     
     print("Ejecutando query de agregación en ClickHouse (Deduplicación de revistas activa)...")
