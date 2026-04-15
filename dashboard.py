@@ -1741,9 +1741,9 @@ elif level == "País":
                 col1, col2, col3, col4, col5 = st.columns(5)
                 col1.metric("Documentos", f"{period_data.get('num_documents', 0):,}")
                 col2.metric("FWCI Promedio", f"{period_data.get('fwci_avg', 0):.2f}")
-                col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.1f}%")
-                col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.1f}%")
-                col5.metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.1f}")
+                col3.metric("% Top 10%", f"{period_data.get('pct_top_10', 0):.3f}%")
+                col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.3f}%")
+                col5.metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.3f}")
 
                 # Recent Period
                 if country_period_recent is not None:
@@ -1754,9 +1754,9 @@ elif level == "País":
                         c1, c2, c3, c4, c5 = st.columns(5)
                         c1.metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
                         c2.metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
-                        c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.1f}%")
-                        c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.1f}%")
-                        c5.metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
+                        c3.metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.3f}%")
+                        c4.metric("% Top 1%", f"{rec_data.get('pct_top_1', 0):.3f}%")
+                        c5.metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.3f}")
                 
                 # --- TRAYECTORIA DE DESEMPEÑO (UMAP PAÍS - MAPA GLOBAL) ---
                 if os.path.exists(MAP_COUNTRIES_FILE):
@@ -1827,10 +1827,10 @@ elif level == "País":
                             _hover_j = {
                                 'display_name': True,
                                 'num_documents': ':,',
-                                'fwci_avg': ':.2f',
-                                'avg_percentile': ':.1f',
-                                'pct_top_10': ':.1f',
-                                'pct_top_1': ':.1f',
+                                'fwci_avg': ':.3f',
+                                'avg_percentile': ':.3f',
+                                'pct_top_10': ':.3f',
+                                'pct_top_1': ':.3f',
                                 'pct_oa_diamond': ':.1f',
                                 'umap_x': False,
                                 'umap_y': False
@@ -2652,7 +2652,7 @@ elif level == "Revista":
                         with c1:
                             premium_metric("Documentos", f"{rec_data.get('num_documents', 0):,}")
                         with c2:
-                            premium_metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.2f}")
+                            premium_metric("FWCI Promedio", f"{rec_data.get('fwci_avg', 0):.3f}")
                         with c3:
                             premium_metric("% Top 10%", f"{rec_data.get('pct_top_10', 0):.3f}%")
                         with c4:
