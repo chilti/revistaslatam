@@ -834,7 +834,16 @@ if level == "Region (Latinoamérica)":
                 df_display_l = df_display_l.rename(columns=cols_map_l)
                 final_cols_l = [c for c in desired_order_l if c in df_display_l.columns]
                 
-                st.dataframe(df_display_l[final_cols_l], use_container_width=True, hide_index=True)
+                st.dataframe(
+                    df_display_l[final_cols_l], 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "% Top 10": st.column_config.NumberColumn(format="%.3f%%"),
+                        "% Top 1": st.column_config.NumberColumn(format="%.3f%%"),
+                        "FWCI": st.column_config.NumberColumn(format="%.2f")
+                    }
+                )
 
         # Tablas de Países
         st.markdown("---")
@@ -870,7 +879,16 @@ if level == "Region (Latinoamérica)":
                 })
                 cols_final_order = ['Código', 'País'] + [c for c in final_df.columns if c not in ['Código', 'País']]
                 
-                st.dataframe(final_df[cols_final_order], use_container_width=True, hide_index=True)
+                st.dataframe(
+                    final_df[cols_final_order], 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "pct_top_10": st.column_config.NumberColumn("% Top 10%", format="%.3f%%"),
+                        "pct_top_1": st.column_config.NumberColumn("% Top 1%", format="%.3f%%"),
+                        "fwci_avg": st.column_config.NumberColumn("FWCI", format="%.2f")
+                    }
+                )
             else:
                 st.info("No hay datos de países disponibles.")
                 
@@ -895,7 +913,16 @@ if level == "Region (Latinoamérica)":
                 })
                 cols_final_order = ['Código', 'País'] + [c for c in final_df_recent.columns if c not in ['Código', 'País']]
                 
-                st.dataframe(final_df_recent[cols_final_order], use_container_width=True, hide_index=True)
+                st.dataframe(
+                    final_df_recent[cols_final_order], 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "pct_top_10": st.column_config.NumberColumn("% Top 10%", format="%.3f%%"),
+                        "pct_top_1": st.column_config.NumberColumn("% Top 1%", format="%.3f%%"),
+                        "fwci_avg": st.column_config.NumberColumn("FWCI", format="%.2f")
+                    }
+                )
             else:
                 st.info("No hay datos recientes de países disponibles (es necesario ejecutar pre-cálculo v2).")
 
@@ -1479,8 +1506,8 @@ if level == "Region (Latinoamérica)":
                             'display_name': True,
                             'country_name': True,
                             'country_code': False,
-                            x_col: ':.2f',
-                            y_col: ':.2f',
+                            x_col: ':.3f' if 'pct_top' in x_col else ':.2f',
+                            y_col: ':.3f' if 'pct_top' in y_col else ':.2f',
                             'num_documents': ':,' if 'num_documents' in plot_data.columns else False
                         },
                         labels={
