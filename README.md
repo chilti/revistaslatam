@@ -5,6 +5,13 @@ Sistema de recolección y análisis de datos bibliométricos utilizando la API d
 1. **Revistas de Latinoamérica (LATAM)**: Enfocado en revistas latinoamericanas indexadas. Utiliza `dashboard.py` y los scripts legacy en `pipeline_revistaslatam/`.
 2. **Versión Global**: Análisis a escala mundial. Utiliza `dashboard_global.py` y los scripts de la carpeta `pipeline_world/`.
 
+## 🌐 Despliegue
+El sistema se encuentra desplegado y accesible en:
+- **Servidor Principal**: [https://dinamica1.fciencias.unam.mx/revistaslatam/](https://dinamica1.fciencias.unam.mx/revistaslatam/)
+- **Servidor Espejo**: [https://dinamica10.fciencias.unam.mx/revistaslatam/](https://dinamica10.fciencias.unam.mx/revistaslatam/)
+
+
+
 ## 🚀 Funcionalidades
 
 - **Descarga Masiva**: Obtiene datos de miles de revistas latinoamericanas y sus artículos.
