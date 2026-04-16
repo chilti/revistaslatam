@@ -579,12 +579,6 @@ if level == "Region (Latinoamérica)":
                 else:
                     st.info("Sin datos de idioma.")
             
-            # Journal indexing
-            st.markdown("#### Indexación de Revistas")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("% Scopus", f"{period_data.get('pct_scopus', 0):.1f}%")
-            col2.metric("% CORE", f"{period_data.get('pct_core', 0):.1f}%")
-            col3.metric("% DOAJ", f"{period_data.get('pct_doaj', 0):.1f}%")
 
             # --- Sunburst de Temáticas (Regional Level) ---
             SUNBURST_METRICS_LATAM = os.path.join(BASE_PATH, 'data', 'cache', 'sunburst_metrics_latam.parquet')
@@ -2112,12 +2106,6 @@ elif level == "País":
                     else:
                         st.info("Sin datos de idioma.")
                 
-                # Indexing
-                st.markdown("#### Indexación de Revistas")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("% Scopus", f"{period_data.get('pct_scopus', 0):.1f}%")
-                col2.metric("% CORE", f"{period_data.get('pct_core', 0):.1f}%")
-                col3.metric("% DOAJ", f"{period_data.get('pct_doaj', 0):.1f}%")
 
                 # --- Sunburst de Temáticas (Country Level) ---
                 SUNBURST_METRICS_COUNTRY = os.path.join(BASE_PATH, 'data', 'cache', 'sunburst_metrics_country.parquet')
@@ -2500,13 +2488,6 @@ elif level == "Revista":
     m7.metric("Es OA", fmt_bool(journal_data.get('is_oa')))
     m8.metric("En DOAJ", fmt_bool(journal_data.get('is_in_doaj')))
     
-    # Metrics - Tercera Fila: Indexación
-    st.markdown("#### 🔍 Indexación")
-    m9, m10, m11, m12 = st.columns(4)
-    m9.metric("En SciELO", fmt_bool(journal_data.get('is_in_scielo')))
-    m10.metric("Usa OJS", fmt_bool(journal_data.get('is_ojs')))
-    m11.metric("En CORE", fmt_bool(journal_data.get('is_core')))
-    m12.metric("En Scopus", fmt_bool(journal_data.get('is_scopus')))
     
     st.caption("💡 Los indicadores marcados como **N/D** no se encontraron en la base de datos local y requieren ejecutar el paso de **Enriquecimiento API**.")
     
