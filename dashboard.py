@@ -622,8 +622,16 @@ if level == "Region (Latinoamérica)":
                         
                         ind_col = sb_indicator_options[selected_sb_ind]
                         
+                        # Toggle de filtrado para clasificación temática
+                        show_unclassified_reg = st.toggle("Sincronizar con total de artículos (incluye 'Sin Clasificación')", value=True, key='sb_show_unclassified_reg')
+                        
                         # Determinar columna de tamaño según el periodo seleccionado
                         size_col = 'count_recent' if '_recent' in ind_col else 'count_full'
+                        
+                        # Filter out unclassified if toggle is off
+                        df_sun_metrics_plot = df_sun_metrics.copy()
+                        if not show_unclassified_reg:
+                            df_sun_metrics_plot = df_sun_metrics_plot[df_sun_metrics_plot['domain'] != 'Sin Clasificación']
                         
                         # Fix NameError for Expanders
                         if os.path.exists(COUNTRIES_TOPICS_FILE):
@@ -640,14 +648,14 @@ if level == "Region (Latinoamérica)":
                         values = []
                         colors = []
                         
-                        # Filtrar datos con volumen > 0 para que el Sunburst se renderice
-                        df_plot = df_sun_metrics[df_sun_metrics[size_col] > 0]
+                        # Filtrar por volumen positivo en el periodo seleccionado
+                        df_plot_reg = df_sun_metrics_plot[df_sun_metrics_plot[size_col] > 0]
                         
-                        if df_plot.empty:
+                        if df_plot_reg.empty:
                             st.warning(f"No hay datos suficientes para mostrar el Sunburst regional con el volumen del periodo {'reciente' if 'recent' in size_col else 'completo'}.")
                         else:
                             # Iterar niveles
-                            for _, row in df_plot.iterrows():
+                            for _, row in df_plot_reg.iterrows():
                                 # Generar ID jerárquico único
                                 if row['level'] == 'domain':
                                     curr_id = row['domain']
@@ -2149,12 +2157,18 @@ elif level == "País":
                             )
                             ind_col_c = sb_indicator_options[selected_sb_ind_c]
                             
+                            # Toggle de filtrado para clasificación temática
+                            show_unclassified_c = st.toggle("Sincronizar con total de artículos (incluye 'Sin Clasificación')", value=True, key='sb_show_unclassified_c')
+                            
                             # Determinar columna de tamaño
                             size_col_c = 'count_recent' if '_recent' in ind_col_c else 'count_full'
                             
                             ids, labels, parents, values, colors = [], [], [], [], []
                             # Filtrar por volumen positivo
                             df_plot_c = df_sun_c[df_sun_c[size_col_c] > 0]
+                            
+                            if not show_unclassified_c:
+                                df_plot_c = df_plot_c[df_plot_c['domain'] != 'Sin Clasificación']
                             
                             for _, row in df_plot_c.iterrows():
                                 if row['level'] == 'domain':
