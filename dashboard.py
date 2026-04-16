@@ -718,20 +718,21 @@ if level == "Region (Latinoamérica)":
                         fig_sun_latam.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=550)
                         st.plotly_chart(fig_sun_latam, use_container_width=True)
                             
-                        with st.expander("📊 Perfiles Temáticos"):
-                            tab_dom, tab_field, tab_sub = st.tabs(["Dominio", "Campo", "Subcampo"])
+                        st.markdown("---")
+                        st.subheader("Análisis de Perfiles Temáticos por País")
+                        tab_dom, tab_field, tab_sub = st.tabs(["Dominio", "Campo", "Subcampo"])
+                        
+                        with tab_dom:
+                            df_dom = create_profile_table(topics_latam, 'domain', 'country_code', 'País', 'Total Región LATAM')
+                            st.dataframe(df_dom, use_container_width=True, hide_index=True)
                             
-                            with tab_dom:
-                                df_dom = create_profile_table(topics_latam, 'domain', 'country_code', 'País', 'Total Región LATAM')
-                                st.dataframe(df_dom, use_container_width=True, hide_index=True)
-                                
-                            with tab_field:
-                                df_field = create_profile_table(topics_latam, 'field', 'country_code', 'País', 'Total Región LATAM')
-                                st.dataframe(df_field, use_container_width=True, hide_index=True)
-                                
-                            with tab_sub:
-                                df_sub = create_profile_table(topics_latam, 'subfield', 'country_code', 'País', 'Total Región LATAM')
-                                st.dataframe(df_sub, use_container_width=True, hide_index=True)
+                        with tab_field:
+                            df_field = create_profile_table(topics_latam, 'field', 'country_code', 'País', 'Total Región LATAM')
+                            st.dataframe(df_field, use_container_width=True, hide_index=True)
+                            
+                        with tab_sub:
+                            df_sub = create_profile_table(topics_latam, 'subfield', 'country_code', 'País', 'Total Región LATAM')
+                            st.dataframe(df_sub, use_container_width=True, hide_index=True)
 
                         # --- EVOLUCIÓN HISTÓRICA REGIONAL ---
                         st.markdown("---")
@@ -2212,35 +2213,36 @@ elif level == "País":
                             st.plotly_chart(fig_sun_c, use_container_width=True)
                                 
                             # --- Tablas de Perfiles Temáticos ---
-                            with st.expander("📊 Perfiles Temáticos"):
-                                tab_dom_c, tab_field_c, tab_sub_c = st.tabs(["Dominio", "Campo", "Subcampo"])
+                            st.markdown("---")
+                            st.subheader(f"Análisis de Perfiles Temáticos de Revistas ({selected_country})")
+                            tab_dom_c, tab_field_c, tab_sub_c = st.tabs(["Dominio", "Campo", "Subcampo"])
+                            
+                            # Obtener IDs de revistas de este país
+                            country_j_ids = df[df['country_code'] == selected_country]['id'].tolist()
+                            
+                            # Cargar temas a nivel revista
+                            if os.path.exists(TOPICS_FILE):
+                                topics_j_all = pd.read_parquet(TOPICS_FILE)
+                                topics_cj = topics_j_all[topics_j_all['journal_id'].isin(country_j_ids)]
                                 
-                                # Obtener IDs de revistas de este país
-                                country_j_ids = df[df['country_code'] == selected_country]['id'].tolist()
-                                
-                                # Cargar temas a nivel revista
-                                if os.path.exists(TOPICS_FILE):
-                                    topics_j_all = pd.read_parquet(TOPICS_FILE)
-                                    topics_cj = topics_j_all[topics_j_all['journal_id'].isin(country_j_ids)]
+                                if not topics_cj.empty:
+                                    total_c_name = f"Total {COUNTRY_NAMES.get(selected_country, selected_country)}"
                                     
-                                    if not topics_cj.empty:
-                                        total_c_name = f"Total {COUNTRY_NAMES.get(selected_country, selected_country)}"
+                                    with tab_dom_c:
+                                        df_dom_c = create_profile_table(topics_cj, 'domain', 'journal_name', 'Revista', total_c_name)
+                                        st.dataframe(df_dom_c, use_container_width=True, hide_index=True)
                                         
-                                        with tab_dom_c:
-                                            df_dom_c = create_profile_table(topics_cj, 'domain', 'journal_name', 'Revista', total_c_name)
-                                            st.dataframe(df_dom_c, use_container_width=True, hide_index=True)
-                                            
-                                        with tab_field_c:
-                                            df_field_c = create_profile_table(topics_cj, 'field', 'journal_name', 'Revista', total_c_name)
-                                            st.dataframe(df_field_c, use_container_width=True, hide_index=True)
-                                            
-                                        with tab_sub_c:
-                                            df_sub_c = create_profile_table(topics_cj, 'subfield', 'journal_name', 'Revista', total_c_name)
-                                            st.dataframe(df_sub_c, use_container_width=True, hide_index=True)
-                                    else:
-                                        st.info("No hay datos temáticos detallados por revista para este país.")
+                                    with tab_field_c:
+                                        df_field_c = create_profile_table(topics_cj, 'field', 'journal_name', 'Revista', total_c_name)
+                                        st.dataframe(df_field_c, use_container_width=True, hide_index=True)
+                                        
+                                    with tab_sub_c:
+                                        df_sub_c = create_profile_table(topics_cj, 'subfield', 'journal_name', 'Revista', total_c_name)
+                                        st.dataframe(df_sub_c, use_container_width=True, hide_index=True)
                                 else:
-                                    st.warning("No se encontró el archivo de temas por revista.")
+                                    st.info("No hay datos temáticos detallados por revista para este país.")
+                            else:
+                                st.warning("No se encontró el archivo de temas por revista.")
                                 
                     except Exception as e:
                         st.warning(f"No se pudieron cargar los temas del país: {e}")
