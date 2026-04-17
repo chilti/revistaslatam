@@ -362,6 +362,7 @@ if df_data is None:
 # --- DATA AGGREGATION LOGIC ---
 def get_entity_metrics(df, entity_name, period="Últimos 5 años (2021-2025)"):
     """Filtra y agrega métricas para una entidad y periodo específico."""
+    if df is None: return None
     dff = df.copy()
     
     # 1. Filtrar Entidad
@@ -425,6 +426,10 @@ def get_entity_metrics(df, entity_name, period="Últimos 5 años (2021-2025)"):
     }
 
 def render_entity_column(entity_name, df_all, period_label):
+    if df_all is None:
+        st.error(f"Datos no disponibles para {entity_name}")
+        return
+
     data = get_entity_metrics(df_all, entity_name, period_label)
     
     if not data or not data['metrics']:
@@ -508,16 +513,19 @@ def render_entity_column(entity_name, df_all, period_label):
             st.info("Sin datos de revistas.")
 
 # --- COMPARISON LAYOUT ---
-col_A, col_B = st.columns(2)
+if df_data is not None:
+    col_A, col_B = st.columns(2)
 
-entities = ["Mundo", "México"] + sorted(list(GLOBAL_REGIONS.keys()))
+    entities = ["Mundo", "México"] + sorted(list(GLOBAL_REGIONS.keys()))
 
-with col_A:
-    ent1 = st.selectbox("Entidad de Comparativa A", entities, index=0)
-    st.markdown(f"### 🌏 {ent1}")
-    render_entity_column(ent1, df_data, period_mode)
+    with col_A:
+        ent1 = st.selectbox("Entidad de Comparativa A", entities, index=0)
+        st.markdown(f"### 🌏 {ent1}")
+        render_entity_column(ent1, df_data, period_mode)
 
-with col_B:
-    ent2 = st.selectbox("Entidad de Comparativa B", entities, index=entities.index("Latinoamérica y Caribe") if "Latinoamérica y Caribe" in entities else 1)
-    st.markdown(f"### 📍 {ent2}")
-    render_entity_column(ent2, df_data, period_mode)
+    with col_B:
+        ent2 = st.selectbox("Entidad de Comparativa B", entities, index=entities.index("Latinoamérica y Caribe") if "Latinoamérica y Caribe" in entities else 1)
+        st.markdown(f"### 📍 {ent2}")
+        render_entity_column(ent2, df_data, period_mode)
+else:
+    st.info("Por favor, selecciona un tema y lanza el cálculo si es necesario.")
