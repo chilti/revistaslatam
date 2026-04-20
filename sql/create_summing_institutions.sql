@@ -56,7 +56,7 @@ SELECT
     sum(toUInt64(percentile >= 0.75)) as top_25_sum,
     -- Impacto y Colaboración
     sum(cited_by_count) as citations_sum,
-    sum(if(length(all_country_codes) > 1, 1, 0)) as int_collab_count,
+    sum(if(length(all_country_codes) > 1, 1, 0)) as intl_collab_count,
     -- Alineación y Financiamiento
     sum(if(length(sdg_ids) > 0, 1, 0)) as sdg_count,
     sum(if(length(awards) > 0, 1, 0)) as award_count,

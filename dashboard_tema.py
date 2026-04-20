@@ -396,6 +396,62 @@ def render_entity_details(entity_name, data, show_all=False):
     else:
         st.info("Sin datos de revistas.")
 
+def render_entity_institutions(entity_name, df_inst_all, period_mode):
+    """Renderiza el análisis institucional para una entidad específica en formato de burbujas."""
+    if df_inst_all is None or df_inst_all.empty:
+        st.info("Sin datos institucionales.")
+        return
+
+    # Mapeo de filtro similar a get_entity_metrics
+    # Si es México, buscamos por country_code MX
+    # Si es Mundo, no filtramos
+    # Si es otro, buscamos por region
+    df_i = df_inst_all.copy()
+    if entity_name == "Mundo":
+        pass 
+    elif entity_name == "México":
+        df_i = df_i[df_i['country_code'] == 'MX']
+    else:
+        df_i = df_i[df_i['region'] == entity_name]
+
+    if df_i.empty:
+        st.warning(f"No hay instituciones registradas para {entity_name}")
+        return
+
+    # Filtrar por Periodo
+    if period_mode == "Últimos 5 años (2021-2025)":
+        df_i = df_i[df_i['year'] >= 2021]
+
+    # Agrupar asegurando que tenemos nombre y país para el hover
+    df_rank = df_i.groupby(['institution_id', 'institution_name', 'country_code']).agg({
+        'doc_count': 'sum',
+        'fwci': 'mean',
+        'citations': 'sum'
+    }).reset_index().sort_values('doc_count', ascending=False).head(30)
+
+    if df_rank.empty:
+        return
+
+    st.markdown(f"**🏢 Instituciones Líderes: {entity_name}**")
+    
+    # Crear etiqueta personalizada para el hover
+    df_rank['info'] = df_rank['institution_name'] + " (" + df_rank['country_code'] + ")"
+    
+    fig = px.scatter(
+        df_rank, 
+        x="doc_count", y="fwci", 
+        size="citations",
+        hover_name="info",
+        hover_data={"doc_count": True, "fwci": ":.2f", "citations": True, "info": False},
+        labels={"doc_count": "Artículos", "fwci": "FWCI", "citations": "Citas"},
+        template="plotly_white",
+        height=350,
+        color_discrete_sequence=['#3b82f6' if entity_name == "Mundo" else ('#10b981' if entity_name == 'México' else '#f59e0b')]
+    )
+    fig.add_hline(y=1.0, line_dash="dash", line_color="gray")
+    fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
+    st.plotly_chart(fig, use_container_width=True)
+
 # --- COMPARISON LAYOUT ---
 if df_data is not None:
     entities = ["Mundo", "México"] + sorted(list(GLOBAL_REGIONS.keys()))
@@ -443,9 +499,15 @@ if df_data is not None:
 
     # 3. Details Row (Pie charts, etc.)
     cd1, cd2, cd3 = st.columns(3)
-    with cd1: render_entity_details(ent1, data1, show_all=show_all_topics)
-    with cd2: render_entity_details(ent2, data2, show_all=show_all_topics)
-    with cd3: render_entity_details(ent3, data3, show_all=show_all_topics)
+    with cd1:
+        render_entity_details(ent1, data1, show_all=show_all_topics)
+        render_entity_institutions(ent1, df_inst, period_mode)
+    with cd2:
+        render_entity_details(ent2, data2, show_all=show_all_topics)
+        render_entity_institutions(ent2, df_inst, period_mode)
+    with cd3:
+        render_entity_details(ent3, data3, show_all=show_all_topics)
+        render_entity_institutions(ent3, df_inst, period_mode)
 
     # --- GENERAL SUMMARY TABLES (WIDE) ---
     st.markdown("---")
