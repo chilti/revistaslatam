@@ -174,8 +174,8 @@ def compute_subfield_data(subfield):
         journal_query = f"""
         SELECT 
             source_id as journal_id, 
-            argMax(S.display_name, S.updated_date) as Revista,
-            sum(doc_count) as Artículos
+            any(S.display_name) as Revista,
+            sum(doc_count) as articulos
         FROM summing_subfield_metrics AS W
         LEFT JOIN (
             SELECT id, argMax(display_name, updated_date) as display_name 
@@ -183,10 +183,11 @@ def compute_subfield_data(subfield):
         ) AS S ON W.source_id = S.id
         WHERE subfield = '{subfield}' AND year >= 2021
         GROUP BY journal_id
-        ORDER BY Artículos DESC
+        ORDER BY articulos DESC
         LIMIT 100
         """
         df_journals = client.query_df(journal_query)
+        df_journals = df_journals.rename(columns={'articulos': 'Artículos'})
         df_journals.to_parquet(CACHE_TEMAS_DIR / f"{sub_clean}_journals.parquet", index=False)
 
         # 5. Colaboración Internacional
