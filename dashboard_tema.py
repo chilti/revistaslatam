@@ -267,7 +267,7 @@ def render_entity_charts_synced(entity_name, data, tab_index):
         ('fwci', 'Impacto (FWCI)', '#ef4444', 'FWCI', False),
         ('pct_top_10', '% Top 10%', '#8b5cf6', '% Top 10%', False),
         ('pct_top_1', '% Top 1%', '#ec4899', '% Top 1%', False),
-        ('mean_percentile', 'Percentil (Normalizado)', '#f59e0b', 'Percentil', False)
+        ('percentile', 'Percentil (Normalizado)', '#f59e0b', 'Percentil', False)
     ]
     
     col_name, title_suffix, color, y_label, has_fill = metrics_map[tab_index]
@@ -299,7 +299,7 @@ def render_topical_evolution(entity_name, data, tab_index, show_all=False):
         ('fwci', 'FWCI por Tópico', 'FWCI', False),
         ('pct_top_10', '% Top 10% por Tópico', '% Top 10%', False),
         ('pct_top_1', '% Top 1% por Tópico', '% Top 1%', False),
-        ('mean_percentile', 'Percentil por Tópico', 'Percentil', False)
+        ('percentile', 'Percentil por Tópico', 'Percentil', False)
     ]
     
     col_name, title_suffix, y_label, is_production = metrics_map[tab_index]
@@ -454,7 +454,7 @@ if df_data is not None:
     df_countries, df_topics, _, df_ct_annual, df_ct_full, df_ct_2125 = res
     
     if df_countries is not None:
-        tab_sum_1, tab_sum_2, tab_sum_3, tab_sum_4, tab_sum_5, tab_sum_6, tab_sum_7 = st.tabs([
+        tab_sum_1, tab_sum_2, tab_sum_3, tab_sum_4, tab_sum_5, tab_sum_6, tab_sum_7, tab_sum_8 = st.tabs([
             "🌎 Países (Anual)", 
             "🧩 Tópicos (Anual)", 
             "📚 Revistas (Anual)",

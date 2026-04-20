@@ -94,7 +94,7 @@ def get_entity_metrics(df, entity_name, period="Últimos 5 años (2021-2025)"):
         'fwci': (x['fwci'] * x['doc_count']).sum() / x['doc_count'].sum(),
         'pct_top_10': (x['pct_top_10'] * x['doc_count']).sum() / x['doc_count'].sum(),
         'pct_top_1': (x['pct_top_1'] * x['doc_count']).sum() / x['doc_count'].sum(),
-        'mean_percentile': (x['percentile'] * x['doc_count']).sum() / x['doc_count'].sum(),
+        'percentile': (x['percentile'] * x['doc_count']).sum() / x['doc_count'].sum(),
     })).reset_index()
     
     # 3. Tendencias por Tópico (Ya vienen listas)
