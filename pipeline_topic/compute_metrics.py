@@ -218,9 +218,10 @@ def compute_subfield_data(subfield):
         except Exception as e:
             st.error(f"Error calculando colaboración: {e}")
 
-        # 6. Analítica Institucional (Top 2000 para permitir exportación completa)
+        # 6. Analítica Institucional MULTI-SEGMENTO (Garantiza representatividad MX y Regional)
         try:
-            inst_query = f"""
+            # Query base para reutilizar
+            q_base = f"""
             SELECT 
                 W.year,
                 W.institution_id,
@@ -240,13 +241,30 @@ def compute_subfield_data(subfield):
             LEFT JOIN institutions AS I ON W.institution_id = I.id
             WHERE W.subfield = '{subfield}' AND W.year >= 1900
             GROUP BY W.year, W.institution_id, institution_name, country_code, region
-            ORDER BY doc_count DESC
-            LIMIT 2000
+            """
+
+            # Combinamos Global Top, MX Top y Líderes Regionales
+            inst_query = f"""
+            SELECT * FROM (
+                -- 6a. Global Top 1000
+                (SELECT *, 'Global' as segment FROM ({q_base}) ORDER BY doc_count DESC LIMIT 1000)
+                UNION DISTINCT
+                -- 6b. México Top 500 (Garantizado)
+                (SELECT *, 'Mexico' as segment FROM ({q_base}) WHERE country_code = 'MX' ORDER BY doc_count DESC LIMIT 500)
+                UNION DISTINCT
+                -- 6c. Top 100 por Región (Garantiza representatividad LATAM, etc.)
+                (
+                    SELECT * EXCEPT(rn), 'Regional' as segment FROM (
+                        SELECT *, row_number() OVER (PARTITION BY region ORDER BY doc_count DESC) as rn
+                        FROM ({q_base})
+                    ) WHERE rn <= 100
+                )
+            )
             """
             df_inst = client.query_df(inst_query)
             df_inst.to_parquet(CACHE_TEMAS_DIR / f"{sub_clean}_inst.parquet", index=False)
         except Exception as e:
-            st.error(f"Error calculando analítica institucional: {e}")
+            st.error(f"Error calculando analítica institucional segmentada: {e}")
 
         return True
     except Exception as e:

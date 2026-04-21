@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import time
+import random
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -118,10 +119,20 @@ def premium_metric(label, value, delta=None):
     </div>
     """, unsafe_allow_html=True)
 
-# --- RUTAS ---
+# --- CONFIGURATION & MAPPINGS ---
 BASE_PATH = Path(__file__).parent
 DATA_DIR = BASE_PATH / 'data'
 CACHE_TEMAS_DIR = DATA_DIR / 'cache_temas'
+
+INST_METRICS = {
+    "Artículos": "doc_count",
+    "Impacto (FWCI)": "fwci",
+    "% Top 10%": "pct_top_10",
+    "% Top 1%": "pct_top_1",
+    "Percentil": "percentile"
+}
+
+# --- STYLING ---
 CACHE_TEMAS_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- SIDEBAR: JERARQUÍA ---
@@ -225,15 +236,16 @@ if df_data is None:
 # --- DATA AGGREGATION LOGIC ---
 # Entity metrics aggregation now via pipeline_topic.get_entity_metrics
 
-def download_csv_button(df, name):
+def download_csv_button(df, name, use_sidebar=False):
     if df is not None and not df.empty:
         csv = df.to_csv(index=False).encode('utf-8')
-        st.sidebar.download_button(
+        target = st.sidebar if use_sidebar else st
+        target.download_button(
             label=f"📥 Descargar {name}",
             data=csv,
             file_name=f"{name.replace(' ', '_').lower()}.csv",
             mime='text/csv',
-            key=f"btn_dl_{name.replace(' ', '_').lower()}"
+            key=f"btn_dl_{name.replace(' ', '_').lower()}_{random.randint(0,99999)}"
         )
 
 def render_entity_kpis(entity_name, df_all, period_label):
@@ -285,6 +297,8 @@ def render_entity_charts_synced(entity_name, data, tab_index):
     try:
         fig.update_xaxes(type='linear', tickformat='d')
         st.plotly_chart(fig, use_container_width=True)
+        # Añadir opción de descarga de los datos de tendencia
+        download_csv_button(data['trends'], f"Tendencias_{entity_name}")
     except Exception as e:
         st.error(f"Error renderizando gráfica: {e}")
 
@@ -334,6 +348,8 @@ def render_topical_evolution(entity_name, data, tab_index, show_all=False):
     try:
         fig.update_xaxes(type='linear', tickformat='d')
         st.plotly_chart(fig, use_container_width=True)
+        # Descargar datos específicos del desglose mostrado
+        download_csv_button(trends, f"Topicos_{title_suffix}_{entity_name}")
     except Exception as e:
         st.error(f"Error renderizando desglose por tópico: {e}")
 
@@ -396,16 +412,12 @@ def render_entity_details(entity_name, data, show_all=False):
     else:
         st.info("Sin datos de revistas.")
 
-def render_entity_institutions(entity_name, df_inst_all, period_mode):
+def render_entity_institutions(entity_name, df_inst_all, period_mode, x_col, y_col, x_label, y_label):
     """Renderiza el análisis institucional para una entidad específica en formato de burbujas."""
     if df_inst_all is None or df_inst_all.empty:
         st.info("Sin datos institucionales.")
         return
 
-    # Mapeo de filtro similar a get_entity_metrics
-    # Si es México, buscamos por country_code MX
-    # Si es Mundo, no filtramos
-    # Si es otro, buscamos por region
     df_i = df_inst_all.copy()
     if entity_name == "Mundo":
         pass 
@@ -422,12 +434,29 @@ def render_entity_institutions(entity_name, df_inst_all, period_mode):
     if period_mode == "Últimos 5 años (2021-2025)":
         df_i = df_i[df_i['year'] >= 2021]
 
-    # Agrupar asegurando que tenemos nombre y país para el hover
-    df_rank = df_i.groupby(['institution_id', 'institution_name', 'country_code']).agg({
+    # Agrupar con promedio ponderado por producción
+    # Calculamos sumas de productos para los promedios ponderados
+    df_calc = df_i.copy()
+    metrics_to_weight = ['fwci', 'percentile', 'pct_top_10', 'pct_top_1']
+    for m in metrics_to_weight:
+        df_calc[f'{m}_prod'] = df_calc[m] * df_calc['doc_count']
+    
+    df_rank = df_calc.groupby(['institution_id', 'institution_name', 'country_code']).agg({
         'doc_count': 'sum',
-        'fwci': 'mean',
+        'fwci_prod': 'sum',
+        'percentile_prod': 'sum',
+        'pct_top_10_prod': 'sum',
+        'pct_top_1_prod': 'sum',
         'citations': 'sum'
-    }).reset_index().sort_values('doc_count', ascending=False).head(30)
+    }).reset_index()
+    
+    # Calcular promedios ponderados finales
+    for m in metrics_to_weight:
+        df_rank[m] = df_rank[f'{m}_prod'] / df_rank['doc_count']
+        df_rank[m] = df_rank[m].fillna(0)
+
+    # Ordenar y limitar
+    df_rank = df_rank.sort_values('doc_count', ascending=False).head(30)
 
     if df_rank.empty:
         return
@@ -438,19 +467,19 @@ def render_entity_institutions(entity_name, df_inst_all, period_mode):
     df_rank['info'] = df_rank['institution_name'] + " (" + df_rank['country_code'] + ")"
     
     fig = px.scatter(
-        df_rank, 
-        x="doc_count", y="fwci", 
+        df_rank,
+        x=x_col,
+        y=y_col,
         size="citations",
         hover_name="info",
-        hover_data={"doc_count": True, "fwci": ":.2f", "citations": True, "info": False},
-        labels={"doc_count": "Artículos", "fwci": "FWCI", "citations": "Citas"},
-        template="plotly_white",
-        height=350,
-        color_discrete_sequence=['#3b82f6' if entity_name == "Mundo" else ('#10b981' if entity_name == 'México' else '#f59e0b')]
+        text="country_code",
+        title=f"Líderes en {entity_name}",
+        labels={x_col: x_label, y_col: y_label, "citations": "Citas"},
+        template="plotly_dark",
+        height=450
     )
-    fig.add_hline(y=1.0, line_dash="dash", line_color="gray")
-    fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_traces(textposition='top center')
+    st.plotly_chart(fig, use_container_width=True, key=f"inst_chart_{entity_name}")
 
 # --- COMPARISON LAYOUT ---
 if df_data is not None:
@@ -497,17 +526,26 @@ if df_data is not None:
             with tt2: render_topical_evolution(ent2, data2, i, show_all=show_all_topics)
             with tt3: render_topical_evolution(ent3, data3, i, show_all=show_all_topics)
 
+    # 2. Configuración de Ejes para Instituciones (Global)
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 🏢 Gráficos de Instituciones")
+        inst_x_label = st.selectbox("Eje X (Burbujas)", list(INST_METRICS.keys()), index=0)
+        inst_y_label = st.selectbox("Eje Y (Burbujas)", list(INST_METRICS.keys()), index=1)
+        ix_col = INST_METRICS[inst_x_label]
+        iy_col = INST_METRICS[inst_y_label]
+
     # 3. Details Row (Pie charts, etc.)
     cd1, cd2, cd3 = st.columns(3)
     with cd1:
         render_entity_details(ent1, data1, show_all=show_all_topics)
-        render_entity_institutions(ent1, df_inst, period_mode)
+        render_entity_institutions(ent1, df_inst, period_mode, ix_col, iy_col, inst_x_label, inst_y_label)
     with cd2:
         render_entity_details(ent2, data2, show_all=show_all_topics)
-        render_entity_institutions(ent2, df_inst, period_mode)
+        render_entity_institutions(ent2, df_inst, period_mode, ix_col, iy_col, inst_x_label, inst_y_label)
     with cd3:
         render_entity_details(ent3, data3, show_all=show_all_topics)
-        render_entity_institutions(ent3, df_inst, period_mode)
+        render_entity_institutions(ent3, df_inst, period_mode, ix_col, iy_col, inst_x_label, inst_y_label)
 
     # --- GENERAL SUMMARY TABLES (WIDE) ---
     st.markdown("---")
@@ -530,34 +568,41 @@ if df_data is not None:
         with tab_sum_1:
             st.subheader("Producción e Impacto por País y Año")
             st.dataframe(df_countries, use_container_width=True, hide_index=True)
+            download_csv_button(df_countries, "Paises_Anual")
             
         with tab_sum_2:
             st.subheader("Producción e Impacto por Tópico y Año")
             st.dataframe(df_topics, use_container_width=True, hide_index=True)
+            download_csv_button(df_topics, "Topicos_Anual")
             
         with tab_sum_3:
             st.subheader("Top 100 Revistas Líderes (Periodo 2021-2025)")
             st.dataframe(df_journals_top, use_container_width=True, hide_index=True)
+            download_csv_button(df_journals_top, "Top_Revistas")
 
         with tab_sum_4:
             st.subheader("Evolución de Artículos por País y Tópico (Anual)")
             st.dataframe(df_ct_annual, use_container_width=True, hide_index=True)
+            download_csv_button(df_ct_annual, "Evolucion_Anual")
 
         with tab_sum_5:
             st.subheader("Totales de Producción Temática: 2021-2025")
             st.info("Suma total de documentos por tópico para cada país/región en el periodo actual.")
             st.dataframe(df_ct_2125, use_container_width=True, hide_index=True)
+            download_csv_button(df_ct_2125, "Totales_Recientes")
 
         with tab_sum_6:
             st.subheader("Totales de Producción Temática: Periodo Completo")
             st.info("Suma histórica acumulada de documentos por tópico para cada entidad.")
             st.dataframe(df_ct_full, use_container_width=True, hide_index=True)
+            download_csv_button(df_ct_full, "Totales_Historicos")
 
         with tab_sum_7:
             st.subheader("🤝 Matriz de Colaboración Internacional")
             if df_collab is not None and not df_collab.empty:
                 st.info("Esta tabla muestra el número de co-autorías detectadas entre pares de países para este subcampo.")
                 st.dataframe(df_collab, use_container_width=True, hide_index=True)
+                download_csv_button(df_collab, "Colaboración")
             else:
                 st.warning("No hay datos de colaboración para este subcampo. Intenta 'Forzar Recálculo'.")
                 
@@ -579,30 +624,40 @@ if df_data is not None:
                 if period_mode == "Últimos 5 años (2021-2025)":
                     df_inst_view = df_inst_view[df_inst_view['year'] >= 2021]
                 
-                # Agrupar para el ranking (ya que df_inst es anual)
-                df_inst_rank = df_inst_view.groupby(['institution_id', 'institution_name', 'country_code', 'region']).agg({
+                # Agrupar con promedio ponderado
+                df_calc = df_inst_view.copy()
+                metrics_to_weight = ['fwci', 'percentile', 'pct_top_10', 'pct_top_1']
+                for m in metrics_to_weight:
+                    df_calc[f'{m}_prod'] = df_calc[m] * df_calc['doc_count']
+
+                df_inst_rank = df_calc.groupby(['institution_id', 'institution_name', 'country_code', 'region']).agg({
                     'doc_count': 'sum',
-                    'fwci': 'mean', # Aproximación (Clickhouse lo hace mejor pero para el ranking consolidado de la vista actual sirve)
-                    'pct_top_10': 'mean',
-                    'pct_top_1': 'mean',
+                    'fwci_prod': 'sum',
+                    'percentile_prod': 'sum',
+                    'pct_top_10_prod': 'sum',
+                    'pct_top_1_prod': 'sum',
                     'citations': 'sum',
                     'intl_collab': 'sum',
                     'sdg_docs': 'sum'
-                }).reset_index().sort_values('doc_count', ascending=False)
+                }).reset_index()
+
+                for m in metrics_to_weight:
+                    df_inst_rank[m] = df_inst_rank[f'{m}_prod'] / df_inst_rank['doc_count']
+                    df_inst_rank[m] = df_inst_rank[m].fillna(0)
+
+                df_inst_rank = df_inst_rank.sort_values('doc_count', ascending=False)
                 
                 # 1. Benchmarking Plot (Burbujas)
-                st.markdown("#### 🚀 Benchmarking: Producción vs Impacto")
+                st.markdown(f"#### 🚀 Benchmarking: {inst_x_label} vs {inst_y_label}")
                 fig_inst = px.scatter(
                     df_inst_rank.head(50), 
-                    x="doc_count", y="fwci", 
+                    x=ix_col, y=iy_col, 
                     size="citations", color="region",
                     hover_name="institution_name",
-                    labels={"doc_count": "Artículos", "fwci": "FWCI (Impacto)", "region": "Región", "citations": "Citas"},
-                    title="Top 50 Instituciones (Benchmarking Mundial)",
-                    template="plotly_white",
-                    height=500
+                    labels={ix_col: inst_x_label, iy_col: inst_y_label, "region": "Región", "citations": "Citas"},
+                    template="plotly_dark",
+                    height=600
                 )
-                fig_inst.add_hline(y=1.0, line_dash="dash", line_color="gray")
                 st.plotly_chart(fig_inst, use_container_width=True)
                 
                 # 2. Ranking Table
@@ -631,16 +686,6 @@ if df_data is not None:
                 )
             else:
                 st.warning("No hay datos institucionales calculados. Pulsa 'Forzar Recálculo' para generarlos.")
-        # --- SIDEBAR: DESCARGAS ---
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("📥 Exportación de Reportes")
-        download_csv_button(df_countries, "Paises_Anual")
-        download_csv_button(df_topics, "Topicos_Anual")
-        download_csv_button(df_journals_top, "Top_Revistas")
-        download_csv_button(df_ct_annual, "Evolucion_Anual")
-        download_csv_button(df_ct_2125, "Totales_Recientes")
-        download_csv_button(df_ct_full, "Totales_Historicos")
-        download_csv_button(df_collab, "Colaboración")
 
 else:
     st.info("Por favor, selecciona un tema y lanza el cálculo si es necesario.")
