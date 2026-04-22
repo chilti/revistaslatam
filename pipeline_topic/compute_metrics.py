@@ -199,16 +199,16 @@ def compute_subfield_data(subfield):
                 count() as count
             FROM (
                 SELECT 
-                    id, 
-                    arrayDistinct(all_country_codes) as countries 
-                FROM works 
-                WHERE subfield = '{subfield}' 
+                    arrayJoin(arrayDistinct(all_country_codes)) as c1,
+                    arrayDistinct(all_country_codes) as arr
+                FROM works
+                WHERE subfield = '{subfield}'
+                  AND length(all_country_codes) > 1
                   AND publication_year >= 1900
-            ) 
-            ARRAY JOIN 
-                countries as c1, 
-                countries as c2 
-            WHERE c1 < c2 
+            )
+            ARRAY JOIN arr as c2
+            WHERE c1 < c2
+              AND c1 != '' AND c2 != ''
             GROUP BY c1, c2
             ORDER BY count DESC
             LIMIT 1000
@@ -265,6 +265,23 @@ def compute_subfield_data(subfield):
             df_inst.to_parquet(CACHE_TEMAS_DIR / f"{sub_clean}_inst.parquet", index=False)
         except Exception as e:
             st.error(f"Error calculando analítica institucional segmentada: {e}")
+
+        # 7. Distribución de Tipos Documentales
+        try:
+            type_query = f"""
+            SELECT 
+                publication_year as year,
+                country_code,
+                type as doc_type,
+                count() as count
+            FROM works
+            WHERE subfield = '{subfield}' AND publication_year >= 1900
+            GROUP BY year, country_code, doc_type
+            """
+            df_types = client.query_df(type_query)
+            df_types.to_parquet(CACHE_TEMAS_DIR / f"{sub_clean}_types.parquet", index=False)
+        except Exception as e:
+            st.error(f"Error calculando distribución de tipos documentales: {e}")
 
         return True
     except Exception as e:

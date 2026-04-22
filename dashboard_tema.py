@@ -24,6 +24,8 @@ from pipeline_topic import (
     load_subfield_data, 
     load_collaboration_data,
     load_institutional_data,
+    load_types_data,
+    get_type_distribution,
     get_entity_metrics,
     get_summary_tables
 )
@@ -226,6 +228,7 @@ sub_clean = selected_subfield.strip().replace(' ', '_').lower()
 cache_jr = CACHE_TEMAS_DIR / f"{sub_clean}_journals.parquet"
 df_journals_top = pd.read_parquet(cache_jr) if cache_jr.exists() else pd.DataFrame(columns=['Revista', 'URL', 'Artículos'])
 df_inst = load_institutional_data(selected_subfield)
+df_types = load_types_data(selected_subfield)
 
 if df_data is None:
     cache_path = CACHE_TEMAS_DIR / f"{selected_subfield.replace(' ', '_').lower()}.parquet"
@@ -359,7 +362,50 @@ def render_topical_evolution(entity_name, data, tab_index, show_all=False):
     except Exception as e:
         st.error(f"Error renderizando desglose por tópico: {e}")
 
-def render_entity_details(entity_name, data, show_all=False):
+def render_document_types(entity_name, df_types):
+    """Renderiza la distribución de tipos documentales."""
+    dist = get_type_distribution(df_types, entity_name)
+    if dist is None or dist.empty:
+        st.info(f"Sin datos de tipos documentales para {entity_name}")
+        return
+
+    # Asegurar tipos y filtrar periodo razonable
+    dist['year'] = pd.to_numeric(dist['year'], errors='coerce')
+    dist = dist[(dist['year'] >= 1950) & (dist['year'] <= 2025)].dropna(subset=['year'])
+    dist['year'] = dist['year'].astype(int)
+    
+    # IMPORTANTE: Rellenar años faltantes para cada tipo para evitar "zig-zags" en px.area
+    dist = dist.pivot_table(index='year', columns='doc_type', values='count', aggfunc='sum').fillna(0)
+    dist = dist.stack().reset_index(name='count')
+    dist = dist.sort_values(['year', 'doc_type'])
+    
+    st.markdown(f"**📄 Análisis de Tipos Documentales: {entity_name}**")
+    
+    # 1. Pie Chart Histórico (Todo el tiempo)
+    st.markdown("*Distribución Histórica Acumulada*")
+    pie_data = dist.groupby('doc_type')['count'].sum().reset_index()
+    fig_pie = px.pie(pie_data, values='count', names='doc_type',
+                     hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+    fig_pie.update_layout(showlegend=True, height=350, margin=dict(l=0,r=0,t=30,b=0))
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+    # 2. Evolución Temporal (Area Chart)
+    st.markdown("*Evolución Temporal (1950-2025)*")
+    
+    fig = px.area(dist, x="year", y="count", color="doc_type",
+                  title=f"Evolución por Tipo Documental: {entity_name}",
+                  labels={"count": "Documentos", "year": "Año", "doc_type": "Tipo"},
+                  template="plotly_white", height=400)
+    
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=40, b=0),
+        xaxis=dict(range=[1950, 2025], type='linear')
+    )
+    fig.update_xaxes(tickformat='d')
+    st.plotly_chart(fig, use_container_width=True)
+    download_csv_button(dist, f"Tipos_Documentales_{entity_name}")
+
+def render_entity_details(entity_name, data, df_types, show_all=False):
     if not data:
         return
 
@@ -400,6 +446,10 @@ def render_entity_details(entity_name, data, show_all=False):
                       color_discrete_sequence=['#3b82f6', '#10b981', '#f59e0b'])
         fig_l.update_layout(showlegend=True, height=300, margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig_l, use_container_width=True)
+
+    # Document Types (New section requested by user)
+    st.markdown("---")
+    render_document_types(entity_name, df_types)
 
     # Top Journals Table
     st.markdown("---")
@@ -541,14 +591,14 @@ if df_data is not None:
 
     # 3. Details Row (Pie charts, etc.)
     cd1, cd2, cd3 = st.columns(3)
-    with cd1:
-        render_entity_details(ent1, data1, show_all=show_all_topics)
+    with cd1: 
+        render_entity_details(ent1, data1, df_types, show_all=show_all_topics)
         render_entity_institutions(ent1, df_inst, period_mode, ix_col, iy_col, inst_x_label, inst_y_label)
-    with cd2:
-        render_entity_details(ent2, data2, show_all=show_all_topics)
+    with cd2: 
+        render_entity_details(ent2, data2, df_types, show_all=show_all_topics)
         render_entity_institutions(ent2, df_inst, period_mode, ix_col, iy_col, inst_x_label, inst_y_label)
     with cd3:
-        render_entity_details(ent3, data3, show_all=show_all_topics)
+        render_entity_details(ent3, data3, df_types, show_all=show_all_topics)
         render_entity_institutions(ent3, df_inst, period_mode, ix_col, iy_col, inst_x_label, inst_y_label)
 
     # --- GENERAL SUMMARY TABLES (WIDE) ---
