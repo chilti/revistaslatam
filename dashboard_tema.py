@@ -284,7 +284,9 @@ def render_entity_charts_synced(entity_name, data, tab_index):
     
     col_name, title_suffix, color, y_label, has_fill = metrics_map[tab_index]
     
-    fig = px.line(data['trends'], x='year', y=col_name, 
+    trends_df = data['trends'][data['trends']['year'] <= 2025].copy()
+    
+    fig = px.line(trends_df, x='year', y=col_name, 
                   title=f"Evolución {title_suffix}: {entity_name}",
                   labels={col_name: y_label, 'year': 'Año'},
                   markers=True, template="plotly_white")
@@ -298,7 +300,7 @@ def render_entity_charts_synced(entity_name, data, tab_index):
         fig.update_xaxes(type='linear', tickformat='d')
         st.plotly_chart(fig, use_container_width=True)
         # Añadir opción de descarga de los datos de tendencia
-        download_csv_button(data['trends'], f"Tendencias_{entity_name}")
+        download_csv_button(trends_df, f"Tendencias_{entity_name}")
     except Exception as e:
         st.error(f"Error renderizando gráfica: {e}")
 
@@ -329,16 +331,20 @@ def render_topical_evolution(entity_name, data, tab_index, show_all=False):
         top_names = data['top_topics'].head(10).index.tolist()
         trends = trends[trends['topic'].isin(top_names)]
     
-    # Filtrar tópicos con valores nulos para la métrica actual
-    trends = trends[trends[col_name].notnull()]
+    # Filtrar tópicos con valores nulos para la métrica actual y limitar al 2025
+    trends = trends[(trends[col_name].notnull()) & (trends['year'] <= 2025)]
     
     if trends.empty:
         return
     
+    # Ordenar por año para evitar zig-zag en Plotly
+    trends = trends.sort_values('year')
+    
     # Gráfica de líneas para evolución (Producción o Indicadores)
     fig = px.line(trends, x='year', y=col_name, color='topic',
                   title=f"{title_suffix} - {entity_name}",
-                  labels={col_name: y_label, 'year': 'Año', 'topic': 'Tópico'})
+                  labels={col_name: y_label, 'year': 'Año', 'topic': 'Tópico'},
+                  markers=True, template="plotly_white")
 
     fig.update_layout(
         showlegend=not show_all,
@@ -432,7 +438,7 @@ def render_entity_institutions(entity_name, df_inst_all, period_mode, x_col, y_c
 
     # Filtrar por Periodo
     if period_mode == "Últimos 5 años (2021-2025)":
-        df_i = df_i[df_i['year'] >= 2021]
+        df_i = df_i[(df_i['year'] >= 2021) & (df_i['year'] <= 2025)]
 
     # Agrupar con promedio ponderado por producción
     # Calculamos sumas de productos para los promedios ponderados
@@ -472,13 +478,11 @@ def render_entity_institutions(entity_name, df_inst_all, period_mode, x_col, y_c
         y=y_col,
         size="citations",
         hover_name="info",
-        text="country_code",
         title=f"Líderes en {entity_name}",
         labels={x_col: x_label, y_col: y_label, "citations": "Citas"},
         template="plotly_dark",
         height=450
     )
-    fig.update_traces(textposition='top center')
     st.plotly_chart(fig, use_container_width=True, key=f"inst_chart_{entity_name}")
 
 # --- COMPARISON LAYOUT ---
@@ -622,7 +626,7 @@ if df_data is not None:
                 
                 # Filtrar por Periodo (usando el global de la sidebar)
                 if period_mode == "Últimos 5 años (2021-2025)":
-                    df_inst_view = df_inst_view[df_inst_view['year'] >= 2021]
+                    df_inst_view = df_inst_view[(df_inst_view['year'] >= 2021) & (df_inst_view['year'] <= 2025)]
                 
                 # Agrupar con promedio ponderado
                 df_calc = df_inst_view.copy()
