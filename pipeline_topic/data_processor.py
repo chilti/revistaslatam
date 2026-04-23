@@ -77,6 +77,38 @@ def get_type_distribution(df_types, entity_name):
     
     return None
 
+def load_inst_types_data(subfield):
+    sub_clean = subfield.strip().replace(' ', '_').lower()
+    cache_path = CACHE_TEMAS_DIR / f"{sub_clean}_inst_types.parquet"
+    if cache_path.exists():
+        try:
+            return pd.read_parquet(cache_path)
+        except Exception as e:
+            st.error(f"Error leyendo el archivo de tipos de instituciones: {e}")
+            return None
+    return None
+
+def get_inst_type_distribution(df_types, entity_name):
+    """Agrega la distribución de tipos de instituciones para una entidad específica."""
+    if df_types is None or df_types.empty: return None
+    
+    from regions import GLOBAL_REGIONS
+    
+    df = df_types.copy()
+    
+    if entity_name == 'Mundo':
+        return df.groupby(['year', 'inst_type'])['count'].sum().reset_index()
+    
+    if entity_name == 'México':
+        return df[df['country_code'] == 'MX'].groupby(['year', 'inst_type'])['count'].sum().reset_index()
+    
+    # Regiones
+    if entity_name in GLOBAL_REGIONS:
+        countries = GLOBAL_REGIONS[entity_name]
+        return df[df['country_code'].isin(countries)].groupby(['year', 'inst_type'])['count'].sum().reset_index()
+    
+    return None
+
 # --- AGGREGATION LOGIC ---
 def get_entity_metrics(df, entity_name, period="Últimos 5 años (2021-2025)"):
     """Extrae métricas pre-calculadas para una entidad y periodo específico."""

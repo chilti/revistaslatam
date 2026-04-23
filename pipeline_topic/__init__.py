@@ -5,6 +5,8 @@ from .data_processor import (
     load_institutional_data, 
     load_types_data,
     get_type_distribution,
+    load_inst_types_data,
+    get_inst_type_distribution,
     get_entity_metrics, 
     get_summary_tables
 )

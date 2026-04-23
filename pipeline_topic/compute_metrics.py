@@ -283,6 +283,25 @@ def compute_subfield_data(subfield):
         except Exception as e:
             st.error(f"Error calculando distribución de tipos documentales: {e}")
 
+        # 8. Distribución de Tipos de Instituciones
+        try:
+            inst_type_query = f"""
+            SELECT 
+                publication_year as year,
+                country_code,
+                arrayJoin(arrayDistinct(arrayFlatten(arrayMap(x -> arrayMap(i -> JSONExtractString(i, 'type'), x.institutions), 
+                    JSONExtract(raw_data, 'authorships', 'Array(Tuple(institutions Array(String)))'))))) as inst_type,
+                count() as count
+            FROM works
+            WHERE subfield = '{subfield}' AND publication_year >= 1900
+              AND length(institution_ids) > 0
+            GROUP BY year, country_code, inst_type
+            """
+            df_inst_types = client.query_df(inst_type_query)
+            df_inst_types.to_parquet(CACHE_TEMAS_DIR / f"{sub_clean}_inst_types.parquet", index=False)
+        except Exception as e:
+            st.error(f"Error calculando distribución de tipos de instituciones: {e}")
+
         return True
     except Exception as e:
         st.error(f"Error en ClickHouse/Procesamiento: {e}")
