@@ -20,5 +20,6 @@ data/
 .idea/
 .DS_Store
 
-# Environment Variables
+# Project Specific
+scratch/
 .env
