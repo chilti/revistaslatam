@@ -1,9 +1,6 @@
-# Análisis Bibliométrico (Revistas LATAM y Versión Global)
+# Análisis Bibliométrico (Revistas LATAM)
 
-Sistema de recolección y análisis de datos bibliométricos utilizando la API de OpenAlex. El proyecto contiene dos versiones principales:
-
-1. **Revistas de Latinoamérica (LATAM)**: Enfocado en revistas latinoamericanas indexadas. Utiliza `dashboard.py` y los scripts legacy en `pipeline_revistaslatam/`.
-2. **Versión Global**: Análisis a escala mundial. Utiliza `dashboard_global.py` y los scripts de la carpeta `pipeline_world/`.
+Este proyecto es una plataforma integral de recolección, procesamiento y visualización de datos bibliométricos a gran escala, impulsada por la API de OpenAlex. Su objetivo principal es evaluar el impacto y la evolución de la producción científica a través de indicadores avanzados (como FWCI e Índice H) y representaciones visuales interactivas. Se centra en un análisis detallado del impacto y alcance de las revistas científicas latinoamericanas, gestionado a través de `dashboard.py` y los pipelines especializados en `pipeline_revistaslatam/`.
 
 ## 🌐 Despliegue
 El sistema se encuentra desplegado y accesible en:
@@ -42,21 +39,14 @@ El sistema se encuentra desplegado y accesible en:
     pip install -r requirements.txt
     ```
 
-## 📊 Arquitectura de Versiones y Uso
+## 📊 Arquitectura y Uso
 
-El proyecto se divide en dos flujos de trabajo principales:
-
-### Versión 1: Revistas de Latinoamérica (LATAM)
 - **Dashboard:** `dashboard.py`
 - **Pipelines:** Scripts ubicados en la carpeta `pipeline_revistaslatam/` (y scripts legacy en la raíz o en `src/`).
 
-### Versión 2: Global
-- **Dashboard:** `dashboard_global.py`
-- **Pipelines:** Scripts ubicados en la carpeta `pipeline_world/` (optimizados para uso con bases de datos como ClickHouse).
-
 ---
 
-### Uso: Revistas LATAM (Ejecución Legacy)
+### Uso
 
 #### 1. Recolección de Datos
 El script `data_collector.py` (o equivalentes en `pipeline_revistaslatam/`) descarga la información desde OpenAlex.
@@ -128,40 +118,22 @@ Los resultados se guardan en `data/cache/` y el dashboard los cargará automáti
 **Opciones:**
 - `python precompute_metrics.py --force`: Forzar recálculo aunque exista caché válido
 
-### 3. Ejecutar el Dashboard (LATAM)
+### 3. Ejecutar el Dashboard
 Para visualizar los indicadores de las revistas latinoamericanas:
 
 ```bash
 streamlit run dashboard.py
 ```
 
-### Uso: Versión Global
 
-Para visualizar el análisis mundial:
-```bash
-streamlit run dashboard_global.py
-```
-
-#### Ejecución del Pipeline Global (ClickHouse)
-Para actualizar los datos mundiales desde el servidor ClickHouse:
-
-```bash
-python pipeline_world/run_pipeline_world.py
-```
-
-**Opciones:**
-- `--skip-metrics`: Usa los archivos Parquet existentes y solo regenera los mapas.
-- `--skip-maps`: Calcula métricas en ClickHouse pero omite las proyecciones UMAP/SOM.
 
 
 ## 📂 Estructura del Proyecto
 
 ### Dashboards
 - `dashboard.py`: Aplicación principal (Streamlit) para **Revistas LATAM**.
-- `dashboard_global.py`: Aplicación (Streamlit) para la **Versión Global**.
 
 ### Pipelines
-- `pipeline_world/`: Scripts actualizados para procesamiento de la **Versión Global** (ej. cálculo de métricas en ClickHouse).
 - `pipeline_revistaslatam/`: Scripts originales y legacy para el procesamiento de **Revistas LATAM**.
 
 ### Otros Archivos y Módulos Legacy
