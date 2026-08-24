@@ -23,3 +23,5 @@ data/
 # Project Specific
 scratch/
 .env
+nomic-embed/
+models/
