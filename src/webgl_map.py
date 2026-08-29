@@ -1,4 +1,4 @@
-# webgl_map.py - High-Performance WebGL Point Cloud Visualizer for Scientific Article Landscapes
+# webgl_map.py - High-Performance WebGL Point Cloud Visualizer for Scientific Article Landscapes and Journals
 import json
 import numpy as np
 import pandas as pd
@@ -11,22 +11,104 @@ def get_turbo_rgb(val_norm):
     return f"rgb({r},{g},{b})"
 
 COMMUNITY_PALETTE = [
-    "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+    "#0284c7", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
     "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1",
-    "#14b8a6", "#e11d48", "#a855f7", "#0ea5e9", "#22c55e"
+    "#14b8a6", "#e11d48", "#a855f7", "#38bdf8", "#22c55e"
 ]
 
-def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="citations", height=720):
+def _get_theme_config(theme_name="☀️ Claro (Blanco)"):
+    """
+    Returns visual styling and WebGL clearColor parameters based on the selected theme.
+    """
+    if theme_name == "🌙 Oscuro (Dark)":
+        return {
+            'bg_color': '#0f172a',
+            'border_color': '#334155',
+            'gl_r': '0.059', 'gl_g': '0.090', 'gl_b': '0.165',
+            'hud_bg': 'rgba(15, 23, 42, 0.94)',
+            'hud_text': '#f8fafc',
+            'hud_border': '#334155',
+            'hud_subtext': '#94a3b8',
+            'btn_bg': '#1e293b',
+            'btn_text': '#f8fafc',
+            'btn_border': '#334155',
+            'btn_hover_bg': '#38bdf8',
+            'btn_hover_text': '#0f172a',
+            'tooltip_bg': 'rgba(15, 23, 42, 0.98)',
+            'tooltip_border': '#334155',
+            'tooltip_text': '#f8fafc',
+            'tooltip_title': '#38bdf8',
+            'tooltip_sub': '#94a3b8',
+            'tooltip_shadow': '0 16px 36px rgba(0,0,0,0.7)',
+            'badge_bg': '#1e293b',
+            'badge_border': '#334155',
+            'badge_text': '#cbd5e1',
+            'accent_color': '#38bdf8'
+        }
+    elif theme_name == "🌌 Azul Noche (Navy)":
+        return {
+            'bg_color': '#071731',
+            'border_color': '#1e3a8a',
+            'gl_r': '0.027', 'gl_g': '0.090', 'gl_b': '0.192',
+            'hud_bg': 'rgba(7, 23, 49, 0.94)',
+            'hud_text': '#e0f2fe',
+            'hud_border': '#1e3a8a',
+            'hud_subtext': '#7dd3fc',
+            'btn_bg': '#0f274a',
+            'btn_text': '#e0f2fe',
+            'btn_border': '#1e3a8a',
+            'btn_hover_bg': '#0ea5e9',
+            'btn_hover_text': '#ffffff',
+            'tooltip_bg': 'rgba(7, 23, 49, 0.98)',
+            'tooltip_border': '#1e3a8a',
+            'tooltip_text': '#e0f2fe',
+            'tooltip_title': '#38bdf8',
+            'tooltip_sub': '#7dd3fc',
+            'tooltip_shadow': '0 16px 36px rgba(0,0,0,0.8)',
+            'badge_bg': '#0f274a',
+            'badge_border': '#1e3a8a',
+            'badge_text': '#7dd3fc',
+            'accent_color': '#0ea5e9'
+        }
+    else:
+        # Default: ☀️ Claro (Blanco)
+        return {
+            'bg_color': '#ffffff',
+            'border_color': '#e2e8f0',
+            'gl_r': '1.0', 'gl_g': '1.0', 'gl_b': '1.0',
+            'hud_bg': 'rgba(255, 255, 255, 0.95)',
+            'hud_text': '#1e293b',
+            'hud_border': '#cbd5e1',
+            'hud_subtext': '#64748b',
+            'btn_bg': '#f8fafc',
+            'btn_text': '#0f172a',
+            'btn_border': '#cbd5e1',
+            'btn_hover_bg': '#0284c7',
+            'btn_hover_text': '#ffffff',
+            'tooltip_bg': 'rgba(255, 255, 255, 0.98)',
+            'tooltip_border': '#cbd5e1',
+            'tooltip_text': '#0f172a',
+            'tooltip_title': '#0284c7',
+            'tooltip_sub': '#475569',
+            'tooltip_shadow': '0 16px 36px rgba(0,0,0,0.12), 0 0 20px rgba(2, 132, 199, 0.08)',
+            'badge_bg': '#f8fafc',
+            'badge_border': '#e2e8f0',
+            'badge_text': '#475569',
+            'accent_color': '#0284c7'
+        }
+
+def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="citations", height=720, theme_name="☀️ Claro (Blanco)"):
     if df_articles is None or len(df_articles) == 0:
         return "<div style='color:#64748b; padding:20px;'>No hay datos para renderizar en WebGL.</div>"
 
     df = df_articles.copy()
+    cfg = _get_theme_config(theme_name)
 
     df['umap_x'] = pd.to_numeric(df['umap_x'], errors='coerce').fillna(0.0)
     df['umap_y'] = pd.to_numeric(df['umap_y'], errors='coerce').fillna(0.0)
 
-    min_x, max_x = df['umap_x'].min(), df['umap_x'].max()
-    min_y, max_y = df['umap_y'].min(), df['umap_y'].max()
+    min_x, max_x = float(df['umap_x'].min()), float(df['umap_x'].max())
+    min_y, max_y = float(df['umap_y'].min()), float(df['umap_y'].max())
     span_x = max_x - min_x if max_x > min_x else 1.0
     span_y = max_y - min_y if max_y > min_y else 1.0
 
@@ -73,7 +155,7 @@ def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="cit
             colors_rgb.extend([r, g, b, 0.88])
     else:
         for _ in range(len(df)):
-            colors_rgb.extend([0.22, 0.74, 0.97, 0.88])
+            colors_rgb.extend([0.02, 0.52, 0.78, 0.88])
 
     titles = df['title'].fillna('Sin título').astype(str).str.slice(0, 160).tolist()
     journals = df['journal_name'].fillna('Revista').astype(str).tolist() if 'journal_name' in df.columns else [''] * len(df)
@@ -84,15 +166,8 @@ def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="cit
     comms = df['community_name'].fillna('General').astype(str).tolist() if 'community_name' in df.columns else [''] * len(df)
     oa = df['oa_status'].fillna('closed').astype(str).tolist() if 'oa_status' in df.columns else [''] * len(df)
     
-    if 'authors' in df.columns:
-        authors_list = df['authors'].fillna('Autores no disponibles').astype(str).tolist()
-    else:
-        authors_list = ['Autores no disponibles'] * len(df)
-
-    if 'id' in df.columns:
-        openalex_urls = df['id'].fillna('').astype(str).tolist()
-    else:
-        openalex_urls = ['https://openalex.org'] * len(df)
+    authors_list = df['authors'].fillna('Autores no disponibles').astype(str).tolist() if 'authors' in df.columns else ['Autores no disponibles'] * len(df)
+    openalex_urls = df['id'].fillna('').astype(str).tolist() if 'id' in df.columns else ['https://openalex.org'] * len(df)
 
     payload = {
         'x': norm_x,
@@ -114,76 +189,76 @@ def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="cit
 
     payload_json = json.dumps(payload, ensure_ascii=False)
 
-    html_code = """<!DOCTYPE html>
+    html_code = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background: #ffffff; color: #1e293b; }
-        #webgl-container { position: relative; width: 100%; height: """ + str(height) + """px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; }
-        canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+        html, body {{ width: 100%; height: 100%; overflow: hidden; background: {cfg['bg_color']}; color: {cfg['hud_text']}; }}
+        #webgl-container {{ position: relative; width: 100%; height: {height}px; background: {cfg['bg_color']}; border: 1px solid {cfg['border_color']}; border-radius: 10px; overflow: hidden; }}
+        canvas {{ width: 100%; height: 100%; display: block; cursor: crosshair; background: {cfg['bg_color']}; }}
         
-        .hud-controls {
+        .hud-controls {{
             position: absolute; top: 14px; left: 16px; z-index: 10;
             display: flex; gap: 8px; align-items: center;
-            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
-            padding: 6px 14px; border-radius: 8px; border: 1px solid #cbd5e1;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4); font-size: 12px; color: #475569;
-        }
-        .hud-btn {
-            background: #f8fafc; border: 1px solid #cbd5e1; color: #0f172a;
+            background: {cfg['hud_bg']}; backdrop-filter: blur(10px);
+            padding: 6px 14px; border-radius: 8px; border: 1px solid {cfg['hud_border']};
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08); font-size: 12px; color: {cfg['hud_text']};
+        }}
+        .hud-btn {{
+            background: {cfg['btn_bg']}; border: 1px solid {cfg['btn_border']}; color: {cfg['btn_text']};
             padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer;
             transition: all 0.2s;
-        }
-        .hud-btn:hover { background: #3b82f6; border-color: #3b82f6; color: white; }
+        }}
+        .hud-btn:hover {{ background: {cfg['btn_hover_bg']}; border-color: {cfg['btn_hover_bg']}; color: {cfg['btn_hover_text']}; }}
         
-        #tooltip {
+        #tooltip {{
             position: absolute; display: none; pointer-events: none; z-index: 100;
-            background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(12px);
-            border: 1px solid #cbd5e1; border-radius: 10px;
-            padding: 12px 16px; color: #0f172a; max-width: 390px; font-size: 12px;
-            box-shadow: 0 16px 36px rgba(0,0,0,0.6), 0 0 20px rgba(56, 189, 248, 0.15);
-        }
-        #tooltip .t-title { font-size: 13px; font-weight: 700; color: #0284c7; margin-bottom: 6px; line-height: 1.35; }
-        #tooltip .t-authors { font-size: 11.5px; color: #475569; margin-bottom: 6px; }
-        #tooltip .t-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; color: #475569; margin-bottom: 6px; }
-        #tooltip .t-badge { background: #f8fafc; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0; }
-        #tooltip .t-action { font-size: 10.5px; color: #b45309; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1); }
+            background: {cfg['tooltip_bg']}; backdrop-filter: blur(12px);
+            border: 1px solid {cfg['tooltip_border']}; border-radius: 10px;
+            padding: 12px 16px; color: {cfg['tooltip_text']}; max-width: 390px; font-size: 12px;
+            box-shadow: {cfg['tooltip_shadow']};
+        }}
+        #tooltip .t-title {{ font-size: 13px; font-weight: 700; color: {cfg['tooltip_title']}; margin-bottom: 6px; line-height: 1.35; }}
+        #tooltip .t-authors {{ font-size: 11.5px; color: {cfg['tooltip_sub']}; margin-bottom: 6px; }}
+        #tooltip .t-meta {{ display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; color: {cfg['tooltip_sub']}; margin-bottom: 6px; }}
+        #tooltip .t-badge {{ background: {cfg['badge_bg']}; padding: 2px 6px; border-radius: 4px; border: 1px solid {cfg['badge_border']}; color: {cfg['badge_text']}; }}
+        #tooltip .t-action {{ font-size: 10.5px; color: #f59e0b; margin-top: 6px; padding-top: 6px; border-top: 1px solid {cfg['border_color']}; }}
     </style>
 </head>
 <body>
     <div id="webgl-container">
         <div class="hud-controls">
-            <span>⚡ WebGL Engine: <strong style="color:#0284c7;">""" + f"{len(df):,}" + """ artículos</strong></span>
+            <span>⚡ WebGL Engine: <strong style="color:{cfg['accent_color']};">{len(df):,} artículos</strong></span>
             <button class="hud-btn" id="btn-recenter">⌖ Recentrar</button>
-            <span style="font-size:11px; color:#94a3b8;">| Rueda: Zoom • Arrastrar: Pan • <strong style="color:#b45309;">🖱️ Clic Derecho: Abrir en OpenAlex ↗</strong></span>
+            <span style="font-size:11px; color:{cfg['hud_subtext']};">| Rueda: Zoom • Arrastrar: Pan • <strong style="color:#f59e0b;">🖱️ Clic Derecho: Abrir en OpenAlex ↗</strong></span>
         </div>
         <canvas id="glcanvas"></canvas>
         <div id="tooltip"></div>
     </div>
 
     <script>
-        const DATA = """ + payload_json + """;
+        const DATA = {payload_json};
         const container = document.getElementById('webgl-container');
         const canvas = document.getElementById('glcanvas');
         const tooltip = document.getElementById('tooltip');
         const btnRecenter = document.getElementById('btn-recenter');
 
-        const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
-        if (!gl) {
+        const gl = canvas.getContext('webgl', {{ antialias: true, alpha: false }});
+        if (!gl) {{
             container.innerHTML = '<div style="color:red; padding:20px;">WebGL no disponible en el navegador.</div>';
-        }
+        }}
 
-        function resizeCanvas() {
+        function resizeCanvas() {{
             const width = container.clientWidth;
             const height = container.clientHeight;
-            if (canvas.width !== width || canvas.height !== height) {
+            if (canvas.width !== width || canvas.height !== height) {{
                 canvas.width = width;
                 canvas.height = height;
                 gl.viewport(0, 0, width, height);
-            }
-        }
+            }}
+        }}
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
@@ -195,41 +270,43 @@ def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="cit
             uniform vec2 u_translation;
             uniform float u_zoom;
             varying vec4 v_color;
-            void main() {
+            void main() {{
                 vec2 pos = (a_position * u_zoom) + u_translation;
                 float aspect = u_resolution.x / u_resolution.y;
                 vec2 clipSpace = vec2(pos.x / aspect, pos.y);
                 gl_Position = vec4(clipSpace, 0.0, 1.0);
                 gl_PointSize = clamp(a_size * sqrt(u_zoom), 2.5, 28.0);
                 v_color = a_color;
-            }
+            }}
         `;
 
         const fsSource = `
             precision mediump float;
             varying vec4 v_color;
-            void main() {
+            void main() {{
                 vec2 coord = gl_PointCoord - vec2(0.5);
                 float dist = length(coord);
-                if (dist > 0.5) {
+                if (dist > 0.5) {{
                     discard;
-                }
-                float alpha = smoothstep(0.5, 0.38, dist);
-                gl_FragColor = vec4(v_color.rgb, v_color.a * alpha);
-            }
+                }}
+                float alpha = smoothstep(0.5, 0.40, dist);
+                float ring = smoothstep(0.5, 0.46, dist);
+                vec3 col = mix(v_color.rgb, v_color.rgb * 0.85, ring * 0.3);
+                gl_FragColor = vec4(col, v_color.a * alpha);
+            }}
         `;
 
-        function createShader(gl, type, source) {
+        function createShader(gl, type, source) {{
             const shader = gl.createShader(type);
             gl.shaderSource(shader, source);
             gl.compileShader(shader);
-            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {{
                 console.error(gl.getShaderInfoLog(shader));
                 gl.deleteShader(shader);
                 return null;
-            }
+            }}
             return shader;
-        }
+        }}
 
         const program = gl.createProgram();
         gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vsSource));
@@ -251,10 +328,10 @@ def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="cit
         const posBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
         const posData = new Float32Array(DATA.total * 2);
-        for (let i = 0; i < DATA.total; i++) {
+        for (let i = 0; i < DATA.total; i++) {{
             posData[i * 2] = DATA.x[i];
             posData[i * 2 + 1] = DATA.y[i];
-        }
+        }}
         gl.bufferData(gl.ARRAY_BUFFER, posData, gl.STATIC_DRAW);
 
         const colorBuffer = gl.createBuffer();
@@ -272,9 +349,9 @@ def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="cit
         let startX = 0, startY = 0;
         let hoveredIdx = -1;
 
-        function render() {
+        function render() {{
             resizeCanvas();
-            gl.clearColor(1.0, 1.0, 1.0, 1.0);
+            gl.clearColor({cfg['gl_r']}, {cfg['gl_g']}, {cfg['gl_b']}, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
 
             gl.uniform2f(uRes, canvas.width, canvas.height);
@@ -294,27 +371,27 @@ def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="cit
             gl.vertexAttribPointer(aSize, 1, gl.FLOAT, false, 0, 0);
 
             gl.drawArrays(gl.POINTS, 0, DATA.total);
-        }
+        }}
 
         render();
 
-        btnRecenter.addEventListener('click', () => {
+        btnRecenter.addEventListener('click', () => {{
             zoom = 1.0; transX = 0.0; transY = 0.0;
             render();
-        });
+        }});
 
-        canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 0) {
+        canvas.addEventListener('mousedown', (e) => {{
+            if (e.button === 0) {{
                 isDragging = true;
                 startX = e.clientX;
                 startY = e.clientY;
-            }
-        });
+            }}
+        }});
 
-        window.addEventListener('mouseup', () => { isDragging = false; });
+        window.addEventListener('mouseup', () => {{ isDragging = false; }});
 
-        window.addEventListener('mousemove', (e) => {
-            if (isDragging) {
+        window.addEventListener('mousemove', (e) => {{
+            if (isDragging) {{
                 const dx = (e.clientX - startX) / (canvas.width / 2);
                 const dy = -(e.clientY - startY) / (canvas.height / 2);
                 transX += dx;
@@ -322,95 +399,96 @@ def generate_webgl_landscape_html(df_articles, color_mode="year", size_mode="cit
                 startX = e.clientX;
                 startY = e.clientY;
                 render();
-            }
-        });
+            }} else {{
+                // Tooltip hit-test
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
 
-        canvas.addEventListener('wheel', (e) => {
+                const aspect = canvas.width / canvas.height;
+                const clipX = (mouseX / canvas.width) * 2.0 - 1.0;
+                const clipY = -((mouseY / canvas.height) * 2.0 - 1.0);
+
+                const dataX = ((clipX * aspect) - transX) / zoom;
+                const dataY = (clipY - transY) / zoom;
+
+                let closest = -1;
+                let minDist = 0.045 / zoom;
+
+                for (let i = 0; i < DATA.total; i++) {{
+                    const dx = DATA.x[i] - dataX;
+                    const dy = DATA.y[i] - dataY;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < minDist) {{
+                        minDist = d;
+                        closest = i;
+                    }}
+                }}
+
+                hoveredIdx = closest;
+
+                if (closest >= 0) {{
+                    tooltip.style.display = 'block';
+                    let tx = mouseX + 18;
+                    let ty = mouseY + 18;
+                    if (tx + 360 > container.clientWidth) tx = mouseX - 360;
+                    if (ty + 180 > container.clientHeight) ty = mouseY - 180;
+                    tooltip.style.left = tx + 'px';
+                    tooltip.style.top = ty + 'px';
+
+                    tooltip.innerHTML = `
+                        <div class="t-title">${{DATA.titles[closest]}}</div>
+                        <div class="t-authors">${{DATA.authors[closest]}}</div>
+                        <div class="t-meta">
+                            <span class="t-badge">📖 ${{DATA.journals[closest]}}</span>
+                            <span class="t-badge">📅 ${{DATA.years[closest]}}</span>
+                            <span class="t-badge">📍 ${{DATA.countries[closest]}}</span>
+                            <span class="t-badge">🏷️ ${{DATA.communities[closest]}}</span>
+                            <span class="t-badge">✨ Citas: ${{DATA.citations[closest]}}</span>
+                            <span class="t-badge">⚡ FWCI: ${{DATA.fwci[closest]}}</span>
+                            <span class="t-badge">🔓 ${{DATA.oa[closest]}}</span>
+                        </div>
+                        <div class="t-action">🖱️ Clic derecho para abrir en OpenAlex ↗</div>
+                    `;
+                }} else {{
+                    tooltip.style.display = 'none';
+                }}
+            }}
+        }});
+
+        canvas.addEventListener('wheel', (e) => {{
             e.preventDefault();
             const factor = e.deltaY < 0 ? 1.15 : 0.87;
-            zoom = Math.max(0.3, Math.min(zoom * factor, 45.0));
-            render();
-            checkHover(e);
-        }, { passive: false });
+            const newZoom = Math.max(0.5, Math.min(zoom * factor, 60.0));
 
-        function getScreenCoords(normX, normY) {
-            const aspect = canvas.width / canvas.height;
-            const clipX = (normX * zoom + transX) / aspect;
-            const clipY = normY * zoom + transY;
-            const screenX = (clipX + 1.0) * 0.5 * canvas.width;
-            const screenY = (1.0 - (clipY + 1.0) * 0.5) * canvas.height;
-            return { x: screenX, y: screenY };
-        }
-
-        function checkHover(e) {
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            let closestIdx = -1;
-            let minDist = 20.0;
+            const aspect = canvas.width / canvas.height;
+            const clipX = (mouseX / canvas.width) * 2.0 - 1.0;
+            const clipY = -((mouseY / canvas.height) * 2.0 - 1.0);
 
-            for (let i = 0; i < DATA.total; i++) {
-                const s = getScreenCoords(DATA.x[i], DATA.y[i]);
-                const d = Math.hypot(mouseX - s.x, mouseY - s.y);
-                if (d < minDist) {
-                    minDist = d;
-                    closestIdx = i;
-                }
-            }
+            transX = clipX * aspect - (clipX * aspect - transX) * (newZoom / zoom);
+            transY = clipY - (clipY - transY) * (newZoom / zoom);
+            zoom = newZoom;
 
-            if (closestIdx !== -1) {
-                hoveredIdx = closestIdx;
-                const authStr = DATA.authors[closestIdx] || 'Autores no disponibles';
-                tooltip.innerHTML = `
-                    <div class="t-title">` + DATA.titles[closestIdx] + `</div>
-                    <div class="t-authors">👥 <strong>Autores:</strong> ` + authStr + `</div>
-                    <div class="t-meta">
-                        <span class="t-badge">📖 ` + DATA.journals[closestIdx] + ` (` + DATA.countries[closestIdx] + `)</span>
-                        <span class="t-badge">📅 ` + DATA.years[closestIdx] + `</span>
-                        <span class="t-badge">📊 ` + DATA.citations[closestIdx] + ` citas</span>
-                        <span class="t-badge">⚡ FWCI: ` + DATA.fwci[closestIdx] + `</span>
-                    </div>
-                    <div class="t-meta">
-                        <span class="t-badge">🏷️ ` + DATA.communities[closestIdx] + `</span>
-                        <span class="t-badge">🌐 OA: ` + DATA.oa[closestIdx] + `</span>
-                    </div>
-                    <div class="t-action">🖱️ <strong>Clic Derecho:</strong> Abrir artículo en OpenAlex ↗</div>
-                `;
-                tooltip.style.display = 'block';
-                
-                let tx = e.clientX - rect.left + 15;
-                let ty = e.clientY - rect.top + 15;
-                if (tx + 400 > canvas.width) tx -= 420;
-                if (ty + 210 > canvas.height) ty -= 220;
-                tooltip.style.left = tx + 'px';
-                tooltip.style.top = ty + 'px';
-            } else {
-                hoveredIdx = -1;
-                tooltip.style.display = 'none';
-            }
-        }
+            render();
+        }}, {{ passive: false }});
 
-        canvas.addEventListener('mousemove', checkHover);
-        canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
-
-        canvas.addEventListener('contextmenu', (e) => {
+        canvas.addEventListener('contextmenu', (e) => {{
             e.preventDefault();
-            if (hoveredIdx !== -1) {
-                const url = DATA.urls[hoveredIdx];
-                if (url) {
-                    const targetUrl = url.startsWith('http') ? url : 'https://openalex.org/' + url;
-                    window.open(targetUrl, '_blank');
-                }
-            }
-        });
+            if (hoveredIdx >= 0 && DATA.urls[hoveredIdx]) {{
+                window.open(DATA.urls[hoveredIdx], '_blank');
+            }}
+        }});
     </script>
 </body>
 </html>"""
     return html_code
 
 
-def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", size_metric="Total Artículos (works_count)", height=720):
+def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", size_metric="Total Artículos (works_count)", height=720, theme_name="☀️ Claro (Blanco)"):
     """
     Renders high-performance WebGL 2D scatter plot for scientific journals in UMAP space.
     """
@@ -418,12 +496,13 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
         return "<div style='color:#64748b; padding:20px;'>No hay datos de revistas para renderizar en WebGL.</div>"
 
     df = df_journals.copy()
+    cfg = _get_theme_config(theme_name)
 
     df['umap_x'] = pd.to_numeric(df['umap_x'], errors='coerce').fillna(0.0)
     df['umap_y'] = pd.to_numeric(df['umap_y'], errors='coerce').fillna(0.0)
 
-    min_x, max_x = df['umap_x'].min(), df['umap_x'].max()
-    min_y, max_y = df['umap_y'].min(), df['umap_y'].max()
+    min_x, max_x = float(df['umap_x'].min()), float(df['umap_x'].max())
+    min_y, max_y = float(df['umap_y'].min()), float(df['umap_y'].max())
     span_x = max_x - min_x if max_x > min_x else 1.0
     span_y = max_y - min_y if max_y > min_y else 1.0
 
@@ -503,7 +582,7 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
             colors_rgb.extend([round(r, 3), round(g, 3), round(b, 3), 0.90])
     else:
         for _ in range(len(df)):
-            colors_rgb.extend([0.15, 0.65, 0.90, 0.90])
+            colors_rgb.extend([0.02, 0.52, 0.78, 0.90])
 
     titles = df['display_name'].fillna('Revista').astype(str).str.slice(0, 150).tolist()
     publishers = df['publisher'].fillna('No especificado').astype(str).str.slice(0, 80).tolist() if 'publisher' in df.columns else [''] * len(df)
@@ -519,11 +598,8 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
     doaj_list = ["Sí" if v in [True, 1, 'True', 'true'] else "No" for v in df.get('is_in_doaj', [False]*len(df))]
     scielo_list = ["Sí" if v in [True, 1, 'True', 'true'] else "No" for v in df.get('is_in_scielo', [False]*len(df))]
     scopus_list = ["Sí" if v in [True, 1, 'True', 'true'] else "No" for v in df.get('is_scopus', [False]*len(df))]
-
-    if 'id' in df.columns:
-        openalex_urls = df['id'].fillna('').astype(str).tolist()
-    else:
-        openalex_urls = ['https://openalex.org'] * len(df)
+    
+    openalex_urls = df['id'].fillna('').astype(str).tolist() if 'id' in df.columns else ['https://openalex.org'] * len(df)
 
     payload = {
         'x': norm_x,
@@ -549,77 +625,77 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
 
     payload_json = json.dumps(payload, ensure_ascii=False)
 
-    html_code = """<!DOCTYPE html>
+    html_code = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background: #ffffff; color: #1e293b; }
-        #webgl-container { position: relative; width: 100%; height: """ + str(height) + """px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; }
-        canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+        html, body {{ width: 100%; height: 100%; overflow: hidden; background: {cfg['bg_color']}; color: {cfg['hud_text']}; }}
+        #webgl-container {{ position: relative; width: 100%; height: {height}px; background: {cfg['bg_color']}; border: 1px solid {cfg['border_color']}; border-radius: 10px; overflow: hidden; }}
+        canvas {{ width: 100%; height: 100%; display: block; cursor: crosshair; background: {cfg['bg_color']}; }}
         
-        .hud-controls {
+        .hud-controls {{
             position: absolute; top: 14px; left: 16px; z-index: 10;
             display: flex; gap: 8px; align-items: center;
-            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
-            padding: 6px 14px; border-radius: 8px; border: 1px solid #cbd5e1;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4); font-size: 12px; color: #475569;
-        }
-        .hud-btn {
-            background: #f8fafc; border: 1px solid #cbd5e1; color: #0f172a;
+            background: {cfg['hud_bg']}; backdrop-filter: blur(10px);
+            padding: 6px 14px; border-radius: 8px; border: 1px solid {cfg['hud_border']};
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08); font-size: 12px; color: {cfg['hud_text']};
+        }}
+        .hud-btn {{
+            background: {cfg['btn_bg']}; border: 1px solid {cfg['btn_border']}; color: {cfg['btn_text']};
             padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer;
             transition: all 0.2s;
-        }
-        .hud-btn:hover { background: #3b82f6; border-color: #3b82f6; color: white; }
+        }}
+        .hud-btn:hover {{ background: {cfg['btn_hover_bg']}; border-color: {cfg['btn_hover_bg']}; color: {cfg['btn_hover_text']}; }}
         
-        #tooltip {
+        #tooltip {{
             position: absolute; display: none; pointer-events: none; z-index: 100;
-            background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(12px);
-            border: 1px solid #cbd5e1; border-radius: 10px;
-            padding: 12px 16px; color: #0f172a; max-width: 420px; font-size: 12px;
-            box-shadow: 0 16px 36px rgba(0,0,0,0.6), 0 0 20px rgba(56, 189, 248, 0.15);
-        }
-        #tooltip .t-title { font-size: 13.5px; font-weight: 700; color: #0284c7; margin-bottom: 5px; line-height: 1.35; }
-        #tooltip .t-publisher { font-size: 11.5px; color: #475569; margin-bottom: 6px; }
-        #tooltip .t-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: #475569; margin-bottom: 5px; }
-        #tooltip .t-badge { background: #f8fafc; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0; }
-        #tooltip .t-badge-idx { background: #f0fdf4; color: #166534; font-weight: 600; padding: 2px 6px; border-radius: 4px; border: 1px solid #bbf7d0; }
-        #tooltip .t-action { font-size: 10.5px; color: #b45309; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0; }
+            background: {cfg['tooltip_bg']}; backdrop-filter: blur(12px);
+            border: 1px solid {cfg['tooltip_border']}; border-radius: 10px;
+            padding: 12px 16px; color: {cfg['tooltip_text']}; max-width: 420px; font-size: 12px;
+            box-shadow: {cfg['tooltip_shadow']};
+        }}
+        #tooltip .t-title {{ font-size: 13.5px; font-weight: 700; color: {cfg['tooltip_title']}; margin-bottom: 5px; line-height: 1.35; }}
+        #tooltip .t-publisher {{ font-size: 11.5px; color: {cfg['tooltip_sub']}; margin-bottom: 6px; }}
+        #tooltip .t-meta {{ display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: {cfg['tooltip_sub']}; margin-bottom: 5px; }}
+        #tooltip .t-badge {{ background: {cfg['badge_bg']}; padding: 2px 6px; border-radius: 4px; border: 1px solid {cfg['badge_border']}; color: {cfg['badge_text']}; }}
+        #tooltip .t-badge-idx {{ background: rgba(16, 185, 129, 0.12); color: #10b981; font-weight: 600; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25); }}
+        #tooltip .t-action {{ font-size: 10.5px; color: #f59e0b; margin-top: 6px; padding-top: 6px; border-top: 1px solid {cfg['border_color']}; }}
     </style>
 </head>
 <body>
     <div id="webgl-container">
         <div class="hud-controls">
-            <span>⚡ WebGL Engine: <strong style="color:#0284c7;">""" + f"{len(df):,}" + """ revistas</strong></span>
+            <span>⚡ WebGL Engine: <strong style="color:{cfg['accent_color']};">{len(df):,} revistas</strong></span>
             <button class="hud-btn" id="btn-recenter">⌖ Recentrar</button>
-            <span style="font-size:11px; color:#94a3b8;">| Rueda: Zoom • Arrastrar: Pan • <strong style="color:#b45309;">🖱️ Clic Derecho: Abrir en OpenAlex ↗</strong></span>
+            <span style="font-size:11px; color:{cfg['hud_subtext']};">| Rueda: Zoom • Arrastrar: Pan • <strong style="color:#f59e0b;">🖱️ Clic Derecho: Abrir en OpenAlex ↗</strong></span>
         </div>
         <canvas id="glcanvas"></canvas>
         <div id="tooltip"></div>
     </div>
 
     <script>
-        const DATA = """ + payload_json + """;
+        const DATA = {payload_json};
         const container = document.getElementById('webgl-container');
         const canvas = document.getElementById('glcanvas');
         const tooltip = document.getElementById('tooltip');
         const btnRecenter = document.getElementById('btn-recenter');
 
-        const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
-        if (!gl) {
+        const gl = canvas.getContext('webgl', {{ antialias: true, alpha: false }});
+        if (!gl) {{
             container.innerHTML = '<div style="color:red; padding:20px;">WebGL no disponible en el navegador.</div>';
-        }
+        }}
 
-        function resizeCanvas() {
+        function resizeCanvas() {{
             const width = container.clientWidth;
             const height = container.clientHeight;
-            if (canvas.width !== width || canvas.height !== height) {
+            if (canvas.width !== width || canvas.height !== height) {{
                 canvas.width = width;
                 canvas.height = height;
                 gl.viewport(0, 0, width, height);
-            }
-        }
+            }}
+        }}
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
@@ -631,43 +707,43 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
             uniform vec2 u_translation;
             uniform float u_zoom;
             varying vec4 v_color;
-            void main() {
+            void main() {{
                 vec2 pos = (a_position * u_zoom) + u_translation;
                 float aspect = u_resolution.x / u_resolution.y;
                 vec2 clipSpace = vec2(pos.x / aspect, pos.y);
                 gl_Position = vec4(clipSpace, 0.0, 1.0);
-                gl_PointSize = clamp(a_size * sqrt(u_zoom), 4.0, 38.0);
+                gl_PointSize = clamp(a_size * sqrt(u_zoom), 3.0, 36.0);
                 v_color = a_color;
-            }
+            }}
         `;
 
         const fsSource = `
             precision mediump float;
             varying vec4 v_color;
-            void main() {
+            void main() {{
                 vec2 coord = gl_PointCoord - vec2(0.5);
                 float dist = length(coord);
-                if (dist > 0.5) {
+                if (dist > 0.5) {{
                     discard;
-                }
-                float alpha = smoothstep(0.5, 0.38, dist);
-                float ring = smoothstep(0.48, 0.44, dist) - smoothstep(0.44, 0.40, dist);
-                vec3 finalColor = mix(v_color.rgb, vec3(1.0, 1.0, 1.0), ring * 0.35);
-                gl_FragColor = vec4(finalColor, v_color.a * alpha);
-            }
+                }}
+                float alpha = smoothstep(0.5, 0.40, dist);
+                float ring = smoothstep(0.5, 0.46, dist);
+                vec3 col = mix(v_color.rgb, v_color.rgb * 0.85, ring * 0.3);
+                gl_FragColor = vec4(col, v_color.a * alpha);
+            }}
         `;
 
-        function createShader(gl, type, source) {
+        function createShader(gl, type, source) {{
             const shader = gl.createShader(type);
             gl.shaderSource(shader, source);
             gl.compileShader(shader);
-            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {{
                 console.error(gl.getShaderInfoLog(shader));
                 gl.deleteShader(shader);
                 return null;
-            }
+            }}
             return shader;
-        }
+        }}
 
         const program = gl.createProgram();
         gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vsSource));
@@ -689,10 +765,10 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
         const posBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
         const posData = new Float32Array(DATA.total * 2);
-        for (let i = 0; i < DATA.total; i++) {
+        for (let i = 0; i < DATA.total; i++) {{
             posData[i * 2] = DATA.x[i];
             posData[i * 2 + 1] = DATA.y[i];
-        }
+        }}
         gl.bufferData(gl.ARRAY_BUFFER, posData, gl.STATIC_DRAW);
 
         const colorBuffer = gl.createBuffer();
@@ -710,9 +786,9 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
         let startX = 0, startY = 0;
         let hoveredIdx = -1;
 
-        function render() {
+        function render() {{
             resizeCanvas();
-            gl.clearColor(1.0, 1.0, 1.0, 1.0);
+            gl.clearColor({cfg['gl_r']}, {cfg['gl_g']}, {cfg['gl_b']}, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
 
             gl.uniform2f(uRes, canvas.width, canvas.height);
@@ -732,27 +808,27 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
             gl.vertexAttribPointer(aSize, 1, gl.FLOAT, false, 0, 0);
 
             gl.drawArrays(gl.POINTS, 0, DATA.total);
-        }
+        }}
 
         render();
 
-        btnRecenter.addEventListener('click', () => {
+        btnRecenter.addEventListener('click', () => {{
             zoom = 1.0; transX = 0.0; transY = 0.0;
             render();
-        });
+        }});
 
-        canvas.addEventListener('mousedown', (e) => {
-            if (e.button === 0) {
+        canvas.addEventListener('mousedown', (e) => {{
+            if (e.button === 0) {{
                 isDragging = true;
                 startX = e.clientX;
                 startY = e.clientY;
-            }
-        });
+            }}
+        }});
 
-        window.addEventListener('mouseup', () => { isDragging = false; });
+        window.addEventListener('mouseup', () => {{ isDragging = false; }});
 
-        window.addEventListener('mousemove', (e) => {
-            if (isDragging) {
+        window.addEventListener('mousemove', (e) => {{
+            if (isDragging) {{
                 const dx = (e.clientX - startX) / (canvas.width / 2);
                 const dy = -(e.clientY - startY) / (canvas.height / 2);
                 transX += dx;
@@ -760,95 +836,96 @@ def generate_webgl_journals_html(df_journals, color_var="Comunidad Temática", s
                 startX = e.clientX;
                 startY = e.clientY;
                 render();
-            }
-        });
+            }} else {{
+                // Tooltip hit-test
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
 
-        canvas.addEventListener('wheel', (e) => {
+                const aspect = canvas.width / canvas.height;
+                const clipX = (mouseX / canvas.width) * 2.0 - 1.0;
+                const clipY = -((mouseY / canvas.height) * 2.0 - 1.0);
+
+                const dataX = ((clipX * aspect) - transX) / zoom;
+                const dataY = (clipY - transY) / zoom;
+
+                let closest = -1;
+                let minDist = 0.05 / zoom;
+
+                for (let i = 0; i < DATA.total; i++) {{
+                    const dx = DATA.x[i] - dataX;
+                    const dy = DATA.y[i] - dataY;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < minDist) {{
+                        minDist = d;
+                        closest = i;
+                    }}
+                }}
+
+                hoveredIdx = closest;
+
+                if (closest >= 0) {{
+                    tooltip.style.display = 'block';
+                    let tx = mouseX + 18;
+                    let ty = mouseY + 18;
+                    if (tx + 400 > container.clientWidth) tx = mouseX - 400;
+                    if (ty + 200 > container.clientHeight) ty = mouseY - 200;
+                    tooltip.style.left = tx + 'px';
+                    tooltip.style.top = ty + 'px';
+
+                    const doajBadge = DATA.doaj[closest] === "Sí" ? '<span class="t-badge-idx">✓ DOAJ</span>' : '';
+                    const scieloBadge = DATA.scielo[closest] === "Sí" ? '<span class="t-badge-idx">✓ SciELO</span>' : '';
+                    const scopusBadge = DATA.scopus[closest] === "Sí" ? '<span class="t-badge-idx">✓ Scopus</span>' : '';
+
+                    tooltip.innerHTML = `
+                        <div class="t-title">${{DATA.titles[closest]}}</div>
+                        <div class="t-publisher">🏛️ ${{DATA.publishers[closest]}} (${{DATA.countries[closest]}})</div>
+                        <div class="t-meta">
+                            <span class="t-badge">🏷️ ${{DATA.communities[closest]}}</span>
+                            <span class="t-badge">📄 Artículos: ${{DATA.works[closest].toLocaleString()}}</span>
+                            <span class="t-badge">✨ Citas: ${{DATA.citations[closest].toLocaleString()}}</span>
+                            <span class="t-badge">⚡ FWCI: ${{DATA.fwci[closest]}}</span>
+                            <span class="t-badge">🎖️ H-Index: ${{DATA.h_index[closest]}}</span>
+                            <span class="t-badge">💎 OA Diamante: ${{DATA.pct_diamond[closest]}}%</span>
+                            ${{doajBadge}}
+                            ${{scieloBadge}}
+                            ${{scopusBadge}}
+                        </div>
+                        <div class="t-action">🖱️ Clic derecho para abrir en OpenAlex ↗</div>
+                    `;
+                }} else {{
+                    tooltip.style.display = 'none';
+                }}
+            }}
+        }});
+
+        canvas.addEventListener('wheel', (e) => {{
             e.preventDefault();
             const factor = e.deltaY < 0 ? 1.15 : 0.87;
-            zoom = Math.max(0.3, Math.min(zoom * factor, 45.0));
-            render();
-            checkHover(e);
-        }, { passive: false });
+            const newZoom = Math.max(0.5, Math.min(zoom * factor, 60.0));
 
-        function getScreenCoords(normX, normY) {
-            const aspect = canvas.width / canvas.height;
-            const clipX = (normX * zoom + transX) / aspect;
-            const clipY = normY * zoom + transY;
-            const screenX = (clipX + 1.0) * 0.5 * canvas.width;
-            const screenY = (1.0 - (clipY + 1.0) * 0.5) * canvas.height;
-            return { x: screenX, y: screenY };
-        }
-
-        function checkHover(e) {
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            let closestIdx = -1;
-            let minDist = 22.0;
+            const aspect = canvas.width / canvas.height;
+            const clipX = (mouseX / canvas.width) * 2.0 - 1.0;
+            const clipY = -((mouseY / canvas.height) * 2.0 - 1.0);
 
-            for (let i = 0; i < DATA.total; i++) {
-                const s = getScreenCoords(DATA.x[i], DATA.y[i]);
-                const d = Math.hypot(mouseX - s.x, mouseY - s.y);
-                if (d < minDist) {
-                    minDist = d;
-                    closestIdx = i;
-                }
-            }
+            transX = clipX * aspect - (clipX * aspect - transX) * (newZoom / zoom);
+            transY = clipY - (clipY - transY) * (newZoom / zoom);
+            zoom = newZoom;
 
-            if (closestIdx !== -1) {
-                hoveredIdx = closestIdx;
-                tooltip.innerHTML = `
-                    <div class="t-title">📖 ` + DATA.titles[closestIdx] + `</div>
-                    <div class="t-publisher">🏢 <strong>Editorial:</strong> ` + DATA.publishers[closestIdx] + ` • <strong>País:</strong> ` + DATA.countries[closestIdx] + `</div>
-                    <div class="t-meta">
-                        <span class="t-badge">🏷️ ` + DATA.communities[closestIdx] + `</span>
-                        <span class="t-badge">📄 ` + DATA.works[closestIdx].toLocaleString() + ` arts</span>
-                        <span class="t-badge">📊 ` + DATA.citations[closestIdx].toLocaleString() + ` citas</span>
-                        <span class="t-badge">⚡ FWCI: ` + DATA.fwci[closestIdx] + `</span>
-                    </div>
-                    <div class="t-meta">
-                        <span class="t-badge">🏆 H-index: ` + DATA.h_index[closestIdx] + `</span>
-                        <span class="t-badge">📈 PR: ` + DATA.pagerank[closestIdx] + `</span>
-                        <span class="t-badge">💎 OA Diamante: ` + DATA.pct_diamond[closestIdx] + `%</span>
-                    </div>
-                    <div class="t-meta">
-                        <span class="t-badge-idx">DOAJ: ` + DATA.doaj[closestIdx] + `</span>
-                        <span class="t-badge-idx">SciELO: ` + DATA.scielo[closestIdx] + `</span>
-                        <span class="t-badge-idx">Scopus: ` + DATA.scopus[closestIdx] + `</span>
-                    </div>
-                    <div class="t-action">🖱️ <strong>Clic Derecho:</strong> Abrir revista en OpenAlex ↗</div>
-                `;
-                tooltip.style.display = 'block';
-                
-                let tx = e.clientX - rect.left + 15;
-                let ty = e.clientY - rect.top + 15;
-                if (tx + 430 > canvas.width) tx -= 450;
-                if (ty + 230 > canvas.height) ty -= 240;
-                tooltip.style.left = tx + 'px';
-                tooltip.style.top = ty + 'px';
-            } else {
-                hoveredIdx = -1;
-                tooltip.style.display = 'none';
-            }
-        }
+            render();
+        }}, {{ passive: false }});
 
-        canvas.addEventListener('mousemove', checkHover);
-        canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
-
-        canvas.addEventListener('contextmenu', (e) => {
+        canvas.addEventListener('contextmenu', (e) => {{
             e.preventDefault();
-            if (hoveredIdx !== -1) {
-                const url = DATA.urls[hoveredIdx];
-                if (url) {
-                    const targetUrl = url.startsWith('http') ? url : 'https://openalex.org/' + url;
-                    window.open(targetUrl, '_blank');
-                }
-            }
-        });
+            if (hoveredIdx >= 0 && DATA.urls[hoveredIdx]) {{
+                window.open(DATA.urls[hoveredIdx], '_blank');
+            }}
+        }});
     </script>
 </body>
 </html>"""
     return html_code
-

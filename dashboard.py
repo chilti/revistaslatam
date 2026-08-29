@@ -3820,7 +3820,8 @@ elif level == "🗺️ Mapas Semántico":
                     df_art_plot,
                     color_mode=color_map_art.get(color_art_var, 'year'),
                     size_mode=size_map_art.get(art_size_metric, 'citations'),
-                    height=720
+                    height=720,
+                    theme_name=theme_choice
                 )
                 components.html(webgl_html, height=740, scrolling=False)
             else:
@@ -3975,7 +3976,8 @@ elif level == "🗺️ Mapas Semántico":
                     df_plot,
                     color_var=color_var,
                     size_metric=journal_size_metric,
-                    height=720
+                    height=720,
+                    theme_name=theme_choice
                 )
                 components.html(webgl_j_html, height=740, scrolling=False)
             else:
