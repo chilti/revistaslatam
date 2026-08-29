@@ -485,51 +485,6 @@ init_page_registry()
 if level == "Region (Latinoamérica)":
     st.header("Panorama Regional")
     
-    with st.expander("🌌 Galaxia Semántica de Artículos LATAM (Motor WebGL)", expanded=False):
-        st.caption("Visualizador de alta resolución WebGL. Rueda para zoom, arrastre para desplazamiento y **clic derecho sobre una bolita para abrir el artículo en OpenAlex ↗**.")
-        if df_articles_landscape is not None and len(df_articles_landscape) > 0:
-            c_g1, c_g2, c_g3 = st.columns([1.5, 1.5, 1.2])
-            with c_g1:
-                col_g_color = st.selectbox(
-                    "Coloración:",
-                    ["Año de Publicación (Gradiente)", "Comunidad Temática", "FWCI (Impacto Ponderado)", "Uniforme"],
-                    index=0,
-                    key="reg_galaxy_color"
-                )
-            with c_g2:
-                col_g_size = st.selectbox(
-                    "Tamaño de Burbuja:",
-                    ["Citas Totales", "FWCI (Impacto Ponderado)", "Uniforme"],
-                    index=0,
-                    key="reg_galaxy_size"
-                )
-            with c_g3:
-                sample_pts = st.selectbox(
-                    "Artículos:",
-                    ["30,000", "50,000", "Todos"],
-                    index=0,
-                    key="reg_galaxy_sample"
-                )
-                
-            df_g_plot = df_articles_landscape.copy()
-            if sample_pts == "30,000" and len(df_g_plot) > 30000:
-                df_g_plot = df_g_plot.sample(30000, random_state=42)
-            elif sample_pts == "50,000" and len(df_g_plot) > 50000:
-                df_g_plot = df_g_plot.sample(50000, random_state=42)
-                
-            c_map = {'Año de Publicación (Gradiente)': 'year', 'Comunidad Temática': 'community', 'FWCI (Impacto Ponderado)': 'fwci', 'Uniforme': 'uniform'}
-            s_map = {'Citas Totales': 'citations', 'FWCI (Impacto Ponderado)': 'fwci', 'Uniforme': 'uniform'}
-            
-            webgl_html = generate_webgl_landscape_html(
-                df_g_plot,
-                color_mode=c_map.get(col_g_color, 'year'),
-                size_mode=s_map.get(col_g_size, 'citations'),
-                height=720
-            )
-            components.html(webgl_html, height=740, scrolling=False)
-        else:
-            st.warning("⚠️ El paisaje de artículos no está generado aún.")
-    
     # KPIs from journals and cached metrics
     latam_period = load_and_scale('latam', 'period')
     fwci_latam = f"{latam_period['fwci_avg'].iloc[0]:.2f}" if latam_period is not None and not latam_period.empty and 'fwci_avg' in latam_period.columns else "0.56"
