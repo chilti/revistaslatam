@@ -58,7 +58,7 @@ level = st.sidebar.radio(
         "Region (Latinoamérica)",
         "País",
         "Revista",
-        "🗺️ Mapa Semántico y Comunidades",
+        "🗺️ Mapa Semántico",
         "🌐 Redes de Colaboración y Disciplinas",
         "Acerca de..."
     ]
@@ -3716,8 +3716,8 @@ elif level == "Revista":
     st.markdown("---")
     render_export_drawer()
 
-elif level == "🗺️ Mapa Semántico y Comunidades":
-    st.header("🗺️ Mapa Semántico y Comunidades Científicas")
+elif level == "🗺️ Mapa Semántico":
+    st.header("🗺️ Mapa Semántico")
     st.caption("Proyección topológica del conocimiento científico latinoamericano a nivel de artículos y revistas (UMAP + Stopwords Trilingües + Baricentros).")
     
     umap_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_journals_multimodal.parquet')
