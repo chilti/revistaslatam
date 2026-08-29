@@ -1,21 +1,19 @@
-#!/usr/bin/env python3
 """
-Pipeline Step: Build Article-Level Multilingual Semantic Landscape (Info Tlachia Methodology)
-Extracts Title + Abstract (no topics, no concepts, no country metadata),
-generates dense embeddings with trilingual stopwords (ES + PT + EN),
-computes 2D UMAP projection and community labels,
-and calculates journal centroids (Mean Pooling) for total topological alignment.
+build_articles_map.py - High-Performance Semantic Article Landscape Generator
+Builds the pure semantic article master manifold and projects journals on it.
+Supports processing ALL 3.6+ million papers from Latin America.
+Supports GPU acceleration (RAPIDS cuML / PyTorch CUDA) and multicore CPU streaming.
 """
 import os
 import sys
-import argparse
 import time
+import argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
-# Force UTF-8 on Windows
+# Force UTF-8
 if sys.platform == 'win32':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -23,8 +21,7 @@ if sys.platform == 'win32':
     except Exception:
         pass
 
-# Add src to path
-BASE_DIR = Path(__file__).parent.parent
+BASE_DIR = Path.cwd()
 sys.path.append(str(BASE_DIR / 'src'))
 
 from article_manifold import (
@@ -32,47 +29,63 @@ from article_manifold import (
     generate_article_embeddings,
     project_articles_umap,
     detect_article_communities,
-    extract_cluster_keywords,
     compute_journal_centroids,
+    get_hardware_info,
     TRILINGUAL_STOPWORDS
 )
+from llm_cluster_labeler import label_article_clusters
 
-def main():
-    parser = argparse.ArgumentParser(description="Build Article-Level Semantic Landscape")
-    parser.add_argument("--sample", type=int, default=100000, help="Number of articles to sample for the map (default: 100,000)")
-    parser.add_argument("--dim", type=int, default=128, help="Embedding dimension (default: 128)")
-    parser.add_argument("--neighbors", type=int, default=15, help="UMAP n_neighbors (default: 15)")
-    parser.add_argument("--min-dist", type=float, default=0.1, help="UMAP min_dist (default: 0.1)")
-    args = parser.parse_args()
 
-    print("=" * 75)
-    print("🚀 BUILDING ARTICLE-LEVEL SEMANTIC LANDSCAPE (INFO TLACHIA METHODOLOGY)")
-    print("=" * 75)
-    print(f"Sample size: {args.sample:,} articles")
-    print(f"Text source: PURE Title + Abstract (NO concepts/topics, NO country metadata)")
-    print(f"Stopwords: Trilingual (Español + Português + English) [{len(TRILINGUAL_STOPWORDS)} terms]")
-    print("=" * 75)
+def build_map(sample_limit=None, per_journal_max=None, batch_size=100000, use_gpu=True, dim=128):
+    hw = get_hardware_info()
+    
+    print('=' * 80)
+    print('🚀 GENERADOR DEL PAISAJE CIENTÍFICO DE ARTÍCULOS (SEMÁNTICA PURA: TÍTULO + RESUMEN)')
+    print('=' * 80)
+    
+    if hw['has_cuml'] and use_gpu:
+        print(f"⚡ ACELERACIÓN: 🚀 GPU NVIDIA con RAPIDS cuML ({hw['cuda_device']})")
+    elif hw['has_torch_cuda'] and use_gpu:
+        print(f"⚡ ACELERACIÓN: 🚀 GPU PyTorch CUDA ({hw['cuda_device']})")
+    else:
+        print(f"⚡ MODO: 💻 CPU Multicore ({hw['cpu_threads']} hilos de procesamiento)")
+        
+    if sample_limit is None or sample_limit <= 0:
+        print(f"📊 MUESTRA: 🌟 TODOS LOS ARTÍCULOS DISPONIBLES (Sin límite artificial)")
+    else:
+        print(f"📊 MUESTRA: Máximo {sample_limit:,} artículos")
+        
+    if per_journal_max is None or per_journal_max <= 0:
+        print(f"📖 POR REVISTA: Todos los artículos disponibles por revista")
+    else:
+        print(f"📖 POR REVISTA: Máximo {per_journal_max} artículos por revista")
+        
+    print(f"📝 TEXTO: Título + Resumen Invertido (SIN tópicos de citas, SIN metadatos de país)")
+    print('=' * 80)
 
     data_dir = BASE_DIR / 'data'
     umap_dir = data_dir / 'umap'
-    cache_dir = data_dir / 'cache'
     umap_dir.mkdir(parents=True, exist_ok=True)
-    cache_dir.mkdir(parents=True, exist_ok=True)
 
     works_file = data_dir / 'latin_american_works.parquet'
     journals_file = data_dir / 'latin_american_journals.parquet'
-    model_path = str(BASE_DIR / 'nomic-embed')
 
     if not works_file.exists():
-        print(f"❌ Error: Works file not found at {works_file}")
-        sys.exit(1)
+        print(f'❌ Error: No se encontró {works_file}')
+        return
 
-    # 1. Load sample of articles
-    print("\n[Paso 1] Leyendo artículos desde Parquet...")
-    start_t = time.time()
+    # 1. Load journals metadata for fast display mapping
+    df_journals = pd.DataFrame()
+    if journals_file.exists():
+        df_journals = pd.read_parquet(journals_file)
+        print(f'✅ Revistas base cargadas: {len(df_journals):,}')
+
+    # 2. Iterate and collect works
+    print('\n[Paso 1] Leyendo artículos desde Parquet con procesamiento en streaming...')
+    t0 = time.time()
     pf = pq.ParquetFile(works_file)
-    total_rows = pf.metadata.num_rows
-    print(f"  → Total de artículos disponibles en dataset crudo: {total_rows:,}")
+    total_in_parquet = pf.metadata.num_rows
+    print(f'  -> Total de artículos en archivo: {total_in_parquet:,}')
 
     cols_to_load = [
         'id', 'doi', 'title', 'abstract_inverted_index', 'publication_year',
@@ -80,32 +93,45 @@ def main():
         'cited_by_count'
     ]
 
-    # Sample batches evenly across the file
-    target_sample = min(args.sample, total_rows)
-    batch_size = 50000
-    batches_to_take = max(1, target_sample // batch_size + 1)
-    
-    sample_dfs = []
-    total_collected = 0
+    journal_counts = {}
+    collected_rows = []
+    total_scanned = 0
 
-    for i, batch in enumerate(pf.iter_batches(batch_size=batch_size, columns=cols_to_load)):
+    for batch in pf.iter_batches(batch_size=batch_size, columns=cols_to_load):
         df_b = batch.to_pandas()
-        # Drop entries without title
+        total_scanned += len(df_b)
+        
+        # Keep only records with non-empty title
         df_b = df_b[df_b['title'].notna() & (df_b['title'].str.strip() != '')]
-        sample_dfs.append(df_b)
-        total_collected += len(df_b)
-        if total_collected >= target_sample:
+        
+        if 'publication_year' in df_b.columns:
+            df_b = df_b.sort_values('publication_year', ascending=False)
+
+        # Apply per-journal filter if requested
+        if per_journal_max is not None and per_journal_max > 0:
+            for row in df_b.itertuples(index=False):
+                j_id = getattr(row, 'journal_id', None)
+                c = journal_counts.get(j_id, 0)
+                if c < per_journal_max:
+                    journal_counts[j_id] = c + 1
+                    collected_rows.append(row._asdict())
+                    if sample_limit and sample_limit > 0 and len(collected_rows) >= sample_limit:
+                        break
+        else:
+            # All papers mode
+            collected_rows.extend(df_b.to_dict(orient='records'))
+            if sample_limit and sample_limit > 0 and len(collected_rows) >= sample_limit:
+                collected_rows = collected_rows[:sample_limit]
+                break
+
+        if sample_limit and sample_limit > 0 and len(collected_rows) >= sample_limit:
             break
 
-    df_works = pd.concat(sample_dfs, ignore_index=True)
-    if len(df_works) > target_sample:
-        df_works = df_works.sample(target_sample, random_state=42).reset_index(drop=True)
+    df_works = pd.DataFrame(collected_rows)
+    print(f'  ✅ Seleccionados {len(df_works):,} artículos en {time.time() - t0:.1f}s (Escaneados: {total_scanned:,})')
 
-    print(f"  ✅ Cargados {len(df_works):,} artículos en {time.time() - start_t:.1f}s")
-
-    # 2. Enrich with journal metadata (name and country for visualization ONLY, not text embedding)
-    if journals_file.exists():
-        df_journals = pd.read_parquet(journals_file)
+    # 3. Merge journal display name and country
+    if not df_journals.empty:
         df_works = df_works.merge(
             df_journals[['id', 'display_name', 'country_code']],
             left_on='journal_id',
@@ -119,84 +145,102 @@ def main():
         if 'id_journal' in df_works.columns:
             df_works.drop(columns=['id_journal'], inplace=True, errors='ignore')
 
-    # 3. Clean pure text (Title + Abstract ONLY)
-    print("\n[Paso 2] Reconstruyendo y limpiando texto puro (Título + Resumen)...")
-    t0 = time.time()
+    # 4. Clean Pure Text (Title + Abstract ONLY)
+    print('\n[Paso 2] Limpiando texto puro (Título + Resumen invertido)...')
+    t1 = time.time()
     pure_texts = []
-    for _, row in df_works.iterrows():
-        t = row.get('title')
-        a = row.get('abstract_inverted_index')
+    for _, r in df_works.iterrows():
+        t = r.get('title')
+        a = r.get('abstract_inverted_index')
         cleaned = clean_pure_text(t, a)
         pure_texts.append(cleaned)
     df_works['clean_text'] = pure_texts
-    print(f"  ✅ Textos procesados en {time.time() - t0:.1f}s")
+    print(f'  ✅ Textos limpios procesados en {time.time() - t1:.1f}s')
 
-    # 4. Generate dense multilingual embeddings
-    print("\n[Paso 3] Generando embeddings vectoriales densos...")
-    t1 = time.time()
-    embeddings = generate_article_embeddings(df_works['clean_text'].tolist(), model_path=model_path, dim=args.dim)
-    print(f"  ✅ Matriz de embeddings generada: {embeddings.shape} en {time.time() - t1:.1f}s")
-
-    # 5. Compute UMAP 2D projection
-    print("\n[Paso 4] Proyectando espacio semántico con UMAP 2D (métrica Coseno)...")
+    # 5. Generate Dense Embeddings (GPU cuML / Multicore CPU)
+    print(f'\n[Paso 3] Generando embeddings densos ({dim}d)...')
     t2 = time.time()
-    coords = project_articles_umap(embeddings, n_components=2, n_neighbors=args.neighbors, min_dist=args.min_dist)
-    df_works['umap_x'] = coords[:, 0].round(4)
-    df_works['umap_y'] = coords[:, 1].round(4)
-    print(f"  ✅ Proyección 2D calculada en {time.time() - t2:.1f}s")
+    embeddings = generate_article_embeddings(df_works['clean_text'].tolist(), dim=dim, use_gpu=use_gpu)
+    print(f'  ✅ Matriz de embeddings generada: {embeddings.shape} en {time.time() - t2:.1f}s')
 
-    # 6. Detect thematic communities & extract keywords
-    print("\n[Paso 5] Detectando macro-comunidades temáticas y extrayendo palabras clave...")
+    # 6. UMAP 2D Projection (GPU cuML / Multicore CPU)
+    print('\n[Paso 4] Calculando proyección UMAP 2D con alta dispersión...')
     t3 = time.time()
-    cluster_labels = detect_article_communities(coords, n_clusters=12, min_cluster_size=80)
-    df_works['cluster_id'] = cluster_labels
-    cluster_names = extract_cluster_keywords(df_works['clean_text'].tolist(), cluster_labels, top_n=3)
-    df_works['community_name'] = df_works['cluster_id'].map(cluster_names)
-    print(f"  ✅ {len(cluster_names)} comunidades temáticas identificadas en {time.time() - t3:.1f}s")
-    for cid, cname in sorted(cluster_names.items()):
-        cnt = (df_works['cluster_id'] == cid).sum()
-        print(f"     • [Clúster {cid:02d}] {cname} ({cnt:,} artículos)")
+    coords = project_articles_umap(
+        embeddings,
+        n_components=2,
+        n_neighbors=30,
+        min_dist=0.35,
+        spread=1.8,
+        repulsion_strength=1.5,
+        negative_sample_rate=10,
+        use_gpu=use_gpu
+    )
+    df_works['umap_x'] = np.round(coords[:, 0], 4)
+    df_works['umap_y'] = np.round(coords[:, 1], 4)
+    print(f'  ✅ Coordenadas UMAP 2D generadas en {time.time() - t3:.1f}s')
 
-    # 7. Save Article Landscape Parquet
-    out_articles_file = umap_dir / 'umap_articles_landscape.parquet'
+    # 7. Detect Communities & LLM Labeling (Sinapsis AI Methodology)
+    print('\n[Paso 5] Detectando macro-comunidades y etiquetando con Centroides + TF-IDF + LLM...')
+    t4 = time.time()
+    n_comm = min(15, max(8, len(df_works) // 5000))
+    cluster_labels = detect_article_communities(coords, n_clusters=n_comm, min_cluster_size=100, use_gpu=use_gpu)
+    df_works['cluster_id'] = cluster_labels
+    cluster_names = label_article_clusters(
+        df_works,
+        embeddings=embeddings,
+        cluster_col='cluster_id',
+        title_col='title',
+        text_col='clean_text'
+    )
+    df_works['community_name'] = df_works['cluster_id'].map(cluster_names)
+    print(f'  ✅ {len(cluster_names)} comunidades etiquetadas en {time.time() - t4:.1f}s')
+
+    # 8. Save Article Master Landscape Parquet
+    out_articles = umap_dir / 'umap_articles_landscape.parquet'
     save_cols = [
         'id', 'doi', 'title', 'publication_year', 'journal_id', 'journal_name',
         'country_code', 'fwci', 'oa_status', 'cited_by_count', 'language',
         'umap_x', 'umap_y', 'cluster_id', 'community_name'
     ]
-    avail_save_cols = [c for c in save_cols if c in df_works.columns]
-    df_works[avail_save_cols].to_parquet(out_articles_file, index=False)
-    mb = out_articles_file.stat().st_size / (1024 * 1024)
-    print(f"\n  💾 Paisaje semántico guardado en: {out_articles_file} ({mb:.1f} MB)")
+    avail_cols = [c for c in save_cols if c in df_works.columns]
+    df_works[avail_cols].to_parquet(out_articles, index=False)
+    mb = out_articles.stat().st_size / (1024 * 1024)
+    print(f'\n  💾 Paisaje Maestro de Artículos guardado: {out_articles} ({mb:.1f} MB)')
 
-    # 8. Compute and update clean Journal Centroids (Mean Pooling)
-    print("\n[Paso 6] Calculando baricentros semánticos puros de revistas (Mean Pooling)...")
-    journal_centroids = compute_journal_centroids(df_works)
-    print(f"  → Baricentros calculados para {len(journal_centroids):,} revistas")
+    # 9. Compute Journal Centroids (Mean Pooling)
+    print('\n[Paso 6] Calculando baricentros semánticos de revistas...')
+    df_journals_updated = compute_journal_centroids(df_works, df_journals)
+    if not df_journals_updated.empty:
+        out_journals = umap_dir / 'umap_journals_multimodal.parquet'
+        df_journals_updated.to_parquet(out_journals, index=False)
+        print(f'  ✅ Baricentros calculados para {df_journals_updated["umap_x"].notna().sum():,} revistas')
+        print(f'  💾 Mapa de revistas actualizado: {out_journals}')
 
-    # Merge with existing journal metadata/metrics
-    umap_journals_file = umap_dir / 'umap_journals_multimodal.parquet'
-    if umap_journals_file.exists():
-        df_journals_prev = pd.read_parquet(umap_journals_file)
-        # Update umap_x and umap_y with clean centroids
-        if 'id' in df_journals_prev.columns:
-            df_journals_updated = df_journals_prev.drop(columns=['umap_x', 'umap_y', 'journal_id', 'journal_id_x', 'journal_id_y'], errors='ignore')
-            df_journals_updated = df_journals_updated.merge(
-                journal_centroids[['journal_id', 'umap_x', 'umap_y']],
-                left_on='id',
-                right_on='journal_id',
-                how='left'
-            )
-            df_journals_updated.drop(columns=['journal_id'], inplace=True, errors='ignore')
-            df_journals_updated['umap_x'] = df_journals_updated['umap_x'].fillna(0.0)
-            df_journals_updated['umap_y'] = df_journals_updated['umap_y'].fillna(0.0)
-            df_journals_updated.to_parquet(umap_journals_file, index=False)
-            print(f"  ✅ Coordenadas de revistas actualizadas con baricentro puro en: {umap_journals_file}")
+    print('\n' + '=' * 80)
+    print('✅ MAPA MAESTRO Y PROYECCIÓN DE REVISTAS FINALIZADO CON ÉXITO')
+    print('=' * 80)
 
-    print("\n" + "=" * 75)
-    print("✅ PIPELINE DE PAISAJE SEMÁNTICO COMPLETADO CON ÉXITO")
-    print(f"   Tiempo total: {time.time() - start_t:.1f}s")
-    print("=" * 75)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Generar Mapa Semántico Maestro de Artículos LATAM.')
+    parser.add_argument('--all', action='store_true', help='Procesar TODOS los 3.6+ millones de artículos sin límite.')
+    parser.add_argument('--sample-limit', type=int, default=90000, help='Límite máximo de artículos a procesar (0 o omitido con --all para ilimitado).')
+    parser.add_argument('--per-journal-max', type=int, default=100, help='Máximo de artículos por revista (0 para ilimitado).')
+    parser.add_argument('--batch-size', type=int, default=100000, help='Tamaño del lote de lectura de Parquet.')
+    parser.add_argument('--no-gpu', action='store_true', help='Forzar ejecución en CPU multicore.')
+    parser.add_argument('--dim', type=int, default=128, help='Dimensión del vector denso de embedding.')
+
+    args = parser.parse_args()
+
+    s_limit = None if args.all or args.sample_limit <= 0 else args.sample_limit
+    j_limit = None if args.all or args.per_journal_max <= 0 else args.per_journal_max
+    use_gpu = not args.no_gpu
+
+    build_map(
+        sample_limit=s_limit,
+        per_journal_max=j_limit,
+        batch_size=args.batch_size,
+        use_gpu=use_gpu,
+        dim=args.dim
+    )

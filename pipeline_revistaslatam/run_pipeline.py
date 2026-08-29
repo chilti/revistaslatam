@@ -158,7 +158,10 @@ if __name__ == "__main__":
             (f"{PIPELINE_DIR}/process_trajectories.py", "Procesamiento de Trayectorias Dinámicas"),
             (f"{PIPELINE_DIR}/calculate_umap.py", "UMAP Estático (Países y Revistas)"),
             (f"{PIPELINE_DIR}/calculate_som.py", "SOM de Países (U-Matrix)"),
-            (f"{PIPELINE_DIR}/calculate_som_trajectories.py", "SOM de Trayectorias (Global)")
+            (f"{PIPELINE_DIR}/calculate_som_trajectories.py", "SOM de Trayectorias (Global)"),
+            (f"{PIPELINE_DIR}/build_semantic_map.py", "Mapa Semántico Multimodal (Revistas + Comunidades)"),
+            (f"{PIPELINE_DIR}/build_articles_map.py", "Paisaje Científico Maestro de Artículos (LATAM)"),
+            (f"{PIPELINE_DIR}/build_networks.py", "Redes de Colaboración Internacional y Flujos Disciplinares")
         ]
 
         for script, desc in map_scripts:
@@ -166,12 +169,18 @@ if __name__ == "__main__":
     else:
         print("⏭️ Omitiendo Fase de Mapas/Proyecciones")
 
+    # --- FASE 5: CONSOLIDACIÓN Y OPTIMIZACIÓN OLAP (DUCKDB) ---
+    print("\n" + "-"*80)
+    print("🦆 INICIANDO CONSOLIDACIÓN E INDEXACIÓN DUCKDB")
+    print("-"*80)
+    run_step(f"{PIPELINE_DIR}/build_duckdb.py", "Consolidación e Indexación DuckDB (revistaslatam.duckdb)")
+
     total_elapsed = time.time() - total_start
     print(f"\n{'*'*80}")
     print(f"🎉 ¡PIPELINE COMPLETO FINALIZADO EXITOSAMENTE! 🎉")
     print(f"   Tiempo Total de Ejecución: {total_elapsed:.2f} segundos ({total_elapsed/60:.2f} minutos)")
     print(f"{'*'*80}")
     print("\nSiguientes pasos recomendados:")
-    print("1. Verifica los archivos generados en 'data/cache/', 'data/umap/' y 'data/som/'.")
-    print("2. Ejecuta el dashboard para visualizar los cambios:")
+    print("1. Verifica los archivos generados en 'data/cache/', 'data/umap/', 'data/som/' y 'data/revistaslatam.duckdb'.")
+    print("2. Ejecuta el dashboard de alto rendimiento para visualizar los cambios:")
     print("   streamlit run dashboard.py\n")

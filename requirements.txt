@@ -12,3 +12,5 @@ scikit-learn
 openpyxl
 requests
 python-dotenv
+tabulate
+duckdb>=1.1.0

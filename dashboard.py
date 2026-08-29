@@ -18,6 +18,10 @@ from data_collector import update_data
 from data_processor import load_data as collector_load_data
 from performance_metrics import compute_and_cache_all_metrics, load_cached_metrics, get_cache_dir
 from som_utils import hex_center, hex_polygon
+import streamlit.components.v1 as components
+from webgl_map import generate_webgl_landscape_html, generate_webgl_journals_html
+from chatgpt_exporter import render_chatgpt_button, render_study_dossier_sidebar, render_export_drawer, register_exportable, init_page_registry, render_plotly_chart, add_to_study_dossier
+from data_engine import get_duckdb_connection, execute_query, get_journal_articles_page
 
 # Page config
 st.set_page_config(
@@ -201,14 +205,34 @@ else:
 # Snapshot info
 st.sidebar.caption("📅 Datos base: OpenAlex Snapshot 2025-10-27")
 st.sidebar.caption("ℹ️ Métricas como `2yr_mean_citedness` reflejan el estado en esa fecha")
+render_study_dossier_sidebar()
 
 # --- Main Content ---
 st.title("Revistas Científicas de Latinoamérica")
 st.caption("OpenAlex Snapshot 2025-10-27")
 
 # Load Data
+@st.cache_data(show_spinner=False)
 def load_data():
     data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+    duckdb_file = os.path.join(data_dir, 'revistaslatam.duckdb')
+    
+    # 1. Fast path: Native DuckDB database if available
+    if os.path.exists(duckdb_file):
+        try:
+            con = get_duckdb_connection()
+            df_base = con.execute("SELECT * FROM journals").df()
+            df_evo = None
+            if os.path.exists(EVO_THEMATIC_FILE):
+                try:
+                    df_evo = con.execute("SELECT * FROM thematic_evolution").df()
+                except Exception:
+                    df_evo = pd.read_parquet(EVO_THEMATIC_FILE)
+            return df_base, df_evo
+        except Exception as e:
+            pass
+            
+    # 2. Fallback: Parquet files loading
     journals_path = os.path.join(data_dir, 'latin_american_journals.parquet')
     enriched_path = os.path.join(data_dir, 'journals_enriched.parquet')
     
@@ -260,6 +284,162 @@ def load_articles_landscape():
 
 df, df_thematic_evo = load_data()
 df_articles_landscape = load_articles_landscape()
+
+def compute_marker_sizes(df_subset, size_metric_col, r_min=2.5, r_max=8.5):
+    """
+    Escalamiento por raíz cuadrada estilo MDPI Atlantis / RAGs dashboard_analytics.
+    Área proporcional al valor de la métrica, acotada al percentil 98 para evitar distorsión por outliers.
+    """
+    if df_subset is None or len(df_subset) == 0:
+        return np.array([])
+    if size_metric_col not in df_subset.columns or size_metric_col == 'Uniforme':
+        return np.full(len(df_subset), (r_min + r_max) / 2.0)
+    raw_metric = pd.to_numeric(df_subset[size_metric_col], errors='coerce').fillna(0.1).clip(lower=0.01)
+    p98 = raw_metric.quantile(0.98) if len(raw_metric) > 10 else raw_metric.max()
+    p98 = max(float(p98), 0.1)
+    norm_metric = (raw_metric / p98).clip(lower=0.0, upper=1.0)
+    return r_min + (r_max - r_min) * np.sqrt(norm_metric)
+
+def render_country_landscape_scatter(country_code, df_landscape):
+    """
+    Renderiza el mapa maestro con todos los artículos en gris de fondo
+    y los artículos de las revistas del país seleccionado destacados y coloreados
+    con una barra continua según su año de publicación.
+    """
+    if df_landscape is None or df_landscape.empty:
+        st.info("💡 Paisaje de artículos no disponible. Ejecuta el pipeline de generación del mapa maestro.")
+        return
+        
+    fig = go.Figure()
+    
+    # 1. Traza de fondo: Todos los artículos en gris tenue
+    df_bg = df_landscape.sample(min(25000, len(df_landscape)), random_state=42)
+    fig.add_trace(go.Scattergl(
+        x=df_bg['umap_x'],
+        y=df_bg['umap_y'],
+        mode='markers',
+        name='Paisaje LATAM (Todos)',
+        marker=dict(
+            size=2.5,
+            color='#cbd5e1',
+            opacity=0.25
+        ),
+        hoverinfo='skip'
+    ))
+    
+    # 2. Traza de primer plano: Artículos de revistas del país seleccionado
+    df_country_works = df_landscape[df_landscape['country_code'] == country_code].copy()
+    
+    if not df_country_works.empty:
+        fig.add_trace(go.Scattergl(
+            x=df_country_works['umap_x'],
+            y=df_country_works['umap_y'],
+            mode='markers',
+            name=f'Artículos {country_code}',
+            text=df_country_works['title'],
+            customdata=df_country_works[['journal_name', 'publication_year', 'cited_by_count', 'fwci', 'community_name']],
+            marker=dict(
+                size=5.5,
+                color=df_country_works['publication_year'],
+                colorscale='Turbo',
+                showscale=True,
+                colorbar=dict(
+                    title="Año de Publ.",
+                    thickness=15,
+                    len=0.75,
+                    y=0.5
+                ),
+                opacity=0.85,
+                line=dict(width=0.5, color='rgba(255,255,255,0.8)')
+            ),
+            hovertemplate="<b>%{text}</b><br>Revista: %{customdata[0]}<br>Año: %{customdata[1]}<br>Citas: %{customdata[2]}<br>FWCI: %{customdata[3]:.2f}<br>Comunidad: %{customdata[4]}<extra></extra>"
+        ))
+        
+        c_name = COUNTRY_NAMES.get(country_code, country_code)
+        fig.update_layout(
+            title=f"Evolución Temática y Temporal de {len(df_country_works):,} Artículos de {c_name} (1970-2025)",
+            height=600,
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=50, b=20),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        render_plotly_chart(fig, use_container_width=True)
+        st.caption("💡 Los puntos de color representan artículos de revistas de este país. La barra continua de color revela la evolución temporal y la emergencia de nuevos frentes de investigación.")
+    else:
+        st.info(f"No hay artículos registrados para revistas de {country_code} en la muestra del paisaje semántico.")
+
+def render_journal_landscape_scatter(journal_id, journal_name, df_landscape):
+    """
+    Renderiza el mapa maestro con todos los artículos en gris de fondo
+    y los artículos de la revista seleccionada destacados y coloreados
+    con una barra continua según su año de publicación.
+    """
+    if df_landscape is None or df_landscape.empty:
+        st.info("💡 Paisaje de artículos no disponible. Ejecuta el pipeline de generación del mapa maestro.")
+        return
+        
+    fig = go.Figure()
+    
+    # 1. Traza de fondo: Todos los artículos en gris tenue
+    df_bg = df_landscape.sample(min(25000, len(df_landscape)), random_state=42)
+    fig.add_trace(go.Scattergl(
+        x=df_bg['umap_x'],
+        y=df_bg['umap_y'],
+        mode='markers',
+        name='Paisaje LATAM (Todos)',
+        marker=dict(
+            size=2.5,
+            color='#cbd5e1',
+            opacity=0.25
+        ),
+        hoverinfo='skip'
+    ))
+    
+    # 2. Traza de primer plano: Artículos de la revista seleccionada
+    df_j_works = df_landscape[df_landscape['journal_id'] == journal_id].copy()
+    if df_j_works.empty and 'journal_name' in df_landscape.columns:
+        df_j_works = df_landscape[df_landscape['journal_name'] == journal_name].copy()
+        
+    if not df_j_works.empty:
+        fig.add_trace(go.Scattergl(
+            x=df_j_works['umap_x'],
+            y=df_j_works['umap_y'],
+            mode='markers',
+            name=journal_name,
+            text=df_j_works['title'],
+            customdata=df_j_works[['publication_year', 'cited_by_count', 'fwci', 'community_name']],
+            marker=dict(
+                size=8.0,
+                color=df_j_works['publication_year'],
+                colorscale='Plasma',
+                showscale=True,
+                colorbar=dict(
+                    title="Año de Publ.",
+                    thickness=15,
+                    len=0.75,
+                    y=0.5
+                ),
+                opacity=0.9,
+                line=dict(width=1.0, color='#ffffff')
+            ),
+            hovertemplate="<b>%{text}</b><br>Año: %{customdata[0]}<br>Citas: %{customdata[1]}<br>FWCI: %{customdata[2]:.2f}<br>Comunidad: %{customdata[3]}<extra></extra>"
+        ))
+        
+        fig.update_layout(
+            title=f"Trayectoria Temática y Temporal de {len(df_j_works):,} Artículos de '{journal_name}'",
+            height=600,
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=50, b=20),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        render_plotly_chart(fig, use_container_width=True)
+        st.caption("💡 Cada punto coloreado representa un artículo publicado en esta revista. La distribución espacial y el gradiente de color muestran su foco disciplinar y su evolución temática en el tiempo.")
+    else:
+        st.info(f"No se encontraron artículos individuales para '{journal_name}' en la muestra del paisaje semántico.")
 
 if df.empty:
     st.warning("⚠️ No hay datos disponibles. Por favor, pulsa 'Actualizar Datos' en la barra lateral para comenzar.")
@@ -377,8 +557,55 @@ def render_thematic_evolution_table(df_evo_source, level_label, key_suffix, cmap
         st.warning("No hay datos de evolución temática disponibles.")
 
 # Filter by Level
+init_page_registry()
+
 if level == "Region (Latinoamérica)":
     st.header("Panorama Regional")
+    
+    with st.expander("🌌 Galaxia Semántica de Artículos LATAM (Motor WebGL)", expanded=False):
+        st.caption("Visualizador de alta resolución WebGL. Rueda para zoom, arrastre para desplazamiento y **clic derecho sobre una bolita para abrir el artículo en OpenAlex ↗**.")
+        if df_articles_landscape is not None and len(df_articles_landscape) > 0:
+            c_g1, c_g2, c_g3 = st.columns([1.5, 1.5, 1.2])
+            with c_g1:
+                col_g_color = st.selectbox(
+                    "Coloración:",
+                    ["Año de Publicación (Gradiente)", "Comunidad Temática", "FWCI (Impacto Ponderado)", "Uniforme"],
+                    index=0,
+                    key="reg_galaxy_color"
+                )
+            with c_g2:
+                col_g_size = st.selectbox(
+                    "Tamaño de Burbuja:",
+                    ["Citas Totales", "FWCI (Impacto Ponderado)", "Uniforme"],
+                    index=0,
+                    key="reg_galaxy_size"
+                )
+            with c_g3:
+                sample_pts = st.selectbox(
+                    "Artículos:",
+                    ["30,000", "50,000", "Todos"],
+                    index=0,
+                    key="reg_galaxy_sample"
+                )
+                
+            df_g_plot = df_articles_landscape.copy()
+            if sample_pts == "30,000" and len(df_g_plot) > 30000:
+                df_g_plot = df_g_plot.sample(30000, random_state=42)
+            elif sample_pts == "50,000" and len(df_g_plot) > 50000:
+                df_g_plot = df_g_plot.sample(50000, random_state=42)
+                
+            c_map = {'Año de Publicación (Gradiente)': 'year', 'Comunidad Temática': 'community', 'FWCI (Impacto Ponderado)': 'fwci', 'Uniforme': 'uniform'}
+            s_map = {'Citas Totales': 'citations', 'FWCI (Impacto Ponderado)': 'fwci', 'Uniforme': 'uniform'}
+            
+            webgl_html = generate_webgl_landscape_html(
+                df_g_plot,
+                color_mode=c_map.get(col_g_color, 'year'),
+                size_mode=s_map.get(col_g_size, 'citations'),
+                height=720
+            )
+            components.html(webgl_html, height=740, scrolling=False)
+        else:
+            st.warning("⚠️ El paisaje de artículos no está generado aún.")
     
     # KPIs from journals and cached metrics
     latam_period = load_and_scale('latam', 'period')
@@ -398,6 +625,20 @@ if level == "Region (Latinoamérica)":
         premium_metric("% OA Diamante", oa_diamond_latam)
     with col5:
         premium_metric("% OA Total", oa_total_latam)
+        
+    latam_kpi_payload = {
+        "Revistas Indexadas": f"{len(df):,}",
+        "Total Artículos": f"{df['works_count'].sum():,}",
+        "FWCI Promedio": fwci_latam,
+        "% Acceso Abierto Diamante": oa_diamond_latam,
+        "% Acceso Abierto Total": oa_total_latam
+    }
+    register_exportable(
+        "gpt_latam_kpis",
+        "📊 Indicadores Macro LATAM",
+        latam_kpi_payload,
+        context="Resumen de producción, impacto cienciométrico (FWCI) y modelos de acceso abierto del ecosistema de revistas científicas en América Latina."
+    )
     
     # Geographic Map Section
     if has_cached_metrics:
@@ -528,7 +769,15 @@ if level == "Region (Latinoamérica)":
                         )
                     )
                     
-                    st.plotly_chart(fig_map, use_container_width=True)
+                    render_plotly_chart(fig_map, use_container_width=True)
+                    export_cols = list(dict.fromkeys([c for c in ['country_code', indicator_col, 'num_journals', 'num_documents', 'fwci_avg'] if c in country_period.columns]))
+                    register_exportable(
+                        f"reg_geo_map_{indicator_col}",
+                        f"🗺️ Mapa Regional: {selected_indicator}",
+                        country_period[export_cols].dropna().sort_values(indicator_col, ascending=False).head(20),
+                        context=f"Distribución del indicador '{selected_indicator}' entre países latinoamericanos.",
+                        category="Mapas Geográficos"
+                    )
     
 
 
@@ -576,6 +825,22 @@ if level == "Region (Latinoamérica)":
                 with c5:
                     premium_metric("Percentil Prom. Norm.", f"{rec_data.get('avg_percentile', 0):.1f}")
             
+            reg_perf_payload = {
+                "Documentos (Histórico)": f"{period_data.get('num_documents', 0):,}",
+                "FWCI Promedio (Histórico)": f"{period_data.get('fwci_avg', 0):.2f}",
+                "% Top 10%": f"{period_data.get('pct_top_10', 0):.3f}%",
+                "% Top 1%": f"{period_data.get('pct_top_1', 0):.3f}%",
+                "Documentos (2021-2025)": f"{rec_data.get('num_documents', 0):,}" if 'rec_data' in locals() else "N/D",
+                "FWCI (2021-2025)": f"{rec_data.get('fwci_avg', 0):.2f}" if 'rec_data' in locals() else "N/D"
+            }
+            register_exportable(
+                "reg_performance_periods",
+                "📈 Desempeño Histórico y Reciente (2021-2025)",
+                reg_perf_payload,
+                context="Comparativa de impacto cienciométrico (FWCI y Percentiles) entre el periodo histórico y el periodo reciente (2021-2025).",
+                category="Desempeño Cienciométrico"
+            )
+
             # Open Access and Language breakdown
             st.markdown("#### Distribución y Características de las Publicaciones")
             col_chart1, col_chart2 = st.columns(2)
@@ -597,7 +862,7 @@ if level == "Region (Latinoamérica)":
                 fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo',
                                title='Distribución por Acceso Abierto',
                                color_discrete_sequence=px.colors.qualitative.Set3)
-                st.plotly_chart(fig_oa, use_container_width=True)
+                render_plotly_chart(fig_oa, use_container_width=True)
 
             with col_chart2:
                 lang_data = {
@@ -619,7 +884,7 @@ if level == "Region (Latinoamérica)":
                     fig_lang = px.pie(lang_df, values='Porcentaje', names='Idioma',
                                      title='Distribución por Idiomas',
                                      color_discrete_sequence=px.colors.qualitative.Pastel)
-                    st.plotly_chart(fig_lang, use_container_width=True)
+                    render_plotly_chart(fig_lang, use_container_width=True)
                 else:
                     st.info("Sin datos de idioma.")
             
@@ -760,7 +1025,28 @@ if level == "Region (Latinoamérica)":
                         ))
                         
                         fig_sun_latam.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=550)
-                        st.plotly_chart(fig_sun_latam, use_container_width=True)
+                        render_plotly_chart(fig_sun_latam, use_container_width=True)
+
+                        # Preparar datos para exportación
+                        if 'df_plot_reg' in locals() and not df_plot_reg.empty:
+                            cols_pref = list(dict.fromkeys([c for c in ['level', 'domain', 'field', 'subfield', 'topic', size_col, ind_col] if c in df_plot_reg.columns]))
+                            df_topics_only = df_plot_reg[df_plot_reg['level'] == 'topic']
+                            df_to_export = df_topics_only if not df_topics_only.empty else df_plot_reg
+                            export_topics_payload = df_to_export[cols_pref].dropna(subset=[size_col] if size_col in df_to_export.columns else None).sort_values(size_col, ascending=False).head(20)
+                        elif 'topics_latam' in locals() and not topics_latam.empty:
+                            cols_pref = list(dict.fromkeys([c for c in ['domain', 'field', 'subfield', 'topic', 'count', 'share'] if c in topics_latam.columns]))
+                            sort_c = 'count' if 'count' in topics_latam.columns else cols_pref[-1]
+                            export_topics_payload = topics_latam[cols_pref].sort_values(sort_c, ascending=False).head(20)
+                        else:
+                            export_topics_payload = {"Indicador": selected_sb_ind}
+
+                        register_exportable(
+                            "reg_sunburst_topics",
+                            f"🏵️ Temáticas de Investigación Regionales ({selected_sb_ind})",
+                            export_topics_payload,
+                            context=f"Especialización temática de Latinoamérica visualizada con el indicador '{selected_sb_ind}'.",
+                            category="Disciplinas"
+                        )
                             
                         st.markdown("---")
                         st.subheader("Análisis de Perfiles Temáticos por País")
@@ -782,6 +1068,13 @@ if level == "Region (Latinoamérica)":
                         st.markdown("---")
                         st.subheader("Evolución Histórica de Perfiles de Conocimiento: Región")
                         render_thematic_evolution_table(df_thematic_evo, "Región", "regional", cmap='Greens')
+                        register_exportable(
+                            "reg_thematic_evolution_table",
+                            "⏳ Evolución Histórica de Perfiles de Conocimiento",
+                            df_thematic_evo.head(15) if 'df_thematic_evo' in locals() and df_thematic_evo is not None else {"Estado": "Evolución temática"},
+                            context="Tendencia temporal y crecimiento de los campos del conocimiento en América Latina.",
+                            category="Series Temporales"
+                        )
                 except Exception as e:
                     st.warning(f"No se pudieron cargar los temas regionales: {e}")
         
@@ -797,7 +1090,7 @@ if level == "Region (Latinoamérica)":
                               title='Evolución de Documentos Publicados',
                               labels={'year': 'Año', 'num_documents': 'Número de Documentos'},
                               markers=True)
-            st.plotly_chart(fig_docs, use_container_width=True)
+            render_plotly_chart(fig_docs, use_container_width=True)
             
             # FWCI over time
             fig_fwci = px.line(recent_years, x='year', y='fwci_avg',
@@ -806,7 +1099,7 @@ if level == "Region (Latinoamérica)":
                               markers=True)
             fig_fwci.add_hline(y=1.0, line_dash="dash", line_color="red",
                               annotation_text="Promedio Mundial (1.0)")
-            st.plotly_chart(fig_fwci, use_container_width=True)
+            render_plotly_chart(fig_fwci, use_container_width=True)
             
             # Top percentages over time
             fig_top = go.Figure()
@@ -817,7 +1110,7 @@ if level == "Region (Latinoamérica)":
             fig_top.update_layout(title='Evolución de Artículos Altamente Citados',
                                  xaxis_title='Año',
                                  yaxis_title='Porcentaje (%)')
-            st.plotly_chart(fig_top, use_container_width=True)
+            render_plotly_chart(fig_top, use_container_width=True)
             
             # OA trends
             fig_oa_trend = go.Figure()
@@ -830,7 +1123,7 @@ if level == "Region (Latinoamérica)":
             fig_oa_trend.update_layout(title='Evolución de Tipos de Acceso Abierto',
                                       xaxis_title='Año',
                                       yaxis_title='Porcentaje (%)')
-            st.plotly_chart(fig_oa_trend, use_container_width=True)
+            render_plotly_chart(fig_oa_trend, use_container_width=True)
             
             # Show annual data table
             with st.expander("📊 Ver Tabla de Datos Anuales"):
@@ -935,6 +1228,13 @@ if level == "Region (Latinoamérica)":
                         "pct_top_1": st.column_config.NumberColumn("% Top 1%", format="%.3f%%"),
                         "fwci_avg": st.column_config.NumberColumn("FWCI", format="%.2f")
                     }
+                )
+                register_exportable(
+                    "reg_country_rankings_table",
+                    "🏆 Tabla General de Desempeño por País (Ranking)",
+                    final_df[cols_final_order].head(20),
+                    context="Comparativa general de indicadores de producción, impacto (FWCI) y ciencia abierta por país.",
+                    category="Tablas y Rankings"
                 )
             else:
                 st.info("No hay datos de países disponibles.")
@@ -1045,7 +1345,7 @@ if level == "Region (Latinoamérica)":
                         legend=dict(itemclick="toggleothers", itemdoubleclick="toggle")
                     )
                     
-                    st.plotly_chart(fig_traj_global, use_container_width=True)
+                    render_plotly_chart(fig_traj_global, use_container_width=True)
                     
                     st.info("💡 Cada línea representa la evolución del perfil bibliométrico a lo largo del tiempo. La línea verde gruesa representa a Iberoamérica como conjunto de referencia.")
                     
@@ -1212,7 +1512,7 @@ if level == "Region (Latinoamérica)":
                             title=dict(text=country, y=0.95),
                             showlegend=False
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        render_plotly_chart(fig, use_container_width=True)
                 
                 st.caption("🔵 Azul: Periodo Completo | 🔴 Rojo: Periodo Reciente (2021-2025)")
         
@@ -1265,7 +1565,14 @@ if level == "Region (Latinoamérica)":
                         yaxis=dict(showgrid=True, zeroline=True)
                     )
                     
-                    st.plotly_chart(fig_umap, use_container_width=True)
+                    render_plotly_chart(fig_umap, use_container_width=True)
+                    register_exportable(
+                        "reg_umap_countries_2d",
+                        "📈 Países Latinoamericanos - Espacio de Similitud (UMAP 2D)",
+                        df_umap_countries[['country_code', 'num_journals', 'fwci_avg', 'pct_oa_diamond', 'umap_x', 'umap_y']].head(20),
+                        context="Proyección 2D UMAP de países según similitud cienciométrica y de ciencia abierta.",
+                        category="Mapas Topológicos"
+                    )
                     
                     st.info("💡 Los países cercanos en el mapa tienen perfiles bibliométricos similares. La distancia refleja diferencias en producción, impacto y acceso abierto.")
                     
@@ -1412,7 +1719,7 @@ if level == "Region (Latinoamérica)":
                     margin=dict(l=20, r=20, t=50, b=20)
                 )
 
-                st.plotly_chart(fig_som, use_container_width=True)
+                render_plotly_chart(fig_som, use_container_width=True)
                 
                 if not df_bmus.empty:
                     with st.expander("📊 Ver detalles de asignación SOM"):
@@ -1585,7 +1892,7 @@ if level == "Region (Latinoamérica)":
                         )
                     )
                     
-                    st.plotly_chart(fig_scatter, use_container_width=True)
+                    render_plotly_chart(fig_scatter, use_container_width=True)
                     
                     # Summary statistics
                     with st.expander("📊 Ver estadísticas descriptivas"):
@@ -1732,6 +2039,9 @@ if level == "Region (Latinoamérica)":
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
+    st.markdown("---")
+    render_export_drawer()
+
 elif level == "País":
     st.header("Análisis por País")
     
@@ -1785,6 +2095,24 @@ elif level == "País":
                 
                 period_data = country_data.iloc[0]
                 
+                c_name = COUNTRY_NAMES.get(selected_country, selected_country)
+                country_kpi_payload = {
+                    "País": f"{c_name} ({selected_country})",
+                    "Revistas": len(country_df),
+                    "Artículos": f"{country_df['works_count'].sum():,}",
+                    "FWCI Promedio": f"{period_data.get('fwci_avg', 0):.2f}",
+                    "% Top 10%": f"{period_data.get('pct_top_10', 0):.1f}%",
+                    "% Top 1%": f"{period_data.get('pct_top_1', 0):.1f}%",
+                    "% OA Diamante": f"{period_data.get('pct_oa_diamond', 0):.1f}%",
+                    "% OA Total": f"{period_data.get('pct_oa_total', 0):.1f}%"
+                }
+                register_exportable(
+                    f"gpt_country_{selected_country}",
+                    f"🇧🇷 Perfil Cienciométrico: {c_name}",
+                    country_kpi_payload,
+                    context=f"Perfil cienciométrico y producción de las revistas de {c_name} indexadas en OpenAlex."
+                )
+                st.markdown("---")
                 st.markdown("##### 📊 Impacto y Citación")
                 col1, col2, col3, col4, col5 = st.columns(5)
                 col1.metric("Documentos", f"{period_data.get('num_documents', 0):,}")
@@ -1793,6 +2121,33 @@ elif level == "País":
                 col4.metric("% Top 1%", f"{period_data.get('pct_top_1', 0):.3f}%")
                 col5.metric("Percentil Prom. Norm.", f"{period_data.get('avg_percentile', 0):.3f}")
                 
+                oa_dict = {
+                    "% OA Diamante": f"{period_data.get('pct_oa_diamond', 0):.1f}%",
+                    "% OA Dorado": f"{period_data.get('pct_oa_gold', 0):.1f}%",
+                    "% OA Verde": f"{period_data.get('pct_oa_green', 0):.1f}%",
+                    "% OA Híbrido": f"{period_data.get('pct_oa_hybrid', 0):.1f}%",
+                    "% Cerrado": f"{period_data.get('pct_oa_closed', 0):.1f}%"
+                }
+                register_exportable(
+                    f"country_oa_{selected_country}",
+                    f"🔓 Modelos de Acceso Abierto: {c_name}",
+                    oa_dict,
+                    context=f"Desglose de modalidades de publicación en acceso abierto para {c_name}.",
+                    category="Ciencia Abierta"
+                )
+                lang_dict = {
+                    "% Español": f"{period_data.get('pct_lang_es', 0):.1f}%",
+                    "% Portugués": f"{period_data.get('pct_lang_pt', 0):.1f}%",
+                    "% Inglés": f"{period_data.get('pct_lang_en', 0):.1f}%",
+                    "% Autoría Doméstica": f"{period_data.get('pct_authors_domestic', 0):.1f}%"
+                }
+                register_exportable(
+                    f"country_lang_{selected_country}",
+                    f"🗣️ Idiomas y Autoría Doméstica: {c_name}",
+                    lang_dict,
+                    context=f"Distribución lingüística y colaboración nacional vs internacional en {c_name}.",
+                    category="Multilingüismo"
+                )
                 st.markdown("##### 🔓 Ciencia Abierta y Visibilidad")
                 oa_c1, oa_c2, oa_c3, oa_c4, oa_c5 = st.columns(5)
                 oa_c1.metric("% OA Diamante", f"{period_data.get('pct_oa_diamond', 0):.1f}%")
@@ -1866,7 +2221,14 @@ elif level == "País":
                                 height=550,
                                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                             )
-                            st.plotly_chart(fig_traj, use_container_width=True)
+                            render_plotly_chart(fig_traj, use_container_width=True)
+                            register_exportable(
+                                "country_trajectory_2d",
+                                "📈 Evolución de la Trayectoria (UMAP)",
+                                df_country_trajectory.head(15) if 'df_country_trajectory' in locals() else {"Estado": "Trayectoria calculada"},
+                                context="Trayectoria evolutiva histórica del país en el espacio UMAP.",
+                                category="Trayectorias"
+                            )
                     except Exception as e:
                         st.error(f"Error visualizando trayectoria: {e}")
                 # Historic indicators moved to Annual Trends section
@@ -1931,7 +2293,7 @@ elif level == "País":
                                 yaxis=dict(showgrid=True, zeroline=True)
                             )
                             
-                            st.plotly_chart(fig_umap_j, use_container_width=True)
+                            render_plotly_chart(fig_umap_j, use_container_width=True)
                             
                             st.info("💡 Las revistas cercanas en el mapa tienen perfiles bibliométricos similares. La distancia refleja diferencias en producción, impacto y acceso abierto.")
                             
@@ -1963,9 +2325,10 @@ elif level == "País":
                 else:
                     st.info("💡 Ejecuta el pipeline completo (`python run_pipeline.py`) para generar la visualización UMAP.")
                 
-                # --- HUELLA SEMÁNTICA Y EVOLUCIÓN TEMPORAL DE ARTÍCULOS DEL PAÍS (ESTILO INFO TLACHIA) ---
+                # --- HUELLA SEMÁNTICA Y EVOLUCIÓN TEMPORAL DE ARTÍCULOS DEL PAÍS ---
                 st.markdown("---")
-                st.subheader(f"🌌 Huella Semántica y Evolución Temporal de Artículos: {country_name}")
+                c_disp_name = COUNTRY_NAMES.get(selected_country, selected_country)
+                st.subheader(f"🌌 Huella Semántica y Evolución Temporal de Artículos: {c_disp_name}")
                 st.caption("Proyección de los artículos de revistas del país sobre el paisaje regional. El color indica el Año de Publicación (`publication_year`).")
                 
                 if df_articles_landscape is not None and len(df_articles_landscape) > 0:
@@ -2002,7 +2365,7 @@ elif level == "País":
                                 opacity=0.85,
                                 line=dict(width=0.4, color='white')
                             ),
-                            name=f'Artículos de {country_name}',
+                            name=f'Artículos de {c_disp_name}',
                             text=df_country_art['title'],
                             customdata=np.stack([
                                 df_country_art['journal_name'].fillna('Desconocida'),
@@ -2020,14 +2383,14 @@ elif level == "País":
                         
                         fig_country_art.update_layout(
                             height=600,
-                            title=f"Distribución de {len(df_country_art):,} Artículos de {country_name} en el Paisaje Regional",
+                            title=f"Distribución de {len(df_country_art):,} Artículos de {c_disp_name} en el Paisaje Regional",
                             template='plotly_white',
                             margin=dict(l=20, r=20, t=50, b=20)
                         )
-                        st.plotly_chart(fig_country_art, use_container_width=True)
-                        st.info(f"💡 **Interpretación Temporal**: {len(df_country_art):,} artículos representados. Los frentes temáticos ocupados por puntos amarillos/rojos indican las líneas científicas de mayor publicación reciente en {country_name}.")
+                        render_plotly_chart(fig_country_art, use_container_width=True)
+                        st.info(f"💡 **Interpretación Temporal**: {len(df_country_art):,} artículos representados. Los frentes temáticos ocupados por puntos amarillos/rojos indican las líneas científicas de mayor publicación reciente en {c_disp_name}.")
                     else:
-                        st.info(f"No se encontraron artículos en la muestra para {country_name}.")
+                        st.info(f"No se encontraron artículos en la muestra para {c_disp_name}.")
                 
                 # Dynamic Scatter Plot for Journals in this Country
                 st.markdown("---")
@@ -2150,7 +2513,7 @@ elif level == "País":
                                     showlegend=False
                                 )
                                 
-                                st.plotly_chart(fig_scatter_c, use_container_width=True)
+                                render_plotly_chart(fig_scatter_c, use_container_width=True)
                                 
                                 # Summary statistics
                                 with st.expander("📊 Ver estadísticas descriptivas"):
@@ -2207,7 +2570,7 @@ elif level == "País":
                     fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo',
                                    title='Distribución por Acceso Abierto',
                                    color_discrete_sequence=px.colors.qualitative.Set3)
-                    st.plotly_chart(fig_oa, use_container_width=True)
+                    render_plotly_chart(fig_oa, use_container_width=True)
 
                 with col_chart2_c:
                     lang_data = {
@@ -2229,7 +2592,7 @@ elif level == "País":
                         fig_lang = px.pie(lang_df, values='Porcentaje', names='Idioma',
                                          title='Distribución por Idiomas',
                                          color_discrete_sequence=px.colors.qualitative.Pastel)
-                        st.plotly_chart(fig_lang, use_container_width=True)
+                        render_plotly_chart(fig_lang, use_container_width=True)
                     else:
                         st.info("Sin datos de idioma.")
                 
@@ -2336,7 +2699,7 @@ elif level == "País":
                                 hovertemplate='<b>%{label}</b><br>Artículos: %{value:,.1f}<br>' + f'{selected_sb_ind_c}: ' + '%{color:.2f}<extra></extra>'
                             ))
                             fig_sun_c.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
-                            st.plotly_chart(fig_sun_c, use_container_width=True)
+                            render_plotly_chart(fig_sun_c, use_container_width=True)
                                 
                             # --- Tablas de Perfiles Temáticos ---
                             st.markdown("---")
@@ -2397,7 +2760,7 @@ elif level == "País":
                                   title='Evolución de Documentos Publicados',
                                   labels={'year': 'Año', 'num_documents': 'Número de Documentos'},
                                   markers=True)
-                st.plotly_chart(fig_docs, use_container_width=True)
+                render_plotly_chart(fig_docs, use_container_width=True)
                 
                 # FWCI over time
                 fig_fwci = px.line(recent_years, x='year', y='fwci_avg',
@@ -2406,7 +2769,7 @@ elif level == "País":
                                   markers=True)
                 fig_fwci.add_hline(y=1.0, line_dash="dash", line_color="red",
                                   annotation_text="Promedio Mundial (1.0)")
-                st.plotly_chart(fig_fwci, use_container_width=True)
+                render_plotly_chart(fig_fwci, use_container_width=True)
                 
                 # Top percentages over time
                 fig_top = go.Figure()
@@ -2417,7 +2780,7 @@ elif level == "País":
                 fig_top.update_layout(title='Evolución de Artículos Altamente Citados',
                                      xaxis_title='Año',
                                      yaxis_title='Porcentaje (%)')
-                st.plotly_chart(fig_top, use_container_width=True)
+                render_plotly_chart(fig_top, use_container_width=True)
                 
                 # OA trends
                 fig_oa_trend = go.Figure()
@@ -2432,7 +2795,7 @@ elif level == "País":
                 fig_oa_trend.update_layout(title='Evolución de Tipos de Acceso Abierto',
                                           xaxis_title='Año',
                                           yaxis_title='Porcentaje (%)')
-                st.plotly_chart(fig_oa_trend, use_container_width=True)
+                render_plotly_chart(fig_oa_trend, use_container_width=True)
                 
                 st.markdown("---")
                 st.subheader(f"Indicadores Históricos de {selected_country}")
@@ -2520,8 +2883,17 @@ elif level == "País":
                         st.info("No hay datos históricos para este país.")
                 else:
                     st.warning("No se pudieron cargar los datos anuales.")
+                    
+                # --- PAISAJE CIENTÍFICO: EVOLUCIÓN TEMÁTICA Y TEMPORAL DEL PAÍS ---
+                st.markdown("---")
+                st.subheader(f"🌌 Evolución de {COUNTRY_NAMES.get(selected_country, selected_country)} en el Paisaje Científico (LATAM)")
+                st.caption(f"Mapeo de los artículos de revistas de {COUNTRY_NAMES.get(selected_country, selected_country)} sobre el espacio temático global de Latinoamérica. La barra de color ilustra la progresión temporal de las publicaciones.")
+                render_country_landscape_scatter(selected_country, df_articles_landscape)
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
+
+    st.markdown("---")
+    render_export_drawer()
 
 elif level == "Revista":
     st.header("Detalle de Revista")
@@ -2632,6 +3004,25 @@ elif level == "Revista":
     is_scopus_val = journal_data.get('is_scopus', journal_data.get('is_indexed_in_scopus', False))
     m12.metric("En Scopus", fmt_bool(is_scopus_val))
     
+    journal_kpi_payload = {
+        "Revista": journal_data.get('display_name', 'N/D'),
+        "País": journal_data.get('country_code', 'N/D'),
+        "Documentos": fmt_num(journal_data.get('works_count')),
+        "Citas": fmt_num(journal_data.get('cited_by_count')),
+        "FWCI Promedio": fmt_num(journal_data.get('fwci_avg') or journal_data.get('2yr_mean_citedness'), format_str="{:.2f}"),
+        "Índice H": fmt_num(journal_data.get('h_index'), format_str="{}"),
+        "PageRank Citas": fmt_num(journal_data.get('pagerank'), format_str="{:.4f}"),
+        "% OA Diamante": f"{journal_data.get('pct_oa_diamond', 0):.1f}%" if pd.notna(journal_data.get('pct_oa_diamond')) else "N/D",
+        "En DOAJ": fmt_bool(journal_data.get('is_in_doaj')),
+        "En Scopus": fmt_bool(journal_data.get('is_scopus', journal_data.get('is_indexed_in_scopus', False)))
+    }
+    register_exportable(
+        f"gpt_journal_{abs(hash(str(journal_data.get('id')))) % 100000}",
+        f"📖 Perfil Revista: {journal_data.get('display_name')}",
+        journal_kpi_payload,
+        context=f"Perfil de impacto, ciencia abierta y posición en redes de citación para la revista {journal_data.get('display_name')}."
+    )
+
     # --- Sunburst de Temáticas (Journal Level) ---
     SUNBURST_METRICS_JOURNAL = os.path.join(BASE_PATH, 'data', 'cache', 'sunburst_metrics_journal.parquet')
     if os.path.exists(SUNBURST_METRICS_JOURNAL):
@@ -2734,7 +3125,7 @@ elif level == "Revista":
                     hovertemplate='<b>%{label}</b><br>Artículos: %{value:,.1f}<br>' + f'{selected_sb_ind_j}: ' + '%{color:.2f}<extra></extra>'
                 ))
                 fig_sun.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
-                st.plotly_chart(fig_sun, use_container_width=True)
+                render_plotly_chart(fig_sun, use_container_width=True)
                 st.caption("Jerarquía: Dominio -> Campo -> Subcampo. Tamaño basado en volumen de documentos.")
 
                 # --- EVOLUCIÓN HISTÓRICA POR REVISTA ---
@@ -2821,7 +3212,7 @@ elif level == "Revista":
                     fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo',
                                    title='Distribución por Acceso Abierto',
                                    color_discrete_sequence=px.colors.qualitative.Set3)
-                    st.plotly_chart(fig_oa, use_container_width=True)
+                    render_plotly_chart(fig_oa, use_container_width=True)
                 
                 with col_chart2:
                     lang_data = {
@@ -2844,7 +3235,7 @@ elif level == "Revista":
                         fig_lang = px.pie(lang_df, values='Porcentaje', names='Idioma',
                                          title='Distribución por Idiomas',
                                          color_discrete_sequence=px.colors.qualitative.Pastel)
-                        st.plotly_chart(fig_lang, use_container_width=True)
+                        render_plotly_chart(fig_lang, use_container_width=True)
                     else:
                         st.info("Sin datos de idioma.")
         
@@ -2901,7 +3292,7 @@ elif level == "Revista":
                                 height=400,
                                 margin=dict(t=40, b=40, l=40, r=40)
                             )
-                            st.plotly_chart(fig_radar, use_container_width=True)
+                            render_plotly_chart(fig_radar, use_container_width=True)
                             
         if journal_annual is not None:
             journal_annual_data = journal_annual[journal_annual['journal_id'] == journal_data['id']]
@@ -2917,7 +3308,7 @@ elif level == "Revista":
                                   title='Evolución de Documentos Publicados',
                                   labels={'year': 'Año', 'num_documents': 'Número de Documentos'},
                                   markers=True)
-                st.plotly_chart(fig_docs, use_container_width=True)
+                render_plotly_chart(fig_docs, use_container_width=True)
                 
                 # FWCI over time
                 fig_fwci = px.line(recent_years, x='year', y='fwci_avg',
@@ -2926,7 +3317,7 @@ elif level == "Revista":
                                   markers=True)
                 fig_fwci.add_hline(y=1.0, line_dash="dash", line_color="red",
                                   annotation_text="Promedio Mundial (1.0)")
-                st.plotly_chart(fig_fwci, use_container_width=True)
+                render_plotly_chart(fig_fwci, use_container_width=True)
                 
                 # Top percentages over time
                 fig_top = go.Figure()
@@ -2937,7 +3328,7 @@ elif level == "Revista":
                 fig_top.update_layout(title='Evolución de Artículos Altamente Citados',
                                      xaxis_title='Año',
                                      yaxis_title='Porcentaje (%)')
-                st.plotly_chart(fig_top, use_container_width=True)
+                render_plotly_chart(fig_top, use_container_width=True)
                 
                 # OA trends
                 fig_oa_trend = go.Figure()
@@ -2952,7 +3343,7 @@ elif level == "Revista":
                 fig_oa_trend.update_layout(title='Evolución de Tipos de Acceso Abierto',
                                           xaxis_title='Año',
                                           yaxis_title='Porcentaje (%)')
-                st.plotly_chart(fig_oa_trend, use_container_width=True)
+                render_plotly_chart(fig_oa_trend, use_container_width=True)
                 
                 # Show annual data table nicely formatted
                 st.markdown("---")
@@ -3012,59 +3403,41 @@ elif level == "Revista":
                 # --- LISTADO DETALLADO DE ARTÍCULOS ---
                 st.markdown("---")
                 st.subheader("Listado Detallado de Artículos")
-                st.caption("Consulta los artículos específicos de esta revista descargados para este análisis.")
+                st.caption("Consulta los artículos específicos de esta revista descargados para este análisis (Motor DuckDB).")
                 
-                # Normalize ID for filename
-                jid_safe = journal_data['id'].split('/')[-1]
-                parts_file = os.path.join(BASE_PATH, 'data', 'works_parts', f"{jid_safe}.parquet")
-                
-                if os.path.exists(parts_file):
-                    try:
-                        df_parts = pd.read_parquet(parts_file)
+                try:
+                    df_works_j = get_journal_articles_page(journal_data['id'], limit=250, sort_by='cited_by_count')
+                    if not df_works_j.empty:
+                        years = sorted([int(y) for y in df_works_j['publication_year'].dropna().unique().tolist()], reverse=True)
+                        selected_years_j = st.multiselect("Filtrar por Año:", options=years, default=years[:3] if len(years) > 3 else years, key=f"sel_yr_art_{journal_data['id']}")
                         
-                        if not df_parts.empty:
-                            # year Filter
-                            years = sorted(df_parts['publication_year'].unique().tolist(), reverse=True)
-                            selected_years_j = st.multiselect("Filtrar por Año:", options=years, default=years[:2] if len(years) > 2 else years)
+                        df_table = df_works_j[df_works_j['publication_year'].isin(selected_years_j)].copy()
+                        if not df_table.empty:
+                            df_table = df_table.sort_values(['publication_year', 'cited_by_count'], ascending=[False, False])
+                            cols_art = {
+                                'title': 'Título',
+                                'publication_year': 'Año',
+                                'doi': 'DOI',
+                                'cited_by_count': 'Citas',
+                                'fwci': 'FWCI'
+                            }
+                            df_art_disp = df_table.rename(columns=cols_art)
+                            if 'DOI' in df_art_disp.columns:
+                                df_art_disp['DOI'] = df_art_disp['DOI'].apply(lambda x: f"https://doi.org/{x}" if x and str(x) != "None" and str(x) != "-" else "-")
                             
-                            df_table = df_parts[df_parts['publication_year'].isin(selected_years_j)].copy()
-                            
-                            if not df_table.empty:
-                                # Formatting
-                                df_table = df_table.sort_values(['publication_year', 'cited_by_count'], ascending=[False, False])
-                                
-                                # Visual indicators
-                                df_table['Autoría Doméstica'] = df_table['is_domestic_author'].apply(lambda x: "🏠" if x else "🌍")
-                                
-                                # Rename cols
-                                cols_art = {
-                                    'title': 'Título',
-                                    'publication_year': 'Año',
-                                    'doi': 'DOI',
-                                    'type': 'Tipo',
-                                    'cited_by_count': 'Citas',
-                                    'fwci': 'FWCI'
-                                }
-                                df_art_disp = df_table.rename(columns=cols_art)
-                                # Make DOI clickable if not None
-                                if 'DOI' in df_art_disp.columns:
-                                    df_art_disp['DOI'] = df_art_disp['DOI'].apply(lambda x: f"https://doi.org/{x}" if x and x != "None" else "-")
-                                
-                                final_art_cols = ['Título', 'Año', 'Autoría Doméstica', 'DOI', 'Tipo', 'Citas', 'FWCI']
-                                st.dataframe(df_art_disp[[c for c in final_art_cols if c in df_art_disp.columns]], 
-                                            use_container_width=True, hide_index=True)
-                            else:
-                                st.info("Selecciona al menos un año para visualizar los artículos.")
+                            final_art_cols = ['Título', 'Año', 'DOI', 'Citas', 'FWCI']
+                            st.dataframe(df_art_disp[[c for c in final_art_cols if c in df_art_disp.columns]], 
+                                        use_container_width=True, hide_index=True)
                         else:
-                            st.info("No hay artículos registrados para esta revista en el almacenamiento local.")
-                    except Exception as e:
-                        st.warning(f"No se pudo cargar el listado de artículos: {e}")
-                else:
-                    st.info("ℹ️ Para ver el listado detallado de artículos, ejecuta el paso de extracción en el pipeline.")
+                            st.info("Selecciona al menos un año para visualizar los artículos.")
+                    else:
+                        st.info("No hay artículos registrados para esta revista en el almacenamiento local.")
+                except Exception as e:
+                    st.warning(f"No se pudo cargar el listado de artículos: {e}")
     else:
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
-    # --- FOCO TEMÁTICO Y DERIVA LONGITUDINAL DE LA REVISTA (INFO TLACHIA) ---
+    # --- FOCO TEMÁTICO Y DERIVA LONGITUDINAL DE LA REVISTA ---
     st.markdown("---")
     st.subheader(f"🌌 Foco Temático y Deriva Temporal: {journal_data['display_name']}")
     st.caption("Proyección de los artículos de la revista sobre el paisaje semántico regional. El color indica el Año de Publicación (`publication_year`).")
@@ -3124,7 +3497,7 @@ elif level == "Revista":
                 template='plotly_white',
                 margin=dict(l=20, r=20, t=50, b=20)
             )
-            st.plotly_chart(fig_j_art, use_container_width=True)
+            render_plotly_chart(fig_j_art, use_container_width=True)
             
             # Spatial dispersion / focus analysis
             std_x = df_journal_art['umap_x'].std()
@@ -3207,7 +3580,7 @@ elif level == "Revista":
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                 )
                 
-                st.plotly_chart(fig_traj, use_container_width=True)
+                render_plotly_chart(fig_traj, use_container_width=True)
                 
                 # Data Tables Expander
                 with st.expander("📊 Ver Tablas de Datos (Crudos y Suavizados)"):
@@ -3273,6 +3646,12 @@ elif level == "Revista":
             
     else:
         st.info("ℹ️ Para ver el Análisis de Trayectorias, por favor ejecuta el pipeline completo.")
+        
+    # --- PAISAJE CIENTÍFICO: TRAYECTORIA DE LA REVISTA ---
+    st.markdown("---")
+    st.subheader(f"🌌 Trayectoria de '{selected_journal_name}' en el Paisaje Científico (LATAM)")
+    st.caption(f"Mapeo cronológico de los artículos de {selected_journal_name} sobre el espacio temático global de Latinoamérica.")
+    render_journal_landscape_scatter(journal_data['id'], selected_journal_name, df_articles_landscape)
     
     # --- SCATTER PLOT DE ARTÍCULOS ---
     st.markdown("---")
@@ -3401,7 +3780,7 @@ elif level == "Revista":
                                 showlegend=False
                             )
                             
-                            st.plotly_chart(fig_scatter_w, use_container_width=True)
+                            render_plotly_chart(fig_scatter_w, use_container_width=True)
                             
                             # Summary statistics
                             with st.expander("📊 Ver estadísticas descriptivas"):
@@ -3456,23 +3835,24 @@ elif level == "Revista":
         st.info("💡 Ejecuta 'Precalcular Indicadores' para ver métricas de desempeño detalladas.")
 
 
+    st.markdown("---")
+    render_export_drawer()
+
 elif level == "🗺️ Mapa Semántico y Comunidades":
-    st.header("🗺️ Mapa Semántico y Comunidades Científicas (Metodología Info Tlachia)")
+    st.header("🗺️ Mapa Semántico y Comunidades Científicas")
     st.caption("Proyección topológica del conocimiento científico latinoamericano a nivel de artículos y revistas (UMAP + Stopwords Trilingües + Baricentros).")
     
     umap_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_journals_multimodal.parquet')
-    hex_file = os.path.join(BASE_PATH, 'data', 'cache', 'umap_hexbin_density.parquet')
     art_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_articles_landscape.parquet')
     
-    tab_art, tab_scatter, tab_hex = st.tabs([
+    tab_art, tab_scatter = st.tabs([
         "🌌 Paisaje Científico de Artículos (LATAM)",
-        "🎯 Espacio Semántico 2D (Revistas)",
-        "⬡ Mapa Hexagonal de Densidad"
+        "🎯 Espacio Semántico 2D (Revistas)"
     ])
     
     with tab_art:
-        st.subheader("🌌 Paisaje Científico de Artículos Académicos")
-        st.caption("Proyección 2D del corpus de artículos a partir de Título y Resumen (sin metadatos geopolíticos ni topics de citas).")
+        st.subheader("🌌 Paisaje Científico de Artículos Académicos (Motor WebGL)")
+        st.caption("Proyección 2D en WebGL acelerado por hardware a partir de Título y Resumen. Rueda para zoom, arrastre para pan, **clic derecho sobre una bolita para abrir el artículo en OpenAlex ↗**.")
         
         if df_articles_landscape is not None and len(df_articles_landscape) > 0:
             c_a1, c_a2, c_a3, c_a4 = st.columns([1.5, 1.2, 1.2, 1.1])
@@ -3482,23 +3862,22 @@ elif level == "🗺️ Mapa Semántico y Comunidades":
                     options=[
                         'Año de Publicación (Gradiente)',
                         'Comunidad Temática',
-                        'País de la Revista',
                         'FWCI (Impacto Ponderado)',
-                        'Modalidad de Acceso Abierto'
+                        'Uniforme'
                     ],
                     index=0,
                     key="art_color_var"
                 )
             with c_a2:
-                avail_countries_art = ["Todos"] + sorted(df_articles_landscape['country_code'].dropna().unique().tolist())
+                avail_countries_art = ["Todos"] + sorted([c for c in df_articles_landscape['country_code'].dropna().unique().tolist() if c])
                 sel_country_art = st.selectbox("Filtrar por País:", options=avail_countries_art, key="art_country_filter")
             with c_a3:
-                avail_comms_art = ["Todas"] + sorted(df_articles_landscape['community_name'].dropna().unique().tolist())
+                avail_comms_art = ["Todas"] + sorted([c for c in df_articles_landscape['community_name'].dropna().unique().tolist() if c])
                 sel_comm_art = st.selectbox("Filtrar por Comunidad:", options=avail_comms_art, key="art_comm_filter")
             with c_a4:
                 sample_limit = st.selectbox(
                     "Puntos a Renderizar:",
-                    options=["15,000", "30,000", "Todos"],
+                    options=["30,000", "50,000", "Todos"],
                     index=0,
                     key="art_sample_limit"
                 )
@@ -3509,81 +3888,137 @@ elif level == "🗺️ Mapa Semántico y Comunidades":
             if sel_comm_art != "Todas":
                 df_art_plot = df_art_plot[df_art_plot['community_name'] == sel_comm_art]
                 
-            if sample_limit == "15,000" and len(df_art_plot) > 15000:
-                df_art_plot = df_art_plot.sample(15000, random_state=42)
-            elif sample_limit == "30,000" and len(df_art_plot) > 30000:
+            if sample_limit == "30,000" and len(df_art_plot) > 30000:
                 df_art_plot = df_art_plot.sample(30000, random_state=42)
+            elif sample_limit == "50,000" and len(df_art_plot) > 50000:
+                df_art_plot = df_art_plot.sample(50000, random_state=42)
                 
-            # Configure Plotly Scatter
-            if color_art_var == 'Año de Publicación (Gradiente)':
-                fig_art = px.scatter(
-                    df_art_plot,
-                    x='umap_x',
-                    y='umap_y',
-                    color='publication_year',
-                    color_continuous_scale='Turbo',
-                    range_color=[df_articles_landscape['publication_year'].min(), df_articles_landscape['publication_year'].max()],
-                    hover_name='title',
-                    hover_data={
-                        'journal_name': True,
-                        'publication_year': True,
-                        'country_code': True,
-                        'fwci': ':.2f',
-                        'community_name': True,
-                        'umap_x': False,
-                        'umap_y': False
-                    },
-                    labels={'publication_year': 'Año'},
-                    title=f"Paisaje Temático de {len(df_art_plot):,} Artículos (Coloreado por Año de Publicación)"
+            # Controls
+            col_s1, col_s2 = st.columns([1.5, 2.5])
+            with col_s1:
+                art_size_metric = st.selectbox(
+                    "Métrica de Tamaño de Burbuja:",
+                    options=["Citas Totales", "FWCI (Impacto Ponderado)", "Uniforme"],
+                    index=0,
+                    key="art_size_metric_sel"
                 )
-                fig_art.update_coloraxes(colorbar_title="Año de Publ.")
-            elif color_art_var == 'FWCI (Impacto Ponderado)':
-                fig_art = px.scatter(
-                    df_art_plot,
-                    x='umap_x',
-                    y='umap_y',
-                    color='fwci',
-                    color_continuous_scale='Viridis',
-                    range_color=[0, 3.0],
-                    hover_name='title',
-                    hover_data={'journal_name': True, 'publication_year': True, 'country_code': True, 'fwci': ':.2f', 'community_name': True, 'umap_x': False, 'umap_y': False},
-                    title=f"Paisaje Temático de {len(df_art_plot):,} Artículos (Coloreado por FWCI)"
+            with col_s2:
+                render_engine = st.radio(
+                    "Motor de Renderizado:",
+                    ["⚡ WebGL (Acelerado por GPU)", "📊 Plotly"],
+                    index=0,
+                    horizontal=True,
+                    key="art_render_engine"
                 )
-            elif color_art_var == 'Modalidad de Acceso Abierto':
-                fig_art = px.scatter(
+            
+            size_map_art = {
+                'Uniforme': 'uniform',
+                'Citas Totales': 'citations',
+                'FWCI (Impacto Ponderado)': 'fwci'
+            }
+            color_map_art = {
+                'Año de Publicación (Gradiente)': 'year',
+                'Comunidad Temática': 'community',
+                'FWCI (Impacto Ponderado)': 'fwci',
+                'Uniforme': 'uniform'
+            }
+            
+            # Register articles landscape
+            comm_counts = df_art_plot['community_name'].value_counts().head(10).to_dict()
+            register_exportable(
+                "sem_articles_landscape",
+                f"🌌 Paisaje de Artículos (Filtro: {sel_country_art} / {sel_comm_art})",
+                {
+                    "Total Muestra Renderizada": f"{len(df_art_plot):,} artículos",
+                    "Filtro País": sel_country_art,
+                    "Filtro Comunidad": sel_comm_art,
+                    "Top Comunidades en Muestra": ", ".join([f"{k} ({v:,})" for k, v in comm_counts.items()])
+                },
+                context="Distribución semántica 2D de artículos académicos en el espacio UMAP.",
+                category="Mapas Semánticos"
+            )
+            if render_engine.startswith("⚡ WebGL"):
+                webgl_html = generate_webgl_landscape_html(
                     df_art_plot,
-                    x='umap_x',
-                    y='umap_y',
-                    color='oa_status',
-                    hover_name='title',
-                    hover_data={'journal_name': True, 'publication_year': True, 'country_code': True, 'community_name': True, 'umap_x': False, 'umap_y': False},
-                    title=f"Paisaje Temático de {len(df_art_plot):,} Artículos por Tipo de Acceso Abierto"
+                    color_mode=color_map_art.get(color_art_var, 'year'),
+                    size_mode=size_map_art.get(art_size_metric, 'citations'),
+                    height=720
                 )
-            elif color_art_var == 'País de la Revista':
-                fig_art = px.scatter(
-                    df_art_plot,
-                    x='umap_x',
-                    y='umap_y',
-                    color='country_code',
-                    hover_name='title',
-                    hover_data={'journal_name': True, 'publication_year': True, 'community_name': True, 'umap_x': False, 'umap_y': False},
-                    title=f"Paisaje Temático de {len(df_art_plot):,} Artículos por País de la Revista"
-                )
-            else: # Comunidad Temática
-                fig_art = px.scatter(
-                    df_art_plot,
-                    x='umap_x',
-                    y='umap_y',
-                    color='community_name',
-                    hover_name='title',
-                    hover_data={'journal_name': True, 'publication_year': True, 'country_code': True, 'fwci': ':.2f', 'umap_x': False, 'umap_y': False},
-                    title=f"Paisaje Temático de {len(df_art_plot):,} Artículos por Macro-Comunidad"
-                )
+                components.html(webgl_html, height=740, scrolling=False)
+            else:
+                # Plotly view with authors hover
+                target_size_col = {'Uniforme': 'Uniforme', 'Citas Totales': 'cited_by_count', 'FWCI (Impacto Ponderado)': 'fwci'}[art_size_metric]
+                df_art_plot['_marker_size'] = compute_marker_sizes(df_art_plot, target_size_col, r_min=2.5, r_max=8.5)
                 
-            fig_art.update_traces(marker=dict(size=5, opacity=0.8))
-            fig_art.update_layout(height=650, margin=dict(l=20, r=20, t=50, b=20), template='plotly_white')
-            st.plotly_chart(fig_art, use_container_width=True)
-            st.info("💡 **Cómo interpretar el mapa temporal**: Los puntos azules y violetas representan artículos publicados en años anteriores, mientras que los puntos amarillos y rojos corresponden a publicaciones recientes. Permite observar si frentes temáticos específicos han surgido o cobrado fuerza recientemente.")
+                hover_d = {
+                    'authors': True,
+                    'journal_name': True,
+                    'publication_year': True,
+                    'country_code': True,
+                    'fwci': ':.2f',
+                    'community_name': True,
+                    'umap_x': False,
+                    'umap_y': False
+                }
+                
+                if color_art_var == 'Año de Publicación (Gradiente)':
+                    fig_art = px.scatter(
+                        df_art_plot,
+                        x='umap_x',
+                        y='umap_y',
+                        color='publication_year',
+                        color_continuous_scale='Turbo',
+                        range_color=[df_articles_landscape['publication_year'].min(), df_articles_landscape['publication_year'].max()],
+                        hover_name='title',
+                        hover_data=hover_d,
+                        labels={'publication_year': 'Año'},
+                        title=f"Paisaje Temático de {len(df_art_plot):,} Artículos (Coloreado por Año de Publicación)"
+                    )
+                    fig_art.update_coloraxes(colorbar_title="Año de Publ.")
+                elif color_art_var == 'FWCI (Impacto Ponderado)':
+                    fig_art = px.scatter(
+                        df_art_plot,
+                        x='umap_x',
+                        y='umap_y',
+                        color='fwci',
+                        color_continuous_scale='Viridis',
+                        range_color=[0, 3.0],
+                        hover_name='title',
+                        hover_data=hover_d,
+                        title=f"Paisaje Temático de {len(df_art_plot):,} Artículos (Coloreado por FWCI)"
+                    )
+                else: # Comunidad Temática
+                    fig_art = px.scatter(
+                        df_art_plot,
+                        x='umap_x',
+                        y='umap_y',
+                        color='community_name',
+                        hover_name='title',
+                        hover_data=hover_d,
+                        title=f"Paisaje Temático de {len(df_art_plot):,} Artículos por Macro-Comunidad"
+                    )
+                    
+                fig_art.update_traces(marker=dict(size=df_art_plot['_marker_size'], opacity=0.8))
+                fig_art.update_layout(height=650, margin=dict(l=20, r=20, t=50, b=20), template='plotly_white')
+                render_plotly_chart(fig_art, use_container_width=True)
+
+            st.info("💡 **Interacción**: Arrastra con el ratón para moverte (Pan), usa la rueda para Zoom, pasa el cursor sobre las bolitas para ver **Título, Autores, Revista, Año, Citas y FWCI**, y haz **clic derecho** sobre cualquier artículo para abrirlo directamente en OpenAlex en una pestaña nueva.")
+
+            st.markdown("""
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-top: 15px; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #0f172a; font-size: 15px;">🌌 Metodología de Creación del Paisaje Científico de Artículos (LATAM)</h4>
+                <p style="font-size: 13px; line-height: 1.6; color: #334155; margin-bottom: 10px;">
+                    La cartografía 2D del conocimiento científico a nivel de artículos representa la estructura temática profunda de la producción científica latinoamericana:
+                </p>
+                <ol style="font-size: 12.5px; line-height: 1.65; color: #334155; margin-left: 20px; margin-bottom: 8px;">
+                    <li><strong>Semántica Pura (Título + Resumen):</strong> Se extrae el contenido textual de cada artículo académico a partir de <code>latin_american_works.parquet</code> (corpus de más de 3.6 millones de trabajos indexados en OpenAlex). Se aíslan rigurosamente metadatos de autor, institución, país o revista para garantizar que la agrupación responda exclusivamente a afinidad epistemológica y no a sesgos institucionales o geográficos.</li>
+                    <li><strong>Procesamiento Léxico Trilingüe:</strong> Se aplica un filtro avanzado de <em>stopwords</em> que combina diccionarios normalizados en <strong>Español, Portugués e Inglés</strong>, permitiendo integrar fluidamente la literatura científica regional independientemente del idioma en el que fue redactado el artículo.</li>
+                    <li><strong>Vectorización Semántica Densa:</strong> El corpus textual se transforma en vectores densos en alta dimensionalidad mediante modelos neuronales de lenguaje (<code>Nomic Embed Text v2 MoE</code> / <code>SentenceTransformers</code> normalizados en norma <em>L₂</em>) con aceleración por GPU, y respaldo en TF-IDF con frecuencia sublineal + <code>TruncatedSVD</code>.</li>
+                    <li><strong>Proyección de Variedades No Lineales (UMAP 2D Acelerado por GPU):</strong> Mediante <code>RAPIDS cuML UMAP</code> / <code>umap-learn</code> con métrica del coseno (<code>n_neighbors=30</code>, <code>min_dist=0.35</code>, <code>spread=1.8</code>), se mapea la variedad semántica a dos dimensiones continuas (<code>umap_x</code>, <code>umap_y</code>), optimizando la dispersión y la separación visual entre disciplinas.</li>
+                    <li><strong>Detección y Etiquetado Automático de Comunidades (LLM):</strong> Se identifican macro-comunidades científicas mediante clustering no supervisado (<em>HDBSCAN / MiniBatchKMeans</em>), y sus etiquetas disciplinarias se asignan a través de análisis discriminativo de términos clave y modelos de lenguaje (LLM).</li>
+                </ol>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             st.warning("⚠️ El dataset del paisaje de artículos no está generado aún.")
             
@@ -3618,6 +4053,24 @@ elif level == "🗺️ Mapa Semántico y Comunidades":
             if sel_country != "Todos":
                 df_plot = df_plot[df_plot['country_code'] == sel_country]
                 
+            # Controls for rendering engine and size metric
+            col_jr1, col_jr2 = st.columns([1.5, 2.5])
+            with col_jr1:
+                journal_size_metric = st.selectbox(
+                    "Métrica de Tamaño de Burbuja:",
+                    options=["Total Artículos (works_count)", "Citas Totales (cited_by_count)", "FWCI Promedio", "Índice H", "Uniforme"],
+                    index=0,
+                    key="journal_size_metric_sel"
+                )
+            with col_jr2:
+                render_engine_j = st.radio(
+                    "Motor de Renderizado:",
+                    ["⚡ WebGL (Acelerado por GPU)", "📊 Plotly"],
+                    index=0,
+                    horizontal=True,
+                    key="journal_render_engine"
+                )
+                
             color_col_map = {
                 'Comunidad Temática': 'community_name',
                 'FWCI Promedio': 'fwci_avg',
@@ -3628,52 +4081,83 @@ elif level == "🗺️ Mapa Semántico y Comunidades":
             }
             target_color = color_col_map[color_var]
             is_discrete = target_color in ['community_name', 'country_code']
-            
-            fig_scatter = px.scatter(
-                df_plot,
-                x='umap_x',
-                y='umap_y',
-                color=target_color,
-                size='works_count' if 'works_count' in df_plot.columns else None,
-                size_max=22,
-                hover_name='display_name',
-                hover_data={
-                    'community_name': True,
-                    'country_code': True,
-                    'fwci_avg': ':.2f',
-                    'h_index': True,
-                    'pagerank': ':.3f',
-                    'pct_oa_diamond': ':.1f',
-                    'umap_x': False,
-                    'umap_y': False
-                },
-                color_continuous_scale='Viridis' if not is_discrete else None,
-                template='plotly_white',
-                title=f"Distribución de {len(df_plot)} Revistas en el Espacio Multimodal (Baricentro de Artículos)"
+
+            # Register journals landscape for export
+            exportable_cols = [c for c in ['display_name', 'publisher', 'country_code', 'community_name', 'works_count', 'cited_by_count', 'fwci_avg', 'h_index', 'pct_oa_diamond'] if c in df_plot.columns]
+            register_exportable(
+                "sem_journals_space",
+                f"🎯 Espacio Semántico 2D de Revistas ({len(df_plot):,} revistas)",
+                df_plot[exportable_cols].dropna(subset=['display_name'] if 'display_name' in df_plot.columns else None).head(25),
+                context=f"Distribución topológica 2D de revistas en el espacio multimodal (UMAP). Variable de color: '{color_var}'.",
+                category="Mapas Semánticos"
             )
-            fig_scatter.update_layout(height=650, margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_scatter, use_container_width=True)
-            st.caption("💡 Cada punto representa una revista científica ubicada según el baricentro semántico puro de sus artículos.")
+
+            if render_engine_j.startswith("⚡ WebGL"):
+                webgl_j_html = generate_webgl_journals_html(
+                    df_plot,
+                    color_var=color_var,
+                    size_metric=journal_size_metric,
+                    height=720
+                )
+                components.html(webgl_j_html, height=740, scrolling=False)
+            else:
+                # Plotly view
+                size_col_p = None
+                if journal_size_metric.startswith("Total Artículos") and 'works_count' in df_plot.columns:
+                    size_col_p = 'works_count'
+                elif journal_size_metric.startswith("Citas Totales") and 'cited_by_count' in df_plot.columns:
+                    size_col_p = 'cited_by_count'
+                elif journal_size_metric.startswith("FWCI") and 'fwci_avg' in df_plot.columns:
+                    size_col_p = 'fwci_avg'
+                elif journal_size_metric.startswith("Índice H") and 'h_index' in df_plot.columns:
+                    size_col_p = 'h_index'
+
+                fig_scatter = px.scatter(
+                    df_plot,
+                    x='umap_x',
+                    y='umap_y',
+                    color=target_color,
+                    size=size_col_p,
+                    size_max=22,
+                    hover_name='display_name',
+                    hover_data={
+                        'community_name': True,
+                        'country_code': True,
+                        'fwci_avg': ':.2f',
+                        'h_index': True,
+                        'pagerank': ':.3f',
+                        'pct_oa_diamond': ':.1f',
+                        'umap_x': False,
+                        'umap_y': False
+                    },
+                    color_continuous_scale='Viridis' if not is_discrete else None,
+                    template='plotly_white',
+                    title=f"Distribución de {len(df_plot)} Revistas en el Espacio Multimodal (Baricentro de Artículos)"
+                )
+                fig_scatter.update_layout(height=650, margin=dict(l=20, r=20, t=50, b=20))
+                render_plotly_chart(fig_scatter, use_container_width=True)
+                st.caption("💡 Cada punto representa una revista científica ubicada según el baricentro semántico puro de sus artículos.")
+
+            st.markdown("""
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-top: 15px; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #0f172a; font-size: 15px;">📐 Metodología de Construcción del Espacio Semántico 2D de Revistas</h4>
+                <p style="font-size: 13px; line-height: 1.6; color: #334155; margin-bottom: 10px;">
+                    La proyección topológica de las revistas científicas latinoamericanas se genera integrando dos dimensiones complementarias (Semántica Pura + Indicadores Cienciométricos) mediante la siguiente secuencia metodológica:
+                </p>
+                <ol style="font-size: 12.5px; line-height: 1.65; color: #334155; margin-left: 20px; margin-bottom: 8px;">
+                    <li><strong>Extracción y Síntesis Textual sin Sesgo Geopolítico:</strong> Para cada revista se conforma un descriptor temático continuo uniendo su nombre oficial (<code>display_name</code>) con una <strong>muestra estratificada de hasta 50 títulos de artículos publicados por la revista en el período</strong> (extraídos de los lotes de <code>latin_american_works.parquet</code>). Se excluyen deliberadamente nombres de instituciones, ciudades y países, así como editoriales, para evitar que la cercanía geográfica o institucional segregue artificialmente a las revistas.</li>
+                    <li><strong>Normalización y Filtro Trilingüe:</strong> Se procesa el texto eliminando <em>stopwords</em> en <strong>Español, Portugués e Inglés</strong>, garantizando que revistas con las mismas líneas disciplinares se posicionen juntas sin importar el idioma predominante de sus títulos.</li>
+                    <li><strong>Vectorización Semántica Densa:</strong> Se generan <em>embeddings</em> de alta dimensionalidad mediante modelos neuronales basados en Transformers (<code>Nomic Embed Text v2 MoE</code> / <code>SentenceTransformers</code> normalizados en norma <em>L₂</em>) con respaldo en TF-IDF con frecuencia sublineal + reducción <code>TruncatedSVD</code> a 128 dimensiones.</li>
+                    <li><strong>Espacio Híbrido Multimodal (&alpha; = 0.40):</strong> Se concatena el vector semántico (60%) con un vector de rendimiento cienciométrico (40%) compuesto por <em>FWCI promedio, % Acceso Abierto Diamante, % artículos Top 10%, % Top 1%, Índice H, Índice de Price y Entropía/Diversidad de Shannon</em> (estandarizados con <code>RobustScaler</code>).</li>
+                    <li><strong>Reducción Topológica No Lineal (UMAP 2D):</strong> El espacio combinado se proyecta a 2 dimensiones continuas (<code>umap_x</code>, <code>umap_y</code>) mediante UMAP con <strong>métrica del coseno</strong>, preservando las relaciones de vecindad temática e impacto. Asimismo, la posición de cada revista equivale al <strong>baricentro o centroide geométrico</strong> del conjunto de artículos que la componen.</li>
+                </ol>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             st.warning("⚠️ El mapa de revistas no está disponible.")
-            
-    with tab_hex:
-        if os.path.exists(hex_file):
-            df_hex = pd.read_parquet(hex_file)
-            fig_hex = px.scatter(
-                df_hex,
-                x='hex_x',
-                y='hex_y',
-                size='count',
-                color='fwci_avg',
-                color_continuous_scale='Magma',
-                hover_data={'count': True, 'fwci_avg': ':.2f', 'sample_journals': True},
-                title="Densidad Hexagonal y Rendimiento de Revistas en el Espacio Semántico"
-            )
-            fig_hex.update_layout(height=600, template='plotly_white')
-            st.plotly_chart(fig_hex, use_container_width=True)
-        else:
-            st.info("Mapa hexagonal no disponible.")
+
+    st.markdown("---")
+    render_export_drawer()
 
 elif level == "🌐 Redes de Colaboración y Disciplinas":
     st.header("🌐 Redes de Colaboración Internacional y Flujos Disciplinares")
@@ -3729,7 +4213,7 @@ elif level == "🌐 Redes de Colaboración y Disciplinas":
                 height=600,
                 margin=dict(l=10, r=10, t=30, b=10)
             )
-            st.plotly_chart(fig_geo, use_container_width=True)
+            render_plotly_chart(fig_geo, use_container_width=True)
             
             st.dataframe(
                 df_collab[['source', 'target', 'weight']].rename(
@@ -3767,7 +4251,7 @@ elif level == "🌐 Redes de Colaboración y Disciplinas":
                     font_size=11,
                     height=700
                 )
-                st.plotly_chart(fig_sankey, use_container_width=True)
+                render_plotly_chart(fig_sankey, use_container_width=True)
         else:
             st.info("Diagrama Sankey no disponible.")
 

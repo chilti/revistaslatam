@@ -11,6 +11,8 @@ venv/
 data/
 *.backup
 *.log
+*.duckdb
+*.duckdb.wal
 
 # Jupyter Notebooks
 .ipynb_checkpoints/

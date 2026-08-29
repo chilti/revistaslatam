@@ -7,6 +7,8 @@ import plotly.graph_objects as go
 from pathlib import Path
 import sys
 import os
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
+from chatgpt_exporter import render_plotly_chart, add_to_study_dossier, render_study_dossier_sidebar, render_export_drawer, init_page_registry
 
 # Configuración de página
 st.set_page_config(
@@ -180,11 +182,14 @@ level = st.sidebar.radio(
 )
     
 st.sidebar.markdown("---")
+render_study_dossier_sidebar()
 st.sidebar.info(
     "Este dashboard opera bajo un modelo OLAP "
     "procesando las métricas calculadas "
     "directamente de ClickHouse."
 )
+
+init_page_registry()
 
 if level == "1. Mundo (Macro)":
     st.title("Panorama Científico Mundial")
@@ -233,7 +238,7 @@ if level == "1. Mundo (Macro)":
             )
             fig_umap.update_traces(textposition='top center', marker=dict(line=dict(width=1, color='DarkSlateGrey')))
             fig_umap.update_layout(showlegend=False, height=600, margin=dict(l=0, r=0, t=30, b=0))
-            st.plotly_chart(fig_umap, use_container_width=True)
+            render_plotly_chart(fig_umap, use_container_width=True)
         else:
             st.warning("No se encontró `umap_global_regions.parquet`. Ejecute el pipeline estático global.")
             
@@ -248,7 +253,7 @@ if level == "1. Mundo (Macro)":
                 template="plotly_white",
                 title="Evolución FWCI Promedio (2000-Presente)"
             )
-            st.plotly_chart(fig_fwci, use_container_width=True)
+            render_plotly_chart(fig_fwci, use_container_width=True)
            
         with colB:
             fig_en = px.line(
@@ -257,7 +262,7 @@ if level == "1. Mundo (Macro)":
                 template="plotly_white",
                 title="Penetración del Idioma Inglés (%)"
             )
-            st.plotly_chart(fig_en, use_container_width=True)
+            render_plotly_chart(fig_en, use_container_width=True)
 
         # --- MAPA GLOBAL DE DISTRIBUCIÓN (Chilti Request) ---
         st.markdown("---")
@@ -296,7 +301,7 @@ if level == "1. Mundo (Macro)":
                 margin=dict(l=0, r=0, t=50, b=0),
                 height=700
             )
-            st.plotly_chart(fig_map, use_container_width=True)
+            render_plotly_chart(fig_map, use_container_width=True)
             st.info("💡 El mapa muestra todos los países pintados de acuerdo al indicador seleccionado.")
             
         # --- TABLA GLOBAL DE INDICADORES ANUALES ---
@@ -460,7 +465,7 @@ elif level == "2. Exploración por Región":
                         oa_df = pd.DataFrame(oa_data)
                         fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo', hole=0.4, title="Acceso Abierto Region",
                                        color_discrete_sequence=px.colors.qualitative.Pastel)
-                        st.plotly_chart(fig_oa, use_container_width=True)
+                        render_plotly_chart(fig_oa, use_container_width=True)
                         
                     with colB:
                         lang_data = {
@@ -475,7 +480,7 @@ elif level == "2. Exploración por Región":
                         if not lang_df.empty:
                             fig_lang = px.pie(lang_df, values='Porcentaje', names='Idioma', hole=0.4, title="Idiomas Region",
                                              color_discrete_sequence=px.colors.qualitative.Set3)
-                            st.plotly_chart(fig_lang, use_container_width=True)
+                            render_plotly_chart(fig_lang, use_container_width=True)
                 else:
                     st.info("No hay datos históricos macro para esta región.")
 
@@ -533,7 +538,7 @@ elif level == "2. Exploración por Región":
                                     hovertemplate='<b>%{label}</b><br>Docs: %{value}<br>Ind: %{color:.2f}<extra></extra>'
                                 ))
                                 fig_sun_r.update_layout(height=600, margin=dict(t=10, l=10, r=10, b=10))
-                                st.plotly_chart(fig_sun_r, use_container_width=True)
+                                render_plotly_chart(fig_sun_r, use_container_width=True)
                             else:
                                 st.warning("Sin datos para el periodo seleccionado.")
                             
@@ -766,7 +771,7 @@ elif level == "3. Análisis de País":
                 margin=dict(l=0, r=0, t=50, b=0),
                 height=400
             )
-            st.plotly_chart(fig, use_container_width=True)
+            render_plotly_chart(fig, use_container_width=True)
             
             # --- TABS DE ANÁLISIS ---
             tab_radar, tab_oa, tab_sunburst, tab_tabla = st.tabs(["Radar Relativo", "Tipología y Acceso", "Perfil Temático", "Datos Históricos"])
@@ -809,7 +814,7 @@ elif level == "3. Análisis de País":
                             margin=dict(t=20, b=20, l=20, r=20),
                             height=400
                         )
-                        st.plotly_chart(fig_radar, use_container_width=True)
+                        render_plotly_chart(fig_radar, use_container_width=True)
                     else:
                         st.info("Sin datos de desempeño reciente para construir el radar.")
                 else:
@@ -835,7 +840,7 @@ elif level == "3. Análisis de País":
                     fig_oa = px.pie(oa_df, values='Porcentaje', names='Tipo', hole=0.4,
                                    color_discrete_sequence=px.colors.qualitative.Pastel)
                     fig_oa.update_traces(textposition='inside', textinfo='percent+label')
-                    st.plotly_chart(fig_oa, use_container_width=True)
+                    render_plotly_chart(fig_oa, use_container_width=True)
                     
                 with colB:
                     lang_data = {
@@ -850,7 +855,7 @@ elif level == "3. Análisis de País":
                     if not lang_df.empty:
                         fig_lang = px.pie(lang_df, values='Porcentaje', names='Idioma', hole=0.4,
                                          color_discrete_sequence=px.colors.qualitative.Set3)
-                        st.plotly_chart(fig_lang, use_container_width=True)
+                        render_plotly_chart(fig_lang, use_container_width=True)
                     else:
                         st.info("Sin desglose idiomático.")
                         
@@ -912,7 +917,7 @@ elif level == "3. Análisis de País":
                                     hovertemplate='<b>%{label}</b><br>Docs: %{value}<br>Ind: %{color:.2f}<extra></extra>'
                                 ))
                                 fig_sun.update_layout(margin=dict(t=30, l=10, r=10, b=10), height=550)
-                                st.plotly_chart(fig_sun, use_container_width=True)
+                                render_plotly_chart(fig_sun, use_container_width=True)
 
                                 # --- MATRIZ DE CONOCIMIENTO POR REVISTA (Chilti Request) ---
                                 st.markdown("---")
@@ -1145,7 +1150,7 @@ elif level == "3. Análisis de País":
                         yaxis=dict(showgrid=True, zeroline=True, title='Dimensión UMAP 2')
                     )
                     
-                    st.plotly_chart(fig_umap_c, use_container_width=True)
+                    render_plotly_chart(fig_umap_c, use_container_width=True)
                     st.info("💡 Los países cercanos en el mapa tienen perfiles bibliométricos similares estructuralmente.")
                 else:
                     st.error("El archivo de UMAP de países no contiene dimensiones 'umap_x' y 'umap_y'.")
@@ -1328,7 +1333,7 @@ elif level == "4. Buscador de Revista":
                                 hovertemplate='<b>%{label}</b><br>Artículos: %{value:,.1f}<br>' + f'{selected_sb_ind_j}: ' + '%{color:.2f}<extra></extra>'
                             ))
                             fig_sun.update_layout(margin=dict(t=10, l=0, r=0, b=10), height=500)
-                            st.plotly_chart(fig_sun, use_container_width=True)
+                            render_plotly_chart(fig_sun, use_container_width=True)
                             st.caption("Jerarquía: Dominio -> Campo -> Subcampo. Tamaño basado en volumen de documentos.")
                             
                             # --- EVOLUCIÓN HISTÓRICA DE REVISTA (Chilti Request) ---
@@ -1383,7 +1388,7 @@ elif level == "4. Buscador de Revista":
                         title="Evolución del FWCI (Field Weighted Citation Impact)"
                     )
                     fig_j.add_hline(y=1.0, line_dash="dash", line_color="red", annotation_text="Promedio Mundial")
-                    st.plotly_chart(fig_j, use_container_width=True)
+                    render_plotly_chart(fig_j, use_container_width=True)
                 
                 with tab2:
                     # Preparar datos OA (asumiendo que transform_counts_to_pcts hizo su trabajo)
@@ -1396,7 +1401,7 @@ elif level == "4. Buscador de Revista":
                         x='Tipo OA', y='Porcentaje', color='Tipo OA',
                         template="plotly_white", title=f"Mix de Acceso Abierto ({int(latest_j['year'])})"
                     )
-                    st.plotly_chart(fig_oa, use_container_width=True)
+                    render_plotly_chart(fig_oa, use_container_width=True)
                     
                 with tab3:
                     if not df_j_recent_data.empty:
@@ -1428,7 +1433,7 @@ elif level == "4. Buscador de Revista":
                                 polar=dict(radialaxis=dict(visible=True, range=[0, 1.05], showticklabels=False)),
                                 showlegend=False, height=400, margin=dict(t=40, b=40, l=40, r=40)
                             )
-                            st.plotly_chart(fig_radar, use_container_width=True)
+                            render_plotly_chart(fig_radar, use_container_width=True)
                     else:
                         st.warning("No hay datos recientes suficientes para generar el Radar.")
                         

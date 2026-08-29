@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Pipeline Step: Build Multimodal Semantic Map of Latin American Journals
 Generates dense text embeddings, computes Hybrid Multimodal UMAP (bibliometric + semantic),
@@ -18,8 +18,7 @@ from semantic_journals import (
     synthesize_journal_text,
     generate_journal_embeddings,
     build_hybrid_multimodal_space,
-    detect_journal_communities,
-    compute_hexbin_density
+    detect_journal_communities
 )
 from citation_indices import compute_journal_pagerank
 
@@ -129,13 +128,6 @@ def main():
     output_umap_file = umap_dir / 'umap_journals_multimodal.parquet'
     journals_merged.to_parquet(output_umap_file, index=False)
     print(f"\nSaved Multimodal UMAP to: {output_umap_file}")
-    
-    # 7. Compute Hexbin Density
-    print("6. Computing Hexagonal Density Maps...")
-    hex_density_df = compute_hexbin_density(journals_merged, 'umap_x', 'umap_y', grid_size=30)
-    output_hex_file = cache_dir / 'umap_hexbin_density.parquet'
-    hex_density_df.to_parquet(output_hex_file, index=False)
-    print(f"Saved Hexbin Density Map to: {output_hex_file} ({len(hex_density_df)} cells)")
     
     print("\n" + "=" * 70)
     print("MULTIMODAL SEMANTIC PIPELINE COMPLETED SUCCESSFULLY!")

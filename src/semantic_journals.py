@@ -167,34 +167,3 @@ def detect_journal_communities(umap_coords_or_embeddings, n_clusters=8):
     labels = km.fit_predict(umap_coords_or_embeddings)
     return labels
 
-def compute_hexbin_density(df, x_col='umap_x', y_col='umap_y', grid_size=25):
-    """
-    Generates hexagonal aggregation metrics for density maps.
-    """
-    if df is None or len(df) == 0 or x_col not in df.columns or y_col not in df.columns:
-        return pd.DataFrame()
-        
-    x = df[x_col].values
-    y = df[y_col].values
-    
-    x_min, x_max = x.min(), x.max()
-    y_min, y_max = y.min(), y.max()
-    
-    # Binning
-    x_bins = np.linspace(x_min - 0.1, x_max + 0.1, grid_size)
-    y_bins = np.linspace(y_min - 0.1, y_max + 0.1, grid_size)
-    
-    df_copy = df.copy()
-    df_copy['x_bin'] = np.digitize(x, x_bins)
-    df_copy['y_bin'] = np.digitize(y, y_bins)
-    
-    hex_agg = df_copy.groupby(['x_bin', 'y_bin']).agg(
-        hex_x=(x_col, 'mean'),
-        hex_y=(y_col, 'mean'),
-        count=(x_col, 'count'),
-        fwci_avg=('fwci_avg', 'mean') if 'fwci_avg' in df.columns else (x_col, 'count'),
-        pct_diamond=('pct_oa_diamond', 'mean') if 'pct_oa_diamond' in df.columns else (x_col, 'count'),
-        sample_journals=('display_name', lambda s: ", ".join(s.dropna().head(3))) if 'display_name' in df.columns else (x_col, 'count')
-    ).reset_index()
-    
-    return hex_agg
