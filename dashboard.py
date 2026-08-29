@@ -59,7 +59,7 @@ level = st.sidebar.radio(
         "País",
         "Revista",
         "🗺️ Mapa Semántico",
-        "🌐 Redes de Colaboración y Disciplinas",
+        "🌐 Redes de Colaboración",
         "Acerca de..."
     ]
 )
@@ -4037,7 +4037,7 @@ elif level == "🗺️ Mapa Semántico":
     st.markdown("---")
     render_export_drawer()
 
-elif level == "🌐 Redes de Colaboración y Disciplinas":
+elif level == "🌐 Redes de Colaboración":
     st.header("🌐 Redes de Colaboración Internacional y Flujos Disciplinares")
     st.caption("Análisis de coautoría internacional y flujos de conocimiento inter-disciplinares para Latinoamérica.")
     
