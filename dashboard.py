@@ -3724,12 +3724,12 @@ elif level == "🗺️ Mapas Semántico":
     art_file = os.path.join(BASE_PATH, 'data', 'umap', 'umap_articles_landscape.parquet')
     
     tab_art, tab_scatter = st.tabs([
-        "🌌 Paisaje Científico de Artículos (LATAM)",
-        "🎯 Espacio Semántico 2D (Revistas)"
+        "Artículos",
+        "Revistas"
     ])
     
     with tab_art:
-        st.subheader("🌌 Paisaje Científico de Artículos Académicos (Motor WebGL)")
+        st.subheader("Artículos Académicos")
         st.caption("Proyección 2D en WebGL acelerado por hardware a partir de Título y Resumen. Rueda para zoom, arrastre para pan, **clic derecho sobre una bolita para abrir el artículo en OpenAlex ↗**.")
         
         if df_articles_landscape is not None and len(df_articles_landscape) > 0:
