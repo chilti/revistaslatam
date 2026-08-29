@@ -9,6 +9,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 from chatgpt_exporter import render_plotly_chart, add_to_study_dossier, render_study_dossier_sidebar, render_export_drawer, init_page_registry
+from ui_theme import get_theme_css, render_premium_metric
 
 # Configuración de página
 st.set_page_config(
@@ -18,83 +19,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilos CSS Premium
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+# Estilos CSS Premium Sobrios
+theme_css, plotly_template = get_theme_css("☀️ Claro (Blanco)")
+st.markdown(theme_css, unsafe_allow_html=True)
 
-    html, body, [class*="css"] {
-        font-family: 'Outfit', sans-serif;
-    }
-
-    .stApp {
-        background: radial-gradient(circle at top right, #fdfdfd, #f4f7f6);
-    }
-
-    /* Tarjetas de Métricas Premium */
-    .metric-container {
-        display: flex;
-        justify-content: space-between;
-        gap: 20px;
-        margin-bottom: 2rem;
-    }
-
-    .metric-card {
-        background: white;
-        padding: 24px;
-        border-radius: 16px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-        border: 1px solid rgba(0,0,0,0.05);
-        transition: all 0.3s ease;
-        flex: 1;
-        text-align: left;
-    }
-
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-    }
-
-    .metric-label {
-        font-size: 0.9rem;
-        color: #64748b;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 8px;
-    }
-
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #1e293b;
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    .metric-delta {
-        font-size: 0.85rem;
-        font-weight: 500;
-        margin-top: 4px;
-    }
-
-    .delta-positive { color: #10b981; }
-    .delta-negative { color: #ef4444; }
-
-    /* Headers */
-    h1, h2, h3 {
-        font-weight: 700 !important;
-        color: #0f172a !important;
-    }
-
-    /* Sidebar Customization */
-    [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid #e2e8f0;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 def fmt_num(val, format_str="{:.1f}", suffix=""):
     """Formatea números manejando NaN."""

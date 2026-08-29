@@ -22,6 +22,7 @@ import streamlit.components.v1 as components
 from webgl_map import generate_webgl_landscape_html, generate_webgl_journals_html
 from chatgpt_exporter import render_chatgpt_button, render_study_dossier_sidebar, render_export_drawer, register_exportable, init_page_registry, render_plotly_chart, add_to_study_dossier
 from data_engine import get_duckdb_connection, execute_query, get_journal_articles_page
+from ui_theme import get_theme_css, render_premium_metric, render_sidebar_header
 
 # Page config
 st.set_page_config(
@@ -31,8 +32,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Selector de Tema Visual ---
-st.sidebar.title("Bibliometría LATAM")
+# --- Sidebar Header & Selector de Tema Visual ---
+render_sidebar_header()
 
 theme_choice = st.sidebar.selectbox(
     "🎨 Tema Visual",
@@ -41,91 +42,13 @@ theme_choice = st.sidebar.selectbox(
     key="theme_selector"
 )
 
-# Inyección de Estilos según el Tema Seleccionado
-if theme_choice == "🌙 Oscuro (Dark)":
-    plotly_template = "plotly_dark"
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
-        html, body, [class*="css"] { font-family: 'Outfit', sans-serif; color: #f1f5f9; }
-        .stApp { background: radial-gradient(circle at top right, #1e293b, #0f172a); color: #f1f5f9; }
-        [data-testid="stSidebar"] { background-color: #0f172a; border-right: 1px solid #334155; }
-        .metric-card {
-            background: #1e293b; padding: 24px; border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08);
-            transition: all 0.3s ease; flex: 1; text-align: left;
-        }
-        .metric-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.7); }
-        .metric-label { font-size: 0.9rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-        .metric-value { font-size: 2rem; font-weight: 700; color: #f8fafc; background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .metric-delta { font-size: 0.85rem; font-weight: 500; margin-top: 4px; }
-        .delta-positive { color: #34d399; } .delta-negative { color: #f87171; }
-        h1, h2, h3, h4 { font-weight: 700 !important; color: #f8fafc !important; }
-        p, span, label { color: #cbd5e1; }
-    </style>
-    """, unsafe_allow_html=True)
+# Inyección de Sistema de Diseño Editorial Sobrio
+theme_css, plotly_template = get_theme_css(theme_choice)
+st.markdown(theme_css, unsafe_allow_html=True)
 
-elif theme_choice == "🌌 Azul Noche (Navy)":
-    plotly_template = "plotly_dark"
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
-        html, body, [class*="css"] { font-family: 'Outfit', sans-serif; color: #e2e8f0; }
-        .stApp { background: radial-gradient(circle at top right, #0d213f, #071326); color: #e2e8f0; }
-        [data-testid="stSidebar"] { background-color: #08172e; border-right: 1px solid #1e3a8a; }
-        .metric-card {
-            background: #0f274a; padding: 24px; border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(2, 6, 23, 0.7); border: 1px solid rgba(56, 189, 248, 0.25);
-            transition: all 0.3s ease; flex: 1; text-align: left;
-        }
-        .metric-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(56, 189, 248, 0.2); }
-        .metric-label { font-size: 0.9rem; color: #38bdf8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-        .metric-value { font-size: 2rem; font-weight: 700; color: #38bdf8; background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .metric-delta { font-size: 0.85rem; font-weight: 500; margin-top: 4px; }
-        .delta-positive { color: #38bdf8; } .delta-negative { color: #f87171; }
-        h1, h2, h3, h4 { font-weight: 700 !important; color: #38bdf8 !important; text-shadow: 0 0 20px rgba(56, 189, 248, 0.2); }
-        p, span, label { color: #cbd5e1; }
-    </style>
-    """, unsafe_allow_html=True)
+# Alias de compatibilidad
+premium_metric = render_premium_metric
 
-else:
-    # Blanco / Claro
-    plotly_template = "plotly_white"
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
-        html, body, [class*="css"] { font-family: 'Outfit', sans-serif; }
-        .stApp { background: radial-gradient(circle at top right, #fdfdfd, #f4f7f6); }
-        [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e2e8f0; }
-        .metric-card {
-            background: white; padding: 24px; border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);
-            transition: all 0.3s ease; flex: 1; text-align: left;
-        }
-        .metric-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
-        .metric-label { font-size: 0.9rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-        .metric-value { font-size: 2rem; font-weight: 700; color: #1e293b; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .metric-delta { font-size: 0.85rem; font-weight: 500; margin-top: 4px; }
-        .delta-positive { color: #10b981; } .delta-negative { color: #ef4444; }
-        h1, h2, h3 { font-weight: 700 !important; color: #0f172a !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
-def premium_metric(label, value, delta=None):
-    delta_html = ""
-    if delta:
-        color_class = "delta-positive" if str(delta).startswith("+") or (isinstance(delta, (int, float)) and delta > 0) else "delta-negative"
-        # Aseguramos formato string
-        delta_str = str(delta) if isinstance(delta, str) else f"{delta:+,g}"
-        delta_html = f'<div class="metric-delta {color_class}">{delta_str}</div>'
-    
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">{label}</div>
-        <div class="metric-value">{value}</div>
-        {delta_html}
-    </div>
-    """, unsafe_allow_html=True)
 
 # --- Sidebar ---
 # Navigation
