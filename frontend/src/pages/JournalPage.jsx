@@ -99,7 +99,7 @@ export default function JournalPage() {
       name: item.name,
       text: item.points.map(p => String(p.year).slice(-2)),
       textposition: 'top center',
-      line: { shape: 'spline', width: item.is_country ? 3 : 2, color: item.is_country ? '#ff7f0e' : '#0284c7' }
+      line: { shape: 'spline', width: item.is_country ? 3 : 2, color: item.is_country ? '#f59e0b' : '#0284c7' }
     });
   });
 
@@ -119,6 +119,17 @@ export default function JournalPage() {
       text: landscapeData.articles.map(a => `${a.title}<br>Año: ${a.publication_year} | FWCI: ${a.fwci}`),
       name: profile.display_name
     }
+  ];
+
+  // Radar Trace for recent performance
+  const radarCategories = ['FWCI Ponderado', 'Percentil', '% Top 10%', '% Top 1%', '% OA Diamante', '% Autoría Doméstica'];
+  const radarValues = [
+    Math.min(100, (Number(recData.fwci_avg || profile.fwci_avg || 0) / 2.0) * 100),
+    Number(recData.avg_percentile || profile.avg_percentile || 0),
+    Math.min(100, (Number(recData.pct_top_10 || 0) / 20.0) * 100),
+    Math.min(100, (Number(recData.pct_top_1 || 0) / 2.0) * 100),
+    Number(recData.pct_oa_diamond || profile.pct_oa_diamond || 0),
+    Number(recData.pct_authors_domestic || profile.pct_authors_domestic || 0)
   ];
 
   return (
@@ -243,6 +254,45 @@ export default function JournalPage() {
         <KpiCard title="En Scopus" value={profile.is_scopus ? '✅ Sí' : '❌ No'} />
       </div>
 
+      {/* Radar de Desempeño Reciente & Trayectoria UMAP */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+        {/* Radar */}
+        <div className="card">
+          <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '8px' }}>
+            🕸️ Radar de Desempeño Multidimensional
+          </h3>
+          <PlotlyChart
+            data={[{
+              type: 'scatterpolar',
+              r: radarValues,
+              theta: radarCategories,
+              fill: 'toself',
+              fillcolor: 'rgba(2, 132, 199, 0.2)',
+              line: { color: '#0284c7' },
+              name: profile.display_name
+            }]}
+            layout={{
+              polar: {
+                radialaxis: { visible: true, range: [0, 100] }
+              },
+              height: 380,
+              margin: { t: 30, b: 30, l: 30, r: 30 }
+            }}
+          />
+        </div>
+
+        {/* Trajectory */}
+        <div className="card">
+          <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '8px' }}>
+            📈 Trayectoria UMAP: Revista vs País
+          </h3>
+          <PlotlyChart
+            data={trajTraces}
+            layout={{ height: 380, xaxis: { title: 'UMAP 1' }, yaxis: { title: 'UMAP 2' }, margin: { t: 30, b: 30, l: 30, r: 30 } }}
+          />
+        </div>
+      </div>
+
       {/* Foco Temático y Deriva Longitudinal */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -283,6 +333,26 @@ export default function JournalPage() {
           />
         </div>
       )}
+
+      {/* Annual Trends of Journal */}
+      <div className="card">
+        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>
+          ⏳ Tendencias Anuales de la Revista
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '16px' }}>
+          <PlotlyChart
+            data={[{ x: annualTrends.map(d => d.year), y: annualTrends.map(d => d.num_documents), type: 'scatter', mode: 'lines+markers', name: 'Documentos' }]}
+            layout={{ title: 'Evolución de Documentos', height: 280 }}
+          />
+          <PlotlyChart
+            data={[
+              { x: annualTrends.map(d => d.year), y: annualTrends.map(d => d.fwci_avg), type: 'scatter', mode: 'lines+markers', name: 'FWCI Promedio', line: { color: '#10b981' } },
+              { x: annualTrends.map(d => d.year), y: annualTrends.map(() => 1.0), type: 'scatter', mode: 'lines', name: 'Media Mundial (1.0)', line: { color: '#ef4444', dash: 'dash' } }
+            ]}
+            layout={{ title: 'Evolución FWCI', height: 280 }}
+          />
+        </div>
+      </div>
 
       {/* Detailed Articles Table directly from DuckDB */}
       <div className="card">

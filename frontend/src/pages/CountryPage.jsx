@@ -29,7 +29,19 @@ export default function CountryPage() {
   const [journals, setJournals] = useState([]);
   const [trajectory, setTrajectory] = useState({});
   const [landscapeArticles, setLandscapeArticles] = useState([]);
+  
+  const [scatterX, setScatterX] = useState('works_count');
+  const [scatterY, setScatterY] = useState('fwci_avg');
+  
   const [loading, setLoading] = useState(true);
+
+  const SCATTER_OPTIONS = [
+    { id: 'works_count', label: 'Documentos Publicados' },
+    { id: 'cited_by_count', label: 'Citas Totales' },
+    { id: 'fwci_avg', label: 'FWCI Promedio' },
+    { id: 'h_index', label: 'Índice H' },
+    { id: 'pct_oa_diamond', label: '% OA Diamante' },
+  ];
 
   // Load countries catalog
   useEffect(() => {
@@ -46,7 +58,7 @@ export default function CountryPage() {
       api.get(`/countries/${selectedCountry}/annual?window=${annualWindow}`),
       api.get(`/countries/${selectedCountry}/journals`),
       api.get(`/countries/${selectedCountry}/trajectory`),
-      api.get(`/countries/${selectedCountry}/landscape?limit=2000`)
+      api.get(`/countries/${selectedCountry}/landscape?limit=2500`)
     ]).then(([sumRes, annRes, jRes, trajRes, landRes]) => {
       setSummary(sumRes.data);
       setAnnualTrends(annRes.data);
@@ -246,6 +258,36 @@ export default function CountryPage() {
         />
       </div>
 
+      {/* Huella Semántica y Evolución Temporal de Artículos */}
+      {landscapeArticles.length > 0 && (
+        <div className="card">
+          <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
+            🌌 Huella Semántica y Evolución Temporal de Artículos de {summary?.country_name}
+          </h3>
+          <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+            Muestra de {landscapeArticles.length.toLocaleString()} artículos del país sobre el paisaje regional UMAP (Coloreado por año en escala Turbo).
+          </p>
+          <PlotlyChart
+            data={[{
+              x: landscapeArticles.map(a => a.umap_x),
+              y: landscapeArticles.map(a => a.umap_y),
+              mode: 'markers',
+              marker: {
+                size: 6,
+                color: landscapeArticles.map(a => a.publication_year || 2020),
+                colorscale: 'Turbo',
+                showscale: true,
+                colorbar: { title: 'Año' },
+                opacity: 0.75
+              },
+              text: landscapeArticles.map(a => `${a.title}<br>Año: ${a.publication_year} | Revista: ${a.journal_name}`),
+              type: 'scatter'
+            }]}
+            layout={{ height: 500, xaxis: { title: 'UMAP 1' }, yaxis: { title: 'UMAP 2' } }}
+          />
+        </div>
+      )}
+
       {/* Sunburst of Country */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
@@ -291,6 +333,34 @@ export default function CountryPage() {
             layout={{ title: 'Evolución FWCI', height: 300 }}
           />
         </div>
+      </div>
+
+      {/* Scatter Explorer of Country Journals */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+            🎯 Explorador Scatter de Revistas de {summary?.country_name}
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <select value={scatterX} onChange={(e) => setScatterX(e.target.value)}>
+              {SCATTER_OPTIONS.map(s => <option key={s.id} value={s.id}>Eje X: {s.label}</option>)}
+            </select>
+            <select value={scatterY} onChange={(e) => setScatterY(e.target.value)}>
+              {SCATTER_OPTIONS.map(s => <option key={s.id} value={s.id}>Eje Y: {s.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <PlotlyChart
+          data={[{
+            x: journals.map(j => j[scatterX] || 0),
+            y: journals.map(j => j[scatterY] || 0),
+            mode: 'markers',
+            marker: { size: 8, color: '#0284c7', opacity: 0.7 },
+            text: journals.map(j => `${j.display_name}<br>${scatterX}: ${j[scatterX]}<br>${scatterY}: ${j[scatterY]}`),
+            type: 'scatter'
+          }]}
+          layout={{ height: 400, xaxis: { title: SCATTER_OPTIONS.find(s => s.id === scatterX)?.label }, yaxis: { title: SCATTER_OPTIONS.find(s => s.id === scatterY)?.label } }}
+        />
       </div>
 
       {/* Journals in Country Table */}

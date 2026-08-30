@@ -42,6 +42,7 @@ export default function RegionalPage() {
   const [scatterData, setScatterData] = useState([]);
   const [scatterX, setScatterX] = useState('num_documents');
   const [scatterY, setScatterY] = useState('fwci_avg');
+  const [showRadar, setShowRadar] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const MAP_INDICATORS = [
@@ -73,6 +74,17 @@ export default function RegionalPage() {
     { id: 'pct_top_1_full', label: '% Top 1% (Todo)' },
     { id: 'pct_top_10_full', label: '% Top 10% (Todo)' },
     { id: 'pct_oa_gold_full', label: '% OA Gold (Todo)' },
+  ];
+
+  const SCATTER_INDICATORS = [
+    { id: 'num_documents', label: 'Documentos' },
+    { id: 'fwci_avg', label: 'FWCI Promedio' },
+    { id: 'pct_top_10', label: '% Top 10%' },
+    { id: 'pct_top_1', label: '% Top 1%' },
+    { id: 'avg_percentile', label: 'Percentil Promedio' },
+    { id: 'pct_oa_diamond', label: '% OA Diamante' },
+    { id: 'pct_oa_gold', label: '% OA Gold' },
+    { id: 'pct_oa_total', label: '% OA Total' }
   ];
 
   useEffect(() => {
@@ -196,6 +208,27 @@ export default function RegionalPage() {
     hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
   }] : [];
 
+  // Global Trajectories Traces
+  const trajTraces = [];
+  if (trajectories) {
+    Object.keys(trajectories).forEach(k => {
+      const item = trajectories[k];
+      trajTraces.push({
+        x: item.points.map(p => p.x),
+        y: item.points.map(p => p.y),
+        mode: 'lines+markers',
+        name: item.name,
+        text: item.points.map(p => `${item.name} (${p.year})`),
+        line: {
+          shape: 'spline',
+          width: item.is_ref ? 4 : 2,
+          color: item.is_ref ? '#10b981' : undefined
+        },
+        marker: { size: item.is_ref ? 6 : 4 }
+      });
+    });
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       {/* Header & Page Title */}
@@ -297,6 +330,7 @@ export default function RegionalPage() {
                 <div><strong>FWCI:</strong> {Number(periods?.full_period?.fwci_avg || 0).toFixed(2)}</div>
                 <div><strong>Top 10%:</strong> {Number(periods?.full_period?.pct_top_10 || 0).toFixed(3)}%</div>
                 <div><strong>Top 1%:</strong> {Number(periods?.full_period?.pct_top_1 || 0).toFixed(3)}%</div>
+                <div><strong>Percentil:</strong> {Number(periods?.full_period?.avg_percentile || 0).toFixed(1)}</div>
               </div>
             </div>
             <div style={{ background: 'var(--bg-input)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
@@ -306,6 +340,7 @@ export default function RegionalPage() {
                 <div><strong>FWCI:</strong> {Number(periods?.recent_period?.fwci_avg || 0).toFixed(2)}</div>
                 <div><strong>Top 10%:</strong> {Number(periods?.recent_period?.pct_top_10 || 0).toFixed(3)}%</div>
                 <div><strong>Top 1%:</strong> {Number(periods?.recent_period?.pct_top_1 || 0).toFixed(3)}%</div>
+                <div><strong>Percentil:</strong> {Number(periods?.recent_period?.avg_percentile || 0).toFixed(1)}</div>
               </div>
             </div>
           </div>
@@ -493,7 +528,73 @@ export default function RegionalPage() {
             ]}
             layout={{ title: 'Evolución del FWCI Promedio', height: 320 }}
           />
+
+          <PlotlyChart
+            data={[
+              {
+                x: annualTrends.map(d => d.year),
+                y: annualTrends.map(d => d.pct_top_10),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Top 10%',
+                line: { color: '#f59e0b', width: 2 }
+              },
+              {
+                x: annualTrends.map(d => d.year),
+                y: annualTrends.map(d => d.pct_top_1),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Top 1%',
+                line: { color: '#ef4444', width: 2 }
+              }
+            ]}
+            layout={{ title: 'Evolución de Artículos Altamente Citados', height: 320 }}
+          />
+
+          <PlotlyChart
+            data={[
+              {
+                x: annualTrends.map(d => d.year),
+                y: annualTrends.map(d => d.pct_oa_diamond),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Diamante',
+                line: { color: '#0284c7', width: 2 }
+              },
+              {
+                x: annualTrends.map(d => d.year),
+                y: annualTrends.map(d => d.pct_oa_gold),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Gold',
+                line: { color: '#f59e0b', width: 2 }
+              },
+              {
+                x: annualTrends.map(d => d.year),
+                y: annualTrends.map(d => d.pct_oa_green),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Verde',
+                line: { color: '#10b981', width: 2 }
+              }
+            ]}
+            layout={{ title: 'Evolución de Modalidades de Acceso Abierto', height: 320 }}
+          />
         </div>
+      </div>
+
+      {/* Global Trajectories in UMAP */}
+      <div className="card">
+        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
+          📈 Trayectorias de Desempeño Latam (Global 2000–2025)
+        </h3>
+        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+          Evolución comparativa de todos los países e Iberoamérica (línea verde gruesa) en el espacio UMAP.
+        </p>
+        <PlotlyChart
+          data={trajTraces}
+          layout={{ height: 550, xaxis: { title: 'Dimensión 1' }, yaxis: { title: 'Dimensión 2' } }}
+        />
       </div>
 
       {/* Country Rankings Table */}
@@ -556,6 +657,47 @@ export default function RegionalPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Dynamic Scatter Explorer */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>🎯 Explorador de Revistas — Scatter Plot Dinámico</h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Correlación interactiva entre indicadores bibliométricos para revistas latinoamericanas.</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700' }}>Eje X:</span>
+              <select value={scatterX} onChange={(e) => setScatterX(e.target.value)}>
+                {SCATTER_INDICATORS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700' }}>Eje Y:</span>
+              <select value={scatterY} onChange={(e) => setScatterY(e.target.value)}>
+                {SCATTER_INDICATORS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <PlotlyChart
+          data={[{
+            x: scatterData.map(d => d[scatterX]),
+            y: scatterData.map(d => d[scatterY]),
+            mode: 'markers',
+            marker: { size: 7, color: '#0284c7', opacity: 0.65 },
+            text: scatterData.map(d => `${d.display_name} (${d.country_name})<br>${scatterX}: ${d[scatterX]}<br>${scatterY}: ${d[scatterY]}`),
+            type: 'scatter'
+          }]}
+          layout={{
+            height: 480,
+            xaxis: { title: SCATTER_INDICATORS.find(s => s.id === scatterX)?.label },
+            yaxis: { title: SCATTER_INDICATORS.find(s => s.id === scatterY)?.label }
+          }}
+        />
       </div>
     </div>
   );
