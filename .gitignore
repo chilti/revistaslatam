@@ -14,6 +14,11 @@ data/
 *.duckdb
 *.duckdb.wal
 
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+.npm
+
 # Jupyter Notebooks
 .ipynb_checkpoints/
 

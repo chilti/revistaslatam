@@ -118,20 +118,38 @@ Los resultados se guardan en `data/cache/` y el dashboard los cargará automáti
 **Opciones:**
 - `python precompute_metrics.py --force`: Forzar recálculo aunque exista caché válido
 
-### 3. Ejecutar el Dashboard
-Para visualizar los indicadores de las revistas latinoamericanas:
+### 3. Ejecutar la Plataforma
 
+#### Opción A: Aplicación Desacoplada de Alto Rendimiento (FastAPI + React / Vite) ⭐ Recomendado
+Permite interactividad instantánea a 60 FPS con aceleración por GPU WebGL y latencia de consultas < 15 ms:
+
+```bash
+# Modo Producción (un solo comando para backend + frontend bundle)
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+> Acceso Web: `http://localhost:8000` | Documentación Swagger: `http://localhost:8000/docs`
+
+```bash
+# Modo Desarrollo
+# Terminal 1: Backend FastAPI
+uvicorn api.main:app --reload --port 8000
+
+# Terminal 2: Frontend React + Vite
+cd frontend
+npm run dev
+```
+
+#### Opción B: Dashboard Monolítico (Streamlit)
 ```bash
 streamlit run dashboard.py
 ```
 
-
-
-
 ## 📂 Estructura del Proyecto
 
-### Dashboards
-- `dashboard.py`: Aplicación principal (Streamlit) para **Revistas LATAM**.
+### Aplicaciones y Servidores
+- `api/`: Backend REST API de alto rendimiento (**FastAPI** + **DuckDB OLAP Engine**).
+- `frontend/`: Aplicación SPA (**React 18** + **Vite** + **Plotly.js** + **WebGL GPU**).
+- `dashboard.py`: Aplicación clásica (**Streamlit**).
 
 ### Pipelines
 - `pipeline_revistaslatam/`: Scripts originales y legacy para el procesamiento de **Revistas LATAM**.

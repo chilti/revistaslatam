@@ -1,0 +1,200 @@
+"""
+api/routers/countries.py - Country-Level Analytical Endpoints
+"""
+import os
+import json
+import numpy as np
+import pandas as pd
+from fastapi import APIRouter, Query, HTTPException, Path
+
+from api.db import query_df, sanitize_records, DATA_DIR, CACHE_DIR, UMAP_DIR
+from api.constants import COUNTRY_NAMES, ISO2_TO_ISO3
+
+router = APIRouter(prefix="/api/countries", tags=["Análisis por País"])
+
+@router.get("")
+def get_countries_list():
+    """Returns the list of LATAM countries with their journal counts and metadata."""
+    df_c = query_df("""
+        SELECT country_code, COUNT(*) as num_journals, SUM(works_count) as total_works
+        FROM journals
+        WHERE country_code IS NOT NULL
+        GROUP BY country_code
+        ORDER BY total_works DESC
+    """)
+    if df_c.empty:
+        # Fallback to predefined list
+        return [{"country_code": k, "country_name": v} for k, v in COUNTRY_NAMES.items()]
+        
+    df_c['country_name'] = df_c['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x))
+    df_c['country_code_iso3'] = df_c['country_code'].map(lambda x: ISO2_TO_ISO3.get(x, x))
+    return sanitize_records(df_c)
+
+@router.get("/{country_code}/summary")
+def get_country_summary(country_code: str = Path(..., description="2-letter country code, e.g. MX, BR, AR")):
+    """Returns comprehensive cienciometric summary for a specific country."""
+    c_code = country_code.upper()
+    df_period = query_df("SELECT * FROM metrics_country_period WHERE country_code = ?", [c_code])
+    
+    rec_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet'
+    if rec_file.exists():
+        df_rec_all = pd.read_parquet(rec_file)
+        df_rec = df_rec_all[df_rec_all['country_code'] == c_code]
+    else:
+        df_rec = pd.DataFrame()
+        
+    df_j_count = query_df("SELECT COUNT(*) as num_journals, SUM(works_count) as total_works FROM journals WHERE country_code = ?", [c_code])
+    
+    full_data = df_period.iloc[0].to_dict() if not df_period.empty else {}
+    rec_data = df_rec.iloc[0].to_dict() if not df_rec.empty else {}
+    
+    num_j = int(df_j_count['num_journals'].iloc[0]) if not df_j_count.empty and pd.notna(df_j_count['num_journals'].iloc[0]) else 0
+    total_w = int(df_j_count['total_works'].iloc[0]) if not df_j_count.empty and pd.notna(df_j_count['total_works'].iloc[0]) else 0
+    
+    return {
+        "country_code": c_code,
+        "country_name": COUNTRY_NAMES.get(c_code, c_code),
+        "num_journals": num_j,
+        "total_works": total_w,
+        "full_period": sanitize_records(pd.DataFrame([full_data]))[0] if full_data else {},
+        "recent_period": sanitize_records(pd.DataFrame([rec_data]))[0] if rec_data else {}
+    }
+
+@router.get("/{country_code}/annual")
+def get_country_annual_trends(
+    country_code: str,
+    window: int = Query(0, description="Rolling window: 0=raw, 3=w=3, 5=w=5")
+):
+    """Returns annual time series for a country."""
+    c_code = country_code.upper()
+    df = query_df("SELECT * FROM metrics_country_annual WHERE country_code = ? ORDER BY year ASC", [c_code])
+    if df.empty:
+        return []
+        
+    cols_metrics = [
+        'num_journals', 'num_documents', 'fwci_avg', 'pct_oa_total', 'pct_oa_diamond', 
+        'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 
+        'pct_oa_closed', 'avg_percentile', 'pct_top_10', 'pct_top_1',
+        'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 'pct_authors_domestic'
+    ]
+    cols_metrics = [c for c in cols_metrics if c in df.columns]
+    
+    if window > 1:
+        df[cols_metrics] = df[cols_metrics].rolling(window=window, min_periods=1).mean()
+        
+    return sanitize_records(df)
+
+@router.get("/{country_code}/sunburst")
+def get_country_sunburst(
+    country_code: str,
+    indicator: str = Query("fwci_avg_recent"),
+    include_unclassified: bool = Query(True)
+):
+    """Returns 4-level hierarchical nodes for a country."""
+    c_code = country_code.upper()
+    sunburst_file = CACHE_DIR / 'sunburst_metrics_country.parquet'
+    if not sunburst_file.exists():
+        return {"nodes": []}
+        
+    df = pd.read_parquet(sunburst_file)
+    df = df[df['country_code'] == c_code]
+    
+    if df.empty:
+        return {"nodes": []}
+        
+    if not include_unclassified:
+        df = df[df['domain'] != 'Sin Clasificación']
+        
+    size_col = 'count_recent' if '_recent' in indicator else 'count_full'
+    df = df[df[size_col] > 0].copy()
+    
+    nodes = []
+    for _, row in df.iterrows():
+        lvl = row['level']
+        if lvl == 'domain':
+            curr_id = row['domain']
+            parent = ""
+        elif lvl == 'field':
+            curr_id = f"{row['domain']}||{row['field']}"
+            parent = row['domain']
+        elif lvl == 'subfield':
+            curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
+            parent = f"{row['domain']}||{row['field']}"
+        else:
+            curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}||{row['topic']}"
+            parent = f"{row['domain']}||{row['field']}||{row['subfield']}"
+            
+        nodes.append({
+            "id": curr_id,
+            "label": row[lvl],
+            "parent": parent,
+            "value": float(row[size_col]),
+            "color_val": float(row[indicator]) if pd.notna(row.get(indicator)) else None,
+            "level": lvl
+        })
+        
+    return {"nodes": nodes, "indicator": indicator}
+
+@router.get("/{country_code}/journals")
+def get_country_journals(country_code: str):
+    """Returns the list of journals from a specific country."""
+    c_code = country_code.upper()
+    sql = """
+        SELECT id, display_name, issn_l, publisher, works_count, cited_by_count, h_index, 
+               fwci_avg, 2yr_mean_citedness, is_in_doaj, is_in_scielo, is_scopus, pct_oa_diamond
+        FROM journals
+        WHERE country_code = ?
+        ORDER BY works_count DESC
+    """
+    df = query_df(sql, [c_code])
+    return sanitize_records(df)
+
+@router.get("/{country_code}/umap-journals")
+def get_country_umap_journals(country_code: str):
+    """Returns UMAP coordinates for journals of this country."""
+    c_code = country_code.upper()
+    umap_file = UMAP_DIR / 'umap_journals_recent.parquet'
+    if not umap_file.exists():
+        umap_file = UMAP_DIR / 'umap_journals_multimodal.parquet'
+        
+    if not umap_file.exists():
+        return []
+        
+    df = pd.read_parquet(umap_file)
+    df = df[df['country_code'] == c_code]
+    return sanitize_records(df)
+
+@router.get("/{country_code}/trajectory")
+def get_country_trajectory(country_code: str):
+    """Returns UMAP trajectory curves for the country vs LATAM."""
+    c_code = country_code.upper()
+    traj_file = CACHE_DIR / 'map_countries.parquet'
+    if not traj_file.exists():
+        return {}
+        
+    df = pd.read_parquet(traj_file)
+    df = df[(df['year'] >= 2000) & (df['year'] <= 2025) & (df['id'].isin([c_code, 'LATAM']))]
+    
+    result = {}
+    for entity_id in df['id'].unique():
+        sub = df[df['id'] == entity_id].sort_values('year')
+        result[entity_id] = {
+            "name": "Iberoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(entity_id, entity_id),
+            "is_ref": entity_id == "LATAM",
+            "points": sanitize_records(sub[['year', 'x', 'y']])
+        }
+    return result
+
+@router.get("/{country_code}/landscape")
+def get_country_landscape_articles(country_code: str, limit: int = Query(2500)):
+    """Returns sample of articles for this country with landscape coordinates."""
+    c_code = country_code.upper()
+    landscape_file = UMAP_DIR / 'umap_articles_landscape.parquet'
+    if not landscape_file.exists():
+        return []
+        
+    df = pd.read_parquet(landscape_file)
+    sub = df[df['country_code'] == c_code]
+    if len(sub) > limit:
+        sub = sub.sample(limit, random_state=42)
+    return sanitize_records(sub)
