@@ -16,7 +16,8 @@ import {
   ExternalLink,
   Grid,
   TrendingDown,
-  Layers
+  Layers,
+  Download
 } from 'lucide-react';
 
 export default function CountryPage() {
@@ -454,9 +455,49 @@ export default function CountryPage() {
 
       {/* Journals Catalog Table */}
       <div className="card">
-        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '12px' }}>
-          📚 Catálogo de Revistas de {summary?.country_name || selectedCountry} ({journals.length})
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              📚 Catálogo de Revistas de {summary?.country_name || selectedCountry} ({journals.length})
+            </h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Detalle de publicaciones científicas registradas para este país.
+            </span>
+          </div>
+
+          <button
+            className="btn-secondary"
+            onClick={() => {
+              if (!journals || journals.length === 0) return;
+              const headers = ['Revista', 'OpenAlex_ID', 'ISSN_L', 'Editorial_Institucion', 'Articulos', 'Citas', 'FWCI', 'H_Index', 'Pct_OA_Diamante', 'En_DOAJ'];
+              const rows = journals.map(j => [
+                `"${(j.display_name || '').replace(/"/g, '""')}"`,
+                `"${j.id || ''}"`,
+                `"${j.issn_l || ''}"`,
+                `"${(j.publisher || '').replace(/"/g, '""')}"`,
+                j.works_count || 0,
+                j.cited_by_count || 0,
+                Number(j.fwci_avg || 0).toFixed(2),
+                j.h_index || 0,
+                Number(j.pct_oa_diamond || 0).toFixed(1),
+                j.is_in_doaj ? 'Si' : 'No'
+              ]);
+              const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement('a');
+              link.setAttribute('href', encodedUri);
+              link.setAttribute('download', `catalogo_revistas_${selectedCountry}_${new Date().toISOString().slice(0, 10)}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
+            title="Descargar catálogo de revistas en formato CSV"
+          >
+            <Download size={14} /> Descargar CSV
+          </button>
+        </div>
+
         <div className="data-table-container" style={{ maxHeight: '420px' }}>
           <table className="data-table">
             <thead>
