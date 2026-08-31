@@ -63,13 +63,25 @@ def get_country_summary(country_code: str = Path(..., description="2-letter coun
 @router.get("/{country_code}/annual")
 def get_country_annual_trends(
     country_code: str,
-    window: int = Query(0, description="Rolling window: 0=raw, 3=w=3, 5=w=5")
+    window: int = Query(0, description="Rolling window: 0=raw, 3=w=3, 5=w=5"),
+    min_year: int = Query(1970, description="Minimum year filter"),
+    max_year: int = Query(2026, description="Maximum year filter")
 ):
     """Returns annual time series for a country."""
     c_code = country_code.upper()
-    df = query_df("SELECT * FROM metrics_country_annual WHERE country_code = ? ORDER BY year ASC", [c_code])
+    df = query_df(
+        "SELECT * FROM metrics_country_annual WHERE country_code = ? AND year >= ? AND year <= ? ORDER BY year ASC",
+        [c_code, min_year, max_year]
+    )
     if df.empty:
-        return []
+        ann_file = CACHE_DIR / 'metrics_country_annual.parquet'
+        if ann_file.exists():
+            df = pd.read_parquet(ann_file)
+            df = df[(df['country_code'] == c_code) & (df['year'] >= min_year) & (df['year'] <= max_year)].sort_values('year')
+        else:
+            return []
+            
+    df = df[(df['year'] >= min_year) & (df['year'] <= max_year)]
         
     cols_metrics = [
         'num_journals', 'num_documents', 'fwci_avg', 'pct_oa_total', 'pct_oa_diamond', 
@@ -83,6 +95,7 @@ def get_country_annual_trends(
         df[cols_metrics] = df[cols_metrics].rolling(window=window, min_periods=1).mean()
         
     return sanitize_records(df)
+
 
 @router.get("/{country_code}/sunburst")
 def get_country_sunburst(

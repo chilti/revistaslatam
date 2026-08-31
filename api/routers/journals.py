@@ -87,11 +87,28 @@ def get_journal_details(journal_id: str):
     }
 
 @router.get("/{journal_id:path}/annual")
-def get_journal_annual(journal_id: str):
+def get_journal_annual(
+    journal_id: str,
+    min_year: int = Query(1970, description="Minimum year filter"),
+    max_year: int = Query(2026, description="Maximum year filter")
+):
     """Returns longitudinal time series of a journal."""
     jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
-    df = query_df("SELECT * FROM metrics_journal_annual WHERE journal_id = ? ORDER BY year ASC", [jid])
+    df = query_df(
+        "SELECT * FROM metrics_journal_annual WHERE journal_id = ? AND year >= ? AND year <= ? ORDER BY year ASC",
+        [jid, min_year, max_year]
+    )
+    if df.empty:
+        ann_file = CACHE_DIR / 'metrics_journal_annual.parquet'
+        if ann_file.exists():
+            df = pd.read_parquet(ann_file)
+            df = df[(df['journal_id'] == jid) & (df['year'] >= min_year) & (df['year'] <= max_year)].sort_values('year')
+        else:
+            return []
+            
+    df = df[(df['year'] >= min_year) & (df['year'] <= max_year)]
     return sanitize_records(df)
+
 
 @router.get("/{journal_id:path}/sunburst")
 def get_journal_sunburst(

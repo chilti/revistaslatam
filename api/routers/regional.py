@@ -197,11 +197,26 @@ def get_thematic_evolution():
     return {"data": sanitize_records(df)}
 
 @router.get("/annual-trends")
-def get_regional_annual_trends(window: int = Query(0, description="Rolling window: 0=raw, 3=w=3, 5=w=5")):
+def get_regional_annual_trends(
+    window: int = Query(0, description="Rolling window: 0=raw, 3=w=3, 5=w=5"),
+    min_year: int = Query(1970, description="Minimum year filter"),
+    max_year: int = Query(2026, description="Maximum year filter")
+):
     """Returns annual time series 1970–2026 with optional rolling smoothing."""
-    df = query_df("SELECT * FROM metrics_latam_annual ORDER BY year ASC")
+    df = query_df(
+        "SELECT * FROM metrics_latam_annual WHERE year >= ? AND year <= ? ORDER BY year ASC",
+        [min_year, max_year]
+    )
     if df.empty:
-        return []
+        ann_file = CACHE_DIR / 'metrics_latam_annual.parquet'
+        if ann_file.exists():
+            df = pd.read_parquet(ann_file)
+            df = df[(df['year'] >= min_year) & (df['year'] <= max_year)].sort_values('year')
+        else:
+            return []
+            
+    # Filter to requested year bounds
+    df = df[(df['year'] >= min_year) & (df['year'] <= max_year)]
         
     cols_metrics = [
         'num_documents', 'fwci_avg', 'pct_oa_total', 'pct_oa_diamond', 
@@ -215,6 +230,7 @@ def get_regional_annual_trends(window: int = Query(0, description="Rolling windo
         df[cols_metrics] = df[cols_metrics].rolling(window=window, min_periods=1).mean()
         
     return sanitize_records(df)
+
 
 @router.get("/rankings")
 def get_country_rankings(period: str = Query("full", pattern="^(full|recent)$")):

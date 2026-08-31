@@ -148,7 +148,7 @@ export default function JournalPage() {
 
     Promise.all([
       api.get(`/journals/${jidParam}/details`),
-      api.get(`/journals/${jidParam}/annual`),
+      api.get(`/journals/${jidParam}/annual?min_year=1970&max_year=2026`),
       api.get(`/journals/${jidParam}/articles?sort_by=${articleSort}${articleYearFilter ? `&year=${articleYearFilter}` : ''}&limit=100`),
       api.get(`/journals/${jidParam}/landscape`),
       api.get(`/journals/${jidParam}/trajectory`),

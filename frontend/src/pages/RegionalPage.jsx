@@ -58,6 +58,7 @@ export default function RegionalPage() {
   const [thematicProfiles, setThematicProfiles] = useState(null);
   const [annualTrends, setAnnualTrends] = useState([]);
   const [annualWindow, setAnnualWindow] = useState(0);
+  const [annualMinYear, setAnnualMinYear] = useState(1970);
   const [rankingsPeriod, setRankingsPeriod] = useState('full');
   const [rankings, setRankings] = useState([]);
   const [trajectories, setTrajectories] = useState(null);
@@ -117,7 +118,7 @@ export default function RegionalPage() {
           api.get(`/regional/choropleth?indicator=${selectedMapIndicator}`),
           api.get('/regional/periods-comparison'),
           api.get('/regional/distributions'),
-          api.get(`/regional/annual-trends?window=${annualWindow}`),
+          api.get(`/regional/annual-trends?window=${annualWindow}&min_year=${annualMinYear}&max_year=2026`),
           api.get(`/regional/rankings?period=${rankingsPeriod}`),
           api.get('/regional/trajectories'),
           api.get('/regional/period-gaps'),
@@ -173,10 +174,11 @@ export default function RegionalPage() {
 
   // Reload Annual Trends
   useEffect(() => {
-    api.get(`/regional/annual-trends?window=${annualWindow}`)
+    api.get(`/regional/annual-trends?window=${annualWindow}&min_year=${annualMinYear}&max_year=2026`)
       .then(res => setAnnualTrends(res.data))
       .catch(console.error);
-  }, [annualWindow]);
+  }, [annualWindow, annualMinYear]);
+
 
   // Reload Rankings
   useEffect(() => {
@@ -783,27 +785,59 @@ export default function RegionalPage() {
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Evolución histórica de producción, impacto y modalidades de acceso abierto.</span>
           </div>
 
-          <div className="segmented-pills">
-            <button
-              className={`segmented-pill-btn ${annualWindow === 0 ? 'active' : ''}`}
-              onClick={() => setAnnualWindow(0)}
-            >
-              Datos Crudos
-            </button>
-            <button
-              className={`segmented-pill-btn ${annualWindow === 3 ? 'active' : ''}`}
-              onClick={() => setAnnualWindow(3)}
-            >
-              Suavizado (w=3)
-            </button>
-            <button
-              className={`segmented-pill-btn ${annualWindow === 5 ? 'active' : ''}`}
-              onClick={() => setAnnualWindow(5)}
-            >
-              Suavizado (w=5)
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Year Range Picker */}
+            <div className="segmented-pills">
+              <button
+                className={`segmented-pill-btn ${annualMinYear === 1970 ? 'active' : ''}`}
+                onClick={() => setAnnualMinYear(1970)}
+              >
+                1970–2026
+              </button>
+              <button
+                className={`segmented-pill-btn ${annualMinYear === 1990 ? 'active' : ''}`}
+                onClick={() => setAnnualMinYear(1990)}
+              >
+                1990–2026
+              </button>
+              <button
+                className={`segmented-pill-btn ${annualMinYear === 2000 ? 'active' : ''}`}
+                onClick={() => setAnnualMinYear(2000)}
+              >
+                2000–2026
+              </button>
+              <button
+                className={`segmented-pill-btn ${annualMinYear === 2010 ? 'active' : ''}`}
+                onClick={() => setAnnualMinYear(2010)}
+              >
+                2010–2026
+              </button>
+            </div>
+
+            {/* Smoothing Picker */}
+            <div className="segmented-pills">
+              <button
+                className={`segmented-pill-btn ${annualWindow === 0 ? 'active' : ''}`}
+                onClick={() => setAnnualWindow(0)}
+              >
+                Crudos
+              </button>
+              <button
+                className={`segmented-pill-btn ${annualWindow === 3 ? 'active' : ''}`}
+                onClick={() => setAnnualWindow(3)}
+              >
+                w=3
+              </button>
+              <button
+                className={`segmented-pill-btn ${annualWindow === 5 ? 'active' : ''}`}
+                onClick={() => setAnnualWindow(5)}
+              >
+                w=5
+              </button>
+            </div>
           </div>
         </div>
+
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
           <PlotlyChart

@@ -76,7 +76,7 @@ export default function CountryPage() {
 
     Promise.all([
       api.get(`/countries/${selectedCountry}/summary`),
-      api.get(`/countries/${selectedCountry}/annual?window=${annualWindow}`),
+      api.get(`/countries/${selectedCountry}/annual?window=${annualWindow}&min_year=1970&max_year=2026`),
       api.get(`/countries/${selectedCountry}/journals`),
       api.get(`/countries/${selectedCountry}/trajectory`),
       api.get(`/countries/${selectedCountry}/landscape?limit=2500`),
@@ -104,10 +104,11 @@ export default function CountryPage() {
   // Reload annual on window change
   useEffect(() => {
     if (!selectedCountry) return;
-    api.get(`/countries/${selectedCountry}/annual?window=${annualWindow}`)
+    api.get(`/countries/${selectedCountry}/annual?window=${annualWindow}&min_year=1970&max_year=2026`)
       .then(res => setAnnualTrends(res.data))
       .catch(console.error);
   }, [annualWindow]);
+
 
   const pData = summary?.full_period || {};
   const recData = summary?.recent_period || {};
