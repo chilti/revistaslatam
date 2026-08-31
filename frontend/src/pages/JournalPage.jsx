@@ -16,12 +16,38 @@ import {
   Share2,
   Calendar,
   Globe,
-  ListFilter,
-  Loader2
+  ListFilter
 } from 'lucide-react';
 
+const DEFAULT_COUNTRIES = [
+  { country_code: 'MX', country_name: 'México', num_journals: 593 },
+  { country_code: 'BR', country_name: 'Brasil', num_journals: 3883 },
+  { country_code: 'CO', country_name: 'Colombia', num_journals: 895 },
+  { country_code: 'AR', country_name: 'Argentina', num_journals: 450 },
+  { country_code: 'CL', country_name: 'Chile', num_journals: 376 },
+  { country_code: 'PE', country_name: 'Perú', num_journals: 437 },
+  { country_code: 'EC', country_name: 'Ecuador', num_journals: 278 },
+  { country_code: 'CR', country_name: 'Costa Rica', num_journals: 109 },
+  { country_code: 'VE', country_name: 'Venezuela', num_journals: 82 },
+  { country_code: 'BO', country_name: 'Bolivia', num_journals: 70 },
+  { country_code: 'CU', country_name: 'Cuba', num_journals: 65 },
+  { country_code: 'UY', country_name: 'Uruguay', num_journals: 61 },
+  { country_code: 'PY', country_name: 'Paraguay', num_journals: 41 },
+  { country_code: 'PA', country_name: 'Panamá', num_journals: 34 },
+  { country_code: 'GT', country_name: 'Guatemala', num_journals: 27 },
+  { country_code: 'NI', country_name: 'Nicaragua', num_journals: 26 },
+  { country_code: 'HN', country_name: 'Honduras', num_journals: 21 },
+  { country_code: 'SV', country_name: 'El Salvador', num_journals: 20 },
+  { country_code: 'DO', country_name: 'República Dominicana', num_journals: 14 },
+  { country_code: 'PR', country_name: 'Puerto Rico', num_journals: 12 },
+];
+
+const DEFAULT_INITIAL_JOURNALS = [
+  { id: 'https://openalex.org/S2737081250', display_name: 'Estudios Demográficos y Urbanos', country_code: 'MX', works_count: 1995 }
+];
+
 export default function JournalPage() {
-  const { selectedJournalId, selectedJournalName, setSelectedJournal, selectedCountry } = useAppStore();
+  const { selectedJournalId, selectedJournalName, setSelectedJournal } = useAppStore();
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,9 +55,9 @@ export default function JournalPage() {
   const [isSearching, setIsSearching] = useState(false);
   
   // Country & Journal Combo state
-  const [countriesList, setCountriesList] = useState([]);
-  const [filterCountry, setFilterCountry] = useState(selectedCountry || 'MX');
-  const [countryJournals, setCountryJournals] = useState([]);
+  const [countriesList, setCountriesList] = useState(DEFAULT_COUNTRIES);
+  const [filterCountry, setFilterCountry] = useState('MX');
+  const [countryJournals, setCountryJournals] = useState(DEFAULT_INITIAL_JOURNALS);
   const [loadingJournals, setLoadingJournals] = useState(false);
   
   // Journal data
@@ -48,11 +74,11 @@ export default function JournalPage() {
   const [trajectory, setTrajectory] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Load countries catalog
+  // Load countries catalog from API
   useEffect(() => {
     api.get('/countries')
       .then(res => {
-        if (res.data && Array.isArray(res.data)) {
+        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           setCountriesList(res.data);
         }
       })
@@ -71,12 +97,11 @@ export default function JournalPage() {
     fetchPromise
       .then(res => {
         const list = res.data || [];
-        setCountryJournals(list);
-
-        // If current selected journal is not in this country's list, auto-select the top journal
         if (list.length > 0) {
+          setCountryJournals(list);
           const exists = list.some(j => j.id === selectedJournalId);
           if (!exists) {
+            // Only change if current selected is not in the new country list
             setSelectedJournal(list[0].id, list[0].display_name);
           }
         }
@@ -175,7 +200,7 @@ export default function JournalPage() {
         colorbar: { title: 'Año' }
       },
       text: landscapeData.articles.map(a => `${a.title}<br>Año: ${a.publication_year} | FWCI: ${a.fwci}`),
-      name: profile.display_name
+      name: profile.display_name || selectedJournalName
     }
   ];
 
@@ -306,26 +331,26 @@ export default function JournalPage() {
             </label>
             <select
               value={selectedJournalId}
-              disabled={loadingJournals}
+              disabled={loadingJournals && countryJournals.length === 0}
               onChange={(e) => {
                 const chosen = countryJournals.find(j => j.id === e.target.value);
                 if (chosen) {
                   setSelectedJournal(chosen.id, chosen.display_name);
                 }
               }}
-              style={{ width: '100%', fontSize: '13.5px', fontWeight: '600', padding: '9px 12px', opacity: loadingJournals ? 0.7 : 1 }}
+              style={{ width: '100%', fontSize: '13.5px', fontWeight: '600', padding: '9px 12px' }}
             >
-              {loadingJournals ? (
-                <option value="">Cargando revistas...</option>
-              ) : countryJournals.length === 0 ? (
-                <option value="">No hay revistas para este país</option>
-              ) : (
-                countryJournals.map(j => (
-                  <option key={j.id} value={j.id}>
-                    {j.display_name} ({j.country_code || 'LATAM'}) — {j.works_count?.toLocaleString()} arts
-                  </option>
-                ))
+              {/* If selected journal is not yet in the list, keep it as an option so selection is never lost */}
+              {countryJournals.every(j => j.id !== selectedJournalId) && (
+                <option value={selectedJournalId}>
+                  {selectedJournalName} (Seleccionada)
+                </option>
               )}
+              {countryJournals.map(j => (
+                <option key={j.id} value={j.id}>
+                  {j.display_name} ({j.country_code || 'LATAM'}) — {j.works_count?.toLocaleString()} arts
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -345,7 +370,7 @@ export default function JournalPage() {
               )}
             </div>
             <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              ISSN-L: <strong>{profile.issn_l || 'N/A'}</strong> • País: <strong>{profile.country_name || profile.country_code}</strong> • Editorial: <strong>{profile.publisher || 'N/A'}</strong>
+              ISSN-L: <strong>{profile.issn_l || 'N/A'}</strong> • País: <strong>{profile.country_name || profile.country_code || 'México'}</strong> • Editorial: <strong>{profile.publisher || 'N/A'}</strong>
             </div>
           </div>
 
@@ -402,7 +427,7 @@ export default function JournalPage() {
               fill: 'toself',
               fillcolor: 'rgba(2, 132, 199, 0.2)',
               line: { color: '#0284c7' },
-              name: profile.display_name
+              name: profile.display_name || selectedJournalName
             }]}
             layout={{
               polar: {
