@@ -20,7 +20,9 @@ import {
   Grid,
   TrendingDown,
   Layers,
-  Download
+  Download,
+  Activity,
+  Award
 } from 'lucide-react';
 
 export default function CountryPage() {
@@ -294,8 +296,8 @@ export default function CountryPage() {
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
+      {/* Top Contextual KPI Cards (Without duplicate FWCI) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
         <KpiCard
           title="Revistas Activas"
           value={summary?.num_journals?.toLocaleString()}
@@ -304,31 +306,209 @@ export default function CountryPage() {
         />
         <KpiCard
           title="Total Artículos"
-          value={summary?.total_works?.toLocaleString()}
+          value={summary?.total_works?.toLocaleString() || summary?.full_period?.num_documents?.toLocaleString()}
           subtitle="Producción Histórica"
           icon={FileText}
         />
         <KpiCard
-          title="FWCI Promedio"
-          value={pData?.fwci_avg}
-          subtitle="Citas Ponderadas"
-          icon={Zap}
-          badge={pData?.fwci_avg >= 1.0 ? 'Superior al Mundo' : 'Nivel País'}
-        />
-        <KpiCard
           title="% OA Diamante"
-          value={`${pData?.pct_oa_diamond || 0}%`}
+          value={`${pData?.pct_oa_diamond ?? summary?.full_period?.pct_oa_diamond ?? 0}%`}
           subtitle="Sin Cobro por APC"
           icon={Sparkles}
           badge="Diamante"
         />
         <KpiCard
           title="Revistas DOAJ"
-          value={`${pData?.pct_doaj || 0}%`}
+          value={`${pData?.pct_doaj ?? summary?.full_period?.pct_doaj ?? 0}%`}
           subtitle="Con Sello Abierto"
           icon={ShieldCheck}
+          badge="DOAJ"
+        />
+        <KpiCard
+          title="% Idioma Inglés"
+          value={`${pData?.pct_lang_en ?? summary?.full_period?.pct_lang_en ?? 0}%`}
+          subtitle="Internacionalización"
+          icon={Globe2}
         />
       </div>
+
+      {/* ── CONSOLIDATED PERFORMANCE INDICATORS PANEL FOR COUNTRY ── */}
+      {(() => {
+        const fullP = summary?.full_period || {};
+        const recP  = summary?.recent_period || {};
+
+        const fullDocs = fullP.num_documents ?? fullP.works_count ?? 0;
+        const recDocs  = recP.num_documents ?? recP.works_count ?? 0;
+
+        const fullFwci = fullP.fwci_avg != null ? Number(fullP.fwci_avg) : 0;
+        const recFwci  = recP.fwci_avg != null ? Number(recP.fwci_avg) : 0;
+        const fwciDelta = (recFwci - fullFwci).toFixed(2);
+
+        const fullTop10 = fullP.pct_top_10 != null ? Number(fullP.pct_top_10) : 0;
+        const recTop10  = recP.pct_top_10 != null ? Number(recP.pct_top_10) : 0;
+
+        const fullTop1 = fullP.pct_top_1 != null ? Number(fullP.pct_top_1) : 0;
+        const recTop1  = recP.pct_top_1 != null ? Number(recP.pct_top_1) : 0;
+
+        const fullPerc = fullP.avg_percentile != null ? (Number(fullP.avg_percentile) <= 1.0 ? Number(fullP.avg_percentile) * 100 : Number(fullP.avg_percentile)) : 0;
+        const recPerc  = recP.avg_percentile != null ? (Number(recP.avg_percentile) <= 1.0 ? Number(recP.avg_percentile) * 100 : Number(recP.avg_percentile)) : 0;
+        const percDelta = (recPerc - fullPerc).toFixed(1);
+
+        return (
+          <div className="card" style={{
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--accent-primary)',
+            borderRadius: '14px',
+            padding: '20px 24px',
+            boxShadow: '0 4px 20px rgba(2, 132, 199, 0.08)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: 'rgba(2, 132, 199, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent-primary)'
+                }}>
+                  <Activity size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: 'var(--text-main)' }}>
+                    Indicadores de Desempeño ({summary?.country_name || selectedCountry})
+                  </h3>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    Comparativa de impacto y excelencia: Periodo Completo vs Periodo Reciente
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+              {/* Periodo Completo */}
+              <div style={{
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '10px',
+                padding: '16px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--text-main)' }}>
+                    Periodo Completo: 0–2026
+                  </span>
+                  <span className="badge" style={{ fontSize: '11px', background: 'var(--bg-card)' }}>Histórico</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                      {fullDocs.toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-primary)', marginTop: '3px' }}>
+                      {fullFwci.toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                      {fullTop10.toFixed(3)}%
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                      {fullTop1.toFixed(3)}%
+                    </div>
+                  </div>
+
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                      {fullPerc.toFixed(1)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Periodo Reciente */}
+              <div style={{
+                background: 'var(--bg-input)',
+                border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                borderRadius: '10px',
+                padding: '16px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--accent-success)' }}>
+                    Periodo Reciente: 2021–2025
+                  </span>
+                  <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981', fontSize: '11px' }}>
+                    Reciente
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                      {recDocs.toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-success)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {recFwci.toFixed(2)}
+                      <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: '700' }}>
+                        ({Number(fwciDelta) >= 0 ? '+' : ''}{fwciDelta})
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                      {recTop10.toFixed(3)}%
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                      {recTop1.toFixed(3)}%
+                    </div>
+                  </div>
+
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-success)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {recPerc.toFixed(1)}
+                      <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: '700' }}>
+                        ({Number(percDelta) >= 0 ? '+' : ''}{percDelta})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* DUAL-AXIS CHART: Producción Anual vs FWCI */}
       <div className="card">
