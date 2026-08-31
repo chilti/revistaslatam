@@ -14,16 +14,26 @@ import {
   Layers, 
   Award, 
   Share2,
-  Calendar
+  Calendar,
+  Globe,
+  ListFilter
 } from 'lucide-react';
 
 export default function JournalPage() {
   const { selectedJournalId, selectedJournalName, setSelectedJournal } = useAppStore();
   
+  // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   
+  // Country & Journal Combo state
+  const [countriesList, setCountriesList] = useState([]);
+  const [filterCountry, setFilterCountry] = useState('MX');
+  const [countryJournals, setCountryJournals] = useState([]);
+  const [loadingJournals, setLoadingJournals] = useState(false);
+  
+  // Journal data
   const [details, setDetails] = useState(null);
   const [annualTrends, setAnnualTrends] = useState([]);
   const [sunburstData, setSunburstData] = useState(null);
@@ -37,6 +47,31 @@ export default function JournalPage() {
   const [trajectory, setTrajectory] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // Load countries catalog
+  useEffect(() => {
+    api.get('/countries')
+      .then(res => setCountriesList(res.data))
+      .catch(console.error);
+  }, []);
+
+  // Load journals for the selected country combo
+  useEffect(() => {
+    if (!filterCountry) return;
+    setLoadingJournals(true);
+    
+    if (filterCountry === 'ALL') {
+      api.get('/journals/search?limit=300')
+        .then(res => setCountryJournals(res.data))
+        .catch(console.error)
+        .finally(() => setLoadingJournals(false));
+    } else {
+      api.get(`/countries/${filterCountry}/journals`)
+        .then(res => setCountryJournals(res.data))
+        .catch(console.error)
+        .finally(() => setLoadingJournals(false));
+    }
+  }, [filterCountry]);
+
   // Search autocomplete
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -45,7 +80,7 @@ export default function JournalPage() {
     }
     const timer = setTimeout(() => {
       setIsSearching(true);
-      api.get(`/journals/search?q=${encodeURIComponent(searchQuery)}&limit=8`)
+      api.get(`/journals/search?q=${encodeURIComponent(searchQuery)}&limit=10`)
         .then(res => setSearchResults(res.data))
         .catch(console.error)
         .finally(() => setIsSearching(false));
@@ -72,6 +107,12 @@ export default function JournalPage() {
       setArticles(artRes.data);
       setLandscapeData(landRes.data);
       setTrajectory(trajRes.data);
+
+      // Auto-sync country filter if available
+      const jCountry = detRes.data?.profile?.country_code;
+      if (jCountry && jCountry !== filterCountry && filterCountry !== 'ALL') {
+        setFilterCountry(jCountry);
+      }
     }).catch(console.error).finally(() => setLoading(false));
   }, [selectedJournalId, articleSort, articleYearFilter]);
 
@@ -134,69 +175,135 @@ export default function JournalPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-      {/* Search and Autocomplete Header */}
-      <div className="card" style={{ padding: '16px 20px', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Search size={18} color="var(--text-muted)" />
-          <input
-            type="text"
-            placeholder="Buscar revista por nombre o ISSN..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '14px', fontWeight: '500' }}
-          />
+      {/* Search & Country/Journal Combos Container */}
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
+        
+        {/* Row 1: Instant Text Autocomplete Search */}
+        <div>
+          <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Search size={14} color="var(--accent-primary)" /> Buscador Instantáneo por Nombre o ISSN:
+          </label>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'var(--bg-input)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            padding: '8px 14px',
+            gap: '10px'
+          }}>
+            <Search size={16} color="var(--text-muted)" />
+            <input
+              type="text"
+              placeholder="Escribe el nombre de la revista o ISSN (ej. Estudios Demográficos, 0186-7210)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '13.5px', outline: 'none', color: 'var(--text-main)' }}
+            />
+            {isSearching && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Buscando...</span>}
+          </div>
+
+          {/* Autocomplete dropdown results */}
+          {searchResults.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '74px',
+              left: '20px',
+              right: '20px',
+              zIndex: 100,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '10px',
+              boxShadow: 'var(--card-shadow)',
+              maxHeight: '340px',
+              overflowY: 'auto'
+            }}>
+              {searchResults.map((j) => (
+                <div
+                  key={j.id}
+                  onClick={() => {
+                    setSelectedJournal(j.id, j.display_name);
+                    if (j.country_code) setFilterCountry(j.country_code);
+                    setSearchQuery('');
+                    setSearchResults([]);
+                  }}
+                  style={{
+                    padding: '12px 18px',
+                    borderBottom: '1px solid var(--border-color)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-input)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-main)' }}>
+                      {j.display_name}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                      {j.country_code} • ISSN: {j.issn_l || 'N/A'} • {j.publisher || 'Editorial no registrada'}
+                    </div>
+                  </div>
+                  <span className="badge">
+                    {j.works_count?.toLocaleString()} arts
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Autocomplete dropdown */}
-        {searchResults.length > 0 && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            zIndex: 100,
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '10px',
-            boxShadow: 'var(--card-shadow)',
-            marginTop: '6px',
-            maxHeight: '320px',
-            overflowY: 'auto'
-          }}>
-            {searchResults.map((j) => (
-              <div
-                key={j.id}
-                onClick={() => {
-                  setSelectedJournal(j.id, j.display_name);
-                  setSearchQuery('');
-                  setSearchResults([]);
-                }}
-                style={{
-                  padding: '12px 18px',
-                  borderBottom: '1px solid var(--border-color)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-input)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-              >
-                <div>
-                  <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-main)' }}>
-                    {j.display_name}
-                  </div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                    {j.country_code} • ISSN: {j.issn_l} • {j.publisher || 'Editorial no registrada'}
-                  </div>
-                </div>
-                <span className="badge">
-                  {j.works_count?.toLocaleString()} arts
-                </span>
-              </div>
-            ))}
+        {/* Row 2: Cascading Country and Journal Combos */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '14px',
+          paddingTop: '12px',
+          borderTop: '1px solid var(--border-color)'
+        }}>
+          {/* Country Combo */}
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Globe size={14} color="var(--accent-primary)" /> 1. Filtrar por País:
+            </label>
+            <select
+              value={filterCountry}
+              onChange={(e) => setFilterCountry(e.target.value)}
+              style={{ width: '100%', fontSize: '13.5px', fontWeight: '600', padding: '9px 12px' }}
+            >
+              <option value="ALL">🌐 Todos los Países (Iberoamérica)</option>
+              {countriesList.map(c => (
+                <option key={c.country_code} value={c.country_code}>
+                  {c.country_name} ({c.country_code}) — {c.num_journals} revistas
+                </option>
+              ))}
+            </select>
           </div>
-        )}
+
+          {/* Journal Combo */}
+          <div>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <ListFilter size={14} color="var(--accent-primary)" /> 2. Seleccionar Revista ({countryJournals.length} disponibles):
+            </label>
+            <select
+              value={selectedJournalId}
+              onChange={(e) => {
+                const chosen = countryJournals.find(j => j.id === e.target.value);
+                setSelectedJournal(e.target.value, chosen?.display_name || selectedJournalName);
+              }}
+              style={{ width: '100%', fontSize: '13.5px', fontWeight: '600', padding: '9px 12px' }}
+            >
+              {countryJournals.map(j => (
+                <option key={j.id} value={j.id}>
+                  {j.display_name} ({j.country_code || 'LATAM'}) — {j.works_count?.toLocaleString()} arts
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
       </div>
 
       {/* Journal Technical Profile Header */}
