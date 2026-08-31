@@ -47,6 +47,7 @@ export default function CountryPage() {
   const [sunburstUnclassified, setSunburstUnclassified] = useState(true);
   const [journals, setJournals] = useState([]);
   const [trajectory, setTrajectory] = useState({});
+  const [umapJournals, setUmapJournals] = useState([]);
   const [landscapeArticles, setLandscapeArticles] = useState({ country_articles: [], bg_articles: [] });
   const [umapTableOpen, setUmapTableOpen] = useState(false);
   const [umapTableSearch, setUmapTableSearch] = useState('');
