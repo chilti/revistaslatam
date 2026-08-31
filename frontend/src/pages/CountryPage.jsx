@@ -706,15 +706,15 @@ export default function CountryPage() {
             title: `3. Trayectoria de Desempeño UMAP (${summary?.country_name || selectedCountry} vs Iberoamérica)`,
             category: 'Variedades Semánticas / UMAP',
             defaultChecked: false,
-            rawData: trajData,
+            rawData: trajectory,
             buildDataText: () => {
-              if (!trajData || Object.keys(trajData).length === 0) return 'No hay datos de trayectoria disponibles.';
+              if (!trajectory || Object.keys(trajectory).length === 0) return 'No hay datos de trayectoria disponibles.';
               const lines = [
                 '| Entidad | Puntos Registrados | Coordenadas Inicio (2000) | Coordenadas Recientes (2025) |',
                 '|---|---|---|---|'
               ];
-              Object.keys(trajData).forEach(k => {
-                const ent = trajData[k];
+              Object.keys(trajectory).forEach(k => {
+                const ent = trajectory[k];
                 const pts = ent?.points || [];
                 const pStart = pts[0];
                 const pEnd = pts[pts.length - 1];
@@ -749,14 +749,14 @@ export default function CountryPage() {
             title: '5. Heatmap de Especialización Temática (Ventajas Comparativas Reveladas - RCA)',
             category: 'Especialización Temática',
             defaultChecked: false,
-            rawData: landscapeData,
+            rawData: rcaData,
             buildDataText: () => {
-              if (!landscapeData || landscapeData.length === 0) return 'No hay datos de especialización temática.';
+              if (!rcaData || rcaData.length === 0) return 'No hay datos de especialización temática.';
               const lines = [
                 '| Área Temática / Campo | Especialización RCA (>1.0 = Ventaja) | Artículos | FWCI |',
                 '|---|---|---|---|'
               ];
-              landscapeData.slice(0, 15).forEach(l => {
+              rcaData.slice(0, 15).forEach(l => {
                 const rcaVal = l.rca ?? l.value ?? 0;
                 const advantage = rcaVal >= 1.0 ? '🌟 Ventaja Especializada' : 'Normal';
                 lines.push(`| ${l.domain || l.field || l.name || 'Área'} | ${Number(rcaVal).toFixed(2)} (${advantage}) | ${l.works_count?.toLocaleString() || l.count || 0} | ${l.fwci_avg != null ? Number(l.fwci_avg).toFixed(2) : '—'} |`);

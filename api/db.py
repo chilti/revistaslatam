@@ -67,14 +67,13 @@ def get_con():
 def query_df(sql, params=None):
     con = get_con()
     try:
-        with _lock:
-            cur = con.cursor()
-            if params:
-                res = cur.execute(sql, params).df()
-            else:
-                res = cur.execute(sql).df()
-            cur.close()
-            return res if res is not None else pd.DataFrame()
+        cur = con.cursor()
+        if params:
+            res = cur.execute(sql, params).df()
+        else:
+            res = cur.execute(sql).df()
+        cur.close()
+        return res if res is not None else pd.DataFrame()
     except Exception as e:
         print(f"[API Query Error] {sql}: {e}")
         return pd.DataFrame()
