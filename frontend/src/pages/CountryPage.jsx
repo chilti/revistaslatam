@@ -22,7 +22,12 @@ import {
   Layers,
   Download,
   Activity,
-  Award
+  Award,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  FileSpreadsheet,
+  BarChart2
 } from 'lucide-react';
 
 export default function CountryPage() {
@@ -39,8 +44,13 @@ export default function CountryPage() {
   const [sunburstUnclassified, setSunburstUnclassified] = useState(true);
   const [journals, setJournals] = useState([]);
   const [trajectory, setTrajectory] = useState({});
-  const [umapJournals, setUmapJournals] = useState([]);
-  const [landscapeArticles, setLandscapeArticles] = useState([]);
+  const [landscapeArticles, setLandscapeArticles] = useState({ country_articles: [], bg_articles: [] });
+  const [umapTableOpen, setUmapTableOpen] = useState(false);
+  const [umapTableSearch, setUmapTableSearch] = useState('');
+  const [scatterPeriod, setScatterPeriod] = useState('recent'); // 'recent' | 'full'
+  const [scatterDataList, setScatterDataList] = useState([]);
+  const [dynScatterX, setDynScatterX] = useState('num_documents');
+  const [dynScatterY, setDynScatterY] = useState('fwci_avg');
 
   // Specialization Matrix (RCA)
   const [rcaData, setRcaData] = useState(null);
@@ -57,6 +67,25 @@ export default function CountryPage() {
   const [scatterY, setScatterY] = useState('fwci_avg');
   
   const [loading, setLoading] = useState(true);
+
+  const DYNAMIC_SCATTER_INDICATORS = [
+    { id: 'num_documents', label: 'Documentos' },
+    { id: 'fwci_avg', label: 'FWCI Promedio' },
+    { id: 'pct_top_10', label: '% Top 10%' },
+    { id: 'pct_top_1', label: '% Top 1%' },
+    { id: 'avg_percentile', label: 'Percentil Promedio' },
+    { id: 'pct_oa_total', label: '% OA Total' },
+    { id: 'pct_oa_diamond', label: '% OA Diamante' },
+    { id: 'pct_oa_gold', label: '% OA Gold' },
+    { id: 'pct_oa_green', label: '% OA Verde' },
+    { id: 'pct_oa_hybrid', label: '% OA Híbrido' },
+    { id: 'pct_oa_bronze', label: '% OA Bronce' },
+    { id: 'pct_oa_closed', label: '% Cerrado' },
+    { id: 'pct_authors_domestic', label: 'Autoría Doméstica (%)' },
+    { id: 'pct_lang_es', label: '% Español' },
+    { id: 'pct_lang_en', label: '% Inglés' },
+    { id: 'pct_lang_pt', label: '% Portugués' }
+  ];
 
   const SCATTER_OPTIONS = [
     { id: 'works_count', label: 'Documentos Publicados' },
@@ -125,6 +154,17 @@ export default function CountryPage() {
       .then(res => setAnnualTrends(res.data))
       .catch(console.error);
   }, [annualWindow]);
+
+  // Load dynamic journal scatter data on selectedCountry or scatterPeriod change
+  useEffect(() => {
+    if (!selectedCountry) return;
+    api.get(`/countries/${selectedCountry}/journals-scatter?period=${scatterPeriod}`)
+      .then(res => setScatterDataList(Array.isArray(res.data) ? res.data : []))
+      .catch(err => {
+        console.error('Error loading journals scatter:', err);
+        setScatterDataList([]);
+      });
+  }, [selectedCountry, scatterPeriod]);
 
 
   const pData = summary?.full_period || {};
@@ -254,6 +294,108 @@ export default function CountryPage() {
       hovertemplate: `<b>${labelMap[s.indicator] || s.indicator}</b><br>Histórico: #${s.rank_full} (${s.val_full})<br>Reciente: #${s.rank_recent} (${s.val_recent})<extra></extra>`
     });
   });
+
+  // Landscape Traces
+  const countryArts = landscapeArticles?.country_articles || (Array.isArray(landscapeArticles) ? landscapeArticles : []);
+  const bgArts = landscapeArticles?.bg_articles || [];
+  const landscapeTraces = [];
+
+  if (bgArts.length > 0) {
+    landscapeTraces.push({
+      x: bgArts.map(a => a.umap_x),
+      y: bgArts.map(a => a.umap_y),
+      mode: 'markers',
+      type: 'scatter',
+      name: 'Otros Artículos LATAM',
+      marker: { size: 3.5, color: '#94a3b8', opacity: 0.22 },
+      hoverinfo: 'skip'
+    });
+  }
+
+  if (countryArts.length > 0) {
+    const years = countryArts.map(a => Number(a.publication_year || 0)).filter(y => y > 0);
+    const minYr = years.length ? Math.min(...years) : 1990;
+    const maxYr = years.length ? Math.max(...years) : 2026;
+
+    landscapeTraces.push({
+      x: countryArts.map(a => a.umap_x),
+      y: countryArts.map(a => a.umap_y),
+      mode: 'markers',
+      type: 'scatter',
+      name: `Artículos de ${summary?.country_name || selectedCountry}`,
+      marker: {
+        size: 5.5,
+        color: countryArts.map(a => a.publication_year),
+        colorscale: 'Turbo',
+        cmin: minYr,
+        cmax: maxYr,
+        colorbar: { title: 'Año de Publ.', x: 1.02 },
+        opacity: 0.85,
+        line: { width: 0.3, color: '#ffffff' }
+      },
+      text: countryArts.map(a => a.title),
+      customdata: countryArts.map(a => [
+        a.journal_name || 'Desconocida',
+        a.publication_year || '—',
+        a.fwci != null ? Number(a.fwci).toFixed(2) : '—',
+        a.community_name || 'General'
+      ]),
+      hovertemplate: '<b>%{text}</b><br>Revista: %{customdata[0]}<br>Año: %{customdata[1]} | FWCI: %{customdata[2]}<br>Comunidad: %{customdata[3]}<extra></extra>'
+    });
+  }
+
+  // Dynamic Scatter Plot Data & Stats
+  const validScatterRows = scatterDataList.filter(d => d[dynScatterX] != null && d[dynScatterY] != null && !isNaN(d[dynScatterX]) && !isNaN(d[dynScatterY]));
+  
+  const calcStats = (vals) => {
+    if (!vals.length) return { mean: 0, median: 0, std: 0, min: 0, max: 0 };
+    const sorted = [...vals].sort((a, b) => a - b);
+    const sum = sorted.reduce((a, b) => a + b, 0);
+    const mean = sum / sorted.length;
+    const median = sorted.length % 2 === 0 
+      ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2 
+      : sorted[Math.floor(sorted.length / 2)];
+    const variance = sorted.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / (sorted.length > 1 ? sorted.length - 1 : 1);
+    const std = Math.sqrt(variance);
+    return { mean, median, std, min: sorted[0], max: sorted[sorted.length - 1] };
+  };
+
+  const xVals = validScatterRows.map(d => Number(d[dynScatterX]));
+  const yVals = validScatterRows.map(d => Number(d[dynScatterY]));
+  const statsX = calcStats(xVals);
+  const statsY = calcStats(yVals);
+
+  let pearsonR = 0;
+  if (validScatterRows.length > 1) {
+    let num = 0, denX = 0, denY = 0;
+    for (let i = 0; i < validScatterRows.length; i++) {
+      const dx = xVals[i] - statsX.mean;
+      const dy = yVals[i] - statsY.mean;
+      num += dx * dy;
+      denX += dx * dx;
+      denY += dy * dy;
+    }
+    pearsonR = (denX > 0 && denY > 0) ? num / Math.sqrt(denX * denY) : 0;
+  }
+
+  const xLabel = DYNAMIC_SCATTER_INDICATORS.find(i => i.id === dynScatterX)?.label || dynScatterX;
+  const yLabel = DYNAMIC_SCATTER_INDICATORS.find(i => i.id === dynScatterY)?.label || dynScatterY;
+
+  const dynamicScatterTraces = [{
+    x: xVals,
+    y: yVals,
+    mode: 'markers',
+    type: 'scatter',
+    text: validScatterRows.map(d => d.display_name),
+    customdata: validScatterRows.map(d => [d.id, d.num_documents || 0, d.fwci_avg || 0]),
+    marker: {
+      size: 9,
+      color: '#0284c7',
+      line: { width: 0.8, color: '#ffffff' },
+      opacity: 0.85
+    },
+    hovertemplate: `<b>%{text}</b><br>${xLabel}: %{x:,.2f}<br>${yLabel}: %{y:,.2f}<br>Documentos: %{customdata[1]:,}<extra></extra>`
+  }];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -619,15 +761,158 @@ export default function CountryPage() {
 
       {/* 2. MAPA UMAP DE SIMILITUD ENTRE REVISTAS DEL PAÍS */}
       {umapJournals && umapJournals.length > 0 && (
-        <UmapTrajectoryViewer
-          title={`🌌 Mapa UMAP de Similitud de Revistas (${summary?.country_name || selectedCountry})`}
-          subtitle={`Distribución topológica 2D de las ${umapJournals.length} revistas científicas del país según sus indicadores de desempeño (FWCI, % Diamante, % Top 10%, % Inglés).`}
-          points={umapJournals}
-          allowTrajectoryFilter={false}
-          showGridSection={true}
-          height={460}
-          defaultShowLabels={false}
-        />
+        <>
+          <UmapTrajectoryViewer
+            title={`🌌 Mapa UMAP de Similitud de Revistas (${summary?.country_name || selectedCountry})`}
+            subtitle={`Distribución topológica 2D de las ${umapJournals.length} revistas científicas del país según sus indicadores de desempeño (FWCI, % Diamante, % Top 10%, % Inglés).`}
+            points={umapJournals}
+            allowTrajectoryFilter={false}
+            showGridSection={true}
+            height={460}
+            defaultShowLabels={false}
+          />
+
+          {/* EXPANDABLE: VER TABLA DE DATOS UMAP (REVISTAS) */}
+          <div className="card" style={{ marginTop: '-12px' }}>
+            <div 
+              onClick={() => setUmapTableOpen(!umapTableOpen)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileSpreadsheet size={18} style={{ color: 'var(--primary-color, #3b82f6)' }} />
+                <h4 style={{ fontSize: '15px', fontWeight: '700', margin: 0 }}>
+                  📊 Ver tabla de datos UMAP (Revistas)
+                </h4>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!umapJournals || umapJournals.length === 0) return;
+                    const headers = ['Revista', 'Documentos', '% Inglés', '% OA Diamante', 'FWCI Promedio', '% Top 10%', '% Top 1%', 'Percentil Promedio'];
+                    const rows = umapJournals.map(j => [
+                      `"${(j.display_name || '').replace(/"/g, '""')}"`,
+                      j.num_documents || 0,
+                      Number(j.pct_lang_en || 0).toFixed(1),
+                      Number(j.pct_oa_diamond || 0).toFixed(1),
+                      Number(j.fwci_avg || 0).toFixed(3),
+                      Number(j.pct_top_10 || 0).toFixed(3),
+                      Number(j.pct_top_1 || 0).toFixed(3),
+                      Number(j.avg_percentile || 0).toFixed(3)
+                    ]);
+                    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', encodedUri);
+                    link.setAttribute('download', `datos_umap_revistas_${selectedCountry}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '4px 10px' }}
+                >
+                  <Download size={13} /> Descargar CSV
+                </button>
+                {umapTableOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </div>
+            </div>
+
+            {umapTableOpen && (
+              <div style={{ marginTop: '14px' }}>
+                <div style={{ position: 'relative', maxWidth: '320px', marginBottom: '12px' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    className="input-search"
+                    placeholder="🔍 Buscar revista..."
+                    value={umapTableSearch}
+                    onChange={(e) => setUmapTableSearch(e.target.value)}
+                    style={{ paddingLeft: '32px', width: '100%', fontSize: '12.5px', borderRadius: '6px' }}
+                  />
+                </div>
+
+                <div className="data-table-container" style={{ maxHeight: '360px' }}>
+                  <table className="data-table" style={{ fontSize: '12px' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left' }}>Revista</th>
+                        <th style={{ textAlign: 'right' }}>Documentos</th>
+                        <th style={{ textAlign: 'right' }}>% Inglés</th>
+                        <th style={{ textAlign: 'right' }}>% OA Diamante</th>
+                        <th style={{ textAlign: 'right' }}>FWCI Promedio</th>
+                        <th style={{ textAlign: 'right' }}>% Top 10%</th>
+                        <th style={{ textAlign: 'right' }}>% Top 1%</th>
+                        <th style={{ textAlign: 'right' }}>Percentil Promedio</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {umapJournals
+                        .filter(j => !umapTableSearch || (j.display_name || '').toLowerCase().includes(umapTableSearch.toLowerCase()))
+                        .map((j, idx) => (
+                          <tr key={j.id || idx}>
+                            <td style={{ fontWeight: '600', maxWidth: '260px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }} title={j.display_name}>
+                              <button
+                                onClick={() => {
+                                  setSelectedJournal(j.id);
+                                  setActiveSection('journal');
+                                }}
+                                style={{ background: 'none', border: 'none', color: 'var(--primary-color, #3b82f6)', cursor: 'pointer', textAlign: 'left', padding: 0, font: 'inherit', fontWeight: '600' }}
+                              >
+                                {j.display_name}
+                              </button>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>{Number(j.num_documents || 0).toLocaleString()}</td>
+                            <td style={{ textAlign: 'right' }}>{Number(j.pct_lang_en || 0).toFixed(1)}%</td>
+                            <td style={{ textAlign: 'right', color: '#38bdf8', fontWeight: '600' }}>{Number(j.pct_oa_diamond || 0).toFixed(1)}%</td>
+                            <td style={{ textAlign: 'right', color: Number(j.fwci_avg || 0) >= 1.0 ? '#10b981' : 'inherit' }}>{Number(j.fwci_avg || 0).toFixed(3)}</td>
+                            <td style={{ textAlign: 'right' }}>{Number(j.pct_top_10 || 0).toFixed(3)}%</td>
+                            <td style={{ textAlign: 'right' }}>{Number(j.pct_top_1 || 0).toFixed(3)}%</td>
+                            <td style={{ textAlign: 'right' }}>{Number(j.avg_percentile || 0).toFixed(3)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* 3. HUELLA SEMÁNTICA Y EVOLUCIÓN TEMPORAL DE ARTÍCULOS */}
+      {landscapeTraces.length > 0 && (
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Compass size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
+                🌌 Huella Semántica y Evolución Temporal de Artículos: {summary?.country_name || selectedCountry}
+              </h3>
+            </div>
+            <span className="badge" style={{ fontSize: '11px' }}>
+              {countryArts.length} Artículos del País
+            </span>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+            Proyección de los artículos de revistas del país sobre el paisaje regional. El color indica el Año de Publicación (<code style={{ color: 'var(--primary-color)' }}>publication_year</code>).
+          </p>
+
+          <PlotlyChart
+            data={landscapeTraces}
+            layout={{
+              height: 520,
+              margin: { l: 30, r: 30, t: 20, b: 30 },
+              xaxis: { showgrid: true, zeroline: false },
+              yaxis: { showgrid: true, zeroline: false },
+              legend: { orientation: 'h', y: 1.08, x: 0.1 }
+            }}
+          />
+
+          <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(2, 132, 199, 0.08)', borderRadius: '8px', borderLeft: '4px solid var(--accent-primary)', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+            💡 <strong>Interpretación Temporal:</strong> Los frentes temáticos ocupados por puntos amarillos y rojos indican las líneas científicas de mayor publicación reciente en {summary?.country_name || selectedCountry}, mientras que los puntos azules/morados representan áreas fundacionales históricas.
+          </div>
+        </div>
       )}
 
       {/* HEATMAP DE ESPECIALIZACIÓN TEMÁTICA (RCA) */}
@@ -731,6 +1016,137 @@ export default function CountryPage() {
             }}
           />
         </div>
+      </div>
+
+      {/* 4. EXPLORADOR DE REVISTAS - SCATTER PLOT DINÁMICO */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <BarChart2 size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
+                Explorador de Revistas — Scatter Plot Dinámico
+              </h3>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Visualiza la relación entre diferentes indicadores bibliométricos para las revistas de {summary?.country_name || selectedCountry} ({validScatterRows.length} revistas).
+            </span>
+          </div>
+
+          {/* Period Selector */}
+          <div className="segmented-pills">
+            <button
+              className={`segmented-pill-btn ${scatterPeriod === 'recent' ? 'active' : ''}`}
+              onClick={() => setScatterPeriod('recent')}
+            >
+              Período Reciente (2021–2025)
+            </button>
+            <button
+              className={`segmented-pill-btn ${scatterPeriod === 'full' ? 'active' : ''}`}
+              onClick={() => setScatterPeriod('full')}
+            >
+              Período Completo
+            </button>
+          </div>
+        </div>
+
+        {/* Axis Selectors */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '14px', padding: '12px 16px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '4px', color: 'var(--text-main)' }}>
+              Indicador Eje X:
+            </label>
+            <select
+              value={dynScatterX}
+              onChange={(e) => setDynScatterX(e.target.value)}
+              style={{ width: '100%', fontSize: '13px', padding: '6px 10px', borderRadius: '6px' }}
+            >
+              {DYNAMIC_SCATTER_INDICATORS.map(ind => (
+                <option key={ind.id} value={ind.id}>{ind.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '4px', color: 'var(--text-main)' }}>
+              Indicador Eje Y:
+            </label>
+            <select
+              value={dynScatterY}
+              onChange={(e) => setDynScatterY(e.target.value)}
+              style={{ width: '100%', fontSize: '13px', padding: '6px 10px', borderRadius: '6px' }}
+            >
+              {DYNAMIC_SCATTER_INDICATORS.map(ind => (
+                <option key={ind.id} value={ind.id}>{ind.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Scatter Chart */}
+        <PlotlyChart
+          data={dynamicScatterTraces}
+          layout={{
+            height: 440,
+            margin: { l: 60, r: 30, t: 20, b: 50 },
+            xaxis: {
+              title: xLabel,
+              showgrid: true,
+              zeroline: true
+            },
+            yaxis: {
+              title: yLabel,
+              showgrid: true,
+              zeroline: true
+            },
+            showlegend: false
+          }}
+          onClick={(data) => {
+            if (data?.points?.[0]?.customdata?.[0]) {
+              setSelectedJournal(data.points[0].customdata[0]);
+              setActiveSection('journal');
+            }
+          }}
+        />
+
+        {/* Descriptive Statistics & Pearson Correlation Panel */}
+        {statsX && statsY && (
+          <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+            <div style={{ padding: '12px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
+              <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '6px' }}>
+                Estadísticas: {xLabel}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', color: 'var(--text-muted)' }}>
+                <span>Media: <strong>{statsX.mean.toFixed(2)}</strong></span>
+                <span>Mediana: <strong>{statsX.median.toFixed(2)}</strong></span>
+                <span>Desv. Est.: <strong>{statsX.std.toFixed(2)}</strong></span>
+                <span>Mín / Máx: <strong>{statsX.min.toFixed(2)} / {statsX.max.toFixed(2)}</strong></span>
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
+              <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '6px' }}>
+                Estadísticas: {yLabel}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', color: 'var(--text-muted)' }}>
+                <span>Media: <strong>{statsY.mean.toFixed(2)}</strong></span>
+                <span>Mediana: <strong>{statsY.median.toFixed(2)}</strong></span>
+                <span>Desv. Est.: <strong>{statsY.std.toFixed(2)}</strong></span>
+                <span>Mín / Máx: <strong>{statsY.min.toFixed(2)} / {statsY.max.toFixed(2)}</strong></span>
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 14px', background: 'rgba(2, 132, 199, 0.1)', borderRadius: '8px', border: '1px solid rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Correlación Lineal (Pearson)</span>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-primary)', marginTop: '2px' }}>
+                r = {pearsonR != null ? pearsonR.toFixed(3) : '0.000'}
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {Math.abs(pearsonR) >= 0.7 ? 'Correlación Fuerte' : (Math.abs(pearsonR) >= 0.4 ? 'Correlación Moderada' : 'Correlación Débil / Nula')}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sunburst & Treemap Section */}

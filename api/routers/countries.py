@@ -291,17 +291,73 @@ def get_country_trajectory(country_code: str):
 
 @router.get("/{country_code}/landscape")
 def get_country_landscape_articles(country_code: str, limit: int = Query(2500)):
-    """Returns sample of articles for this country with landscape coordinates."""
+    """Returns sample of articles for this country with landscape coordinates and regional background sample."""
     c_code = country_code.upper()
     landscape_file = UMAP_DIR / 'umap_articles_landscape.parquet'
     if not landscape_file.exists():
-        return []
+        return {"country_articles": [], "bg_articles": []}
         
     df = pd.read_parquet(landscape_file)
     sub = df[df['country_code'] == c_code]
+    bg = df[df['country_code'] != c_code]
+    
     if len(sub) > limit:
         sub = sub.sample(limit, random_state=42)
-    return sanitize_records(sub)
+    if len(bg) > 4000:
+        bg = bg.sample(4000, random_state=42)
+        
+    cols = ['id', 'title', 'publication_year', 'journal_name', 'fwci', 'community_name', 'umap_x', 'umap_y']
+    cols = [c for c in cols if c in df.columns]
+    
+    return {
+        "country_articles": sanitize_records(sub[cols]),
+        "bg_articles": sanitize_records(bg[['umap_x', 'umap_y']])
+    }
+
+@router.get("/{country_code}/journals-scatter")
+def get_country_journals_scatter(
+    country_code: str,
+    period: str = Query("recent", pattern="^(recent|full)$")
+):
+    """Returns journal-level metrics for dynamic scatter plot exploration."""
+    c_code = country_code.upper()
+    file_name = 'metrics_journal_period_2021_2025.parquet' if period == 'recent' else 'metrics_journal_period.parquet'
+    period_file = CACHE_DIR / file_name
+    
+    if not period_file.exists():
+        return []
+        
+    df_metrics = pd.read_parquet(period_file)
+    df_journals = query_df("SELECT id, display_name, country_code FROM journals WHERE country_code = ?", [c_code])
+    
+    if df_journals.empty:
+        return []
+        
+    # Standardize IDs for merge
+    df_journals['clean_id'] = df_journals['id'].astype(str).str.strip().str.rstrip('/').str.split('/').str[-1]
+    df_metrics['clean_id'] = df_metrics['journal_id'].astype(str).str.strip().str.rstrip('/').str.split('/').str[-1]
+    
+    df_merged = df_journals.merge(df_metrics, on='clean_id', how='inner')
+    
+    # Calculate pct_oa_total if missing
+    if 'pct_oa_total' not in df_merged.columns:
+        df_merged['pct_oa_total'] = (
+            df_merged['pct_oa_diamond'].fillna(0) + 
+            df_merged['pct_oa_gold'].fillna(0) + 
+            df_merged['pct_oa_green'].fillna(0) + 
+            df_merged['pct_oa_hybrid'].fillna(0) + 
+            df_merged['pct_oa_bronze'].fillna(0)
+        )
+        
+    cols = [
+        'id_x', 'display_name', 'num_documents', 'fwci_avg', 'pct_top_10', 'pct_top_1',
+        'avg_percentile', 'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green',
+        'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed', 'pct_authors_domestic',
+        'pct_lang_es', 'pct_lang_en', 'pct_lang_pt'
+    ]
+    cols = [c for c in cols if c in df_merged.columns]
+    res_df = df_merged[cols].rename(columns={'id_x': 'id'})
+    return sanitize_records(res_df)
 
 @router.get("/specialization-matrix")
 def get_specialization_matrix(level: str = Query("domain", pattern="^(domain|field)$")):
