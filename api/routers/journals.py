@@ -306,7 +306,9 @@ def get_journal_trajectory(journal_id: str):
     df_j = query_df("SELECT country_code FROM journals WHERE id = ?", [jid])
     c_code = df_j['country_code'].iloc[0] if not df_j.empty else ''
     
-    traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
+    traj_file = CACHE_DIR / 'trajectory_journals_coords.parquet'
+    if not traj_file.exists():
+        traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
     if not traj_file.exists():
         return {}
         

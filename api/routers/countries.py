@@ -244,7 +244,9 @@ def get_country_umap_journals(country_code: str):
 def get_country_trajectory(country_code: str):
     """Returns UMAP trajectory curves for the country vs LATAM enriched with performance metrics."""
     c_code = country_code.upper()
-    traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
+    traj_file = CACHE_DIR / 'trajectory_countries_coords.parquet'
+    if not traj_file.exists():
+        traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
     if not traj_file.exists():
         return {}
         

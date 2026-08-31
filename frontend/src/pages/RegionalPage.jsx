@@ -5,6 +5,8 @@ import KpiCard from '../components/KpiCard';
 import PlotlyChart from '../components/PlotlyChart';
 import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
 import PageDossierExpander from '../components/PageDossierExpander';
+import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
+import AnnualDataTable from '../components/AnnualDataTable';
 import { 
   BookOpen, 
   FileText, 
@@ -817,6 +819,9 @@ export default function RegionalPage() {
         />
       </div>
 
+      {/* EVOLUCIÓN HISTÓRICA DE PERFILES DE CONOCIMIENTO (TABLAS DOMINIO/CAMPO/SUBCAMPO/TÓPICO) */}
+      <ThematicEvolutionTable />
+
       {/* THEMATIC HIERARCHY: SUNBURST & TREEMAP SWITCHER */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
@@ -1064,6 +1069,9 @@ export default function RegionalPage() {
           />
         </div>
       </div>
+
+      {/* TABLA DE DATOS ANUALES DE LATINOAMÉRICA (1970–2026) */}
+      <AnnualDataTable data={annualTrends} />
 
       {/* 1. Espacio UMAP Multidimensional de Países Reciente (umap_countries_recent) */}
       {umapCountries && umapCountries.length > 0 && (

@@ -188,13 +188,26 @@ def get_thematic_profiles(level: str = Query("domain", pattern="^(domain|field|s
     }
 
 @router.get("/thematic-evolution")
-def get_thematic_evolution():
-    """Returns historical evolution matrix for knowledge fields."""
-    evo_file = CACHE_DIR / 'thematic_evolution_latam.parquet'
-    if not evo_file.exists():
-        return {"data": []}
-    df = pd.read_parquet(evo_file)
-    return {"data": sanitize_records(df)}
+def get_thematic_evolution(level: str = Query("domain", pattern="^(domain|field|subfield|topic)$")):
+    """Returns aggregated yearly evolution matrix for knowledge fields in LATAM."""
+    df_agg = query_df(f"""
+        SELECT CAST(year AS INT) AS year, {level} AS name, SUM(num_documents) AS num_documents
+        FROM thematic_evolution
+        WHERE year >= 1985 AND {level} IS NOT NULL AND {level} != '' AND {level} != 'Sin Clasificación' AND {level} != 'Unknown'
+        GROUP BY year, {level}
+        ORDER BY year ASC, num_documents DESC
+    """)
+    if df_agg.empty:
+        evo_file = CACHE_DIR / 'thematic_evolution_latam.parquet'
+        if evo_file.exists():
+            df_raw = pd.read_parquet(evo_file)
+            df_sub = df_raw[df_raw['year'] >= 1985].dropna(subset=[level])
+            df_sub = df_sub[~df_sub[level].isin(['Sin Clasificación', 'Unknown', ''])]
+            df_agg = df_sub.groupby(['year', level], as_index=False)['num_documents'].sum()
+            df_agg.columns = ['year', 'name', 'num_documents']
+            df_agg['year'] = df_agg['year'].astype(int)
+            
+    return sanitize_records(df_agg)
 
 @router.get("/annual-trends")
 def get_regional_annual_trends(
@@ -264,7 +277,9 @@ def get_regional_umap_countries():
 @router.get("/trajectories")
 def get_global_trajectories():
     """Returns UMAP trajectory coordinates (2000-2025) for LATAM and all countries enriched with performance metrics."""
-    traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
+    traj_file = CACHE_DIR / 'trajectory_countries_coords.parquet'
+    if not traj_file.exists():
+        traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
     if not traj_file.exists():
         return {}
         
