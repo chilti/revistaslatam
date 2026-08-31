@@ -9,17 +9,21 @@ const LEVEL_CONFIG = [
   { id: 'topic', label: 'Tópico' },
 ];
 
-export default function ThematicEvolutionTable() {
+export default function ThematicEvolutionTable({ countryCode = null, countryName = null, title = null, subtitle = null }) {
   const [level, setLevel] = useState('domain');
   const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [limit, setLimit] = useState(30);
 
-  // Fetch aggregated evolution data on level change
+  // Fetch aggregated evolution data on level or countryCode change
   useEffect(() => {
     setLoading(true);
-    api.get(`/regional/thematic-evolution?level=${level}`)
+    const endpoint = countryCode 
+      ? `/countries/${countryCode}/thematic-evolution?level=${level}`
+      : `/regional/thematic-evolution?level=${level}`;
+
+    api.get(endpoint)
       .then(res => {
         setRawData(Array.isArray(res.data) ? res.data : []);
       })
@@ -28,7 +32,7 @@ export default function ThematicEvolutionTable() {
         setRawData([]);
       })
       .finally(() => setLoading(false));
-  }, [level]);
+  }, [level, countryCode]);
 
   // Pivot data: Years as columns, Categories as rows
   const { years, pivotedRows, maxCellVal } = useMemo(() => {
@@ -99,7 +103,7 @@ export default function ThematicEvolutionTable() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `evolucion_historica_perfiles_${level}.csv`);
+    link.setAttribute('download', `evolucion_historica_perfiles_${countryCode || 'region'}_${level}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -112,6 +116,14 @@ export default function ThematicEvolutionTable() {
     return `rgba(59, 130, 246, ${ratio.toFixed(3)})`;
   };
 
+  const defaultTitle = countryName 
+    ? `Evolución Histórica de Perfiles de Conocimiento: ${countryName}`
+    : (countryCode ? `Evolución Histórica de Perfiles de Conocimiento: ${countryCode}` : 'Evolución Histórica de Perfiles de Conocimiento: Región');
+
+  const defaultSubtitle = countryName
+    ? `Tendencia temporal de producción de artículos en revistas de ${countryName} por área temática (1985–2026).`
+    : 'Tendencia temporal de producción de artículos en revistas latinoamericanas por área temática (1985–2026).';
+
   return (
     <div className="card" style={{ marginTop: '24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '14px' }}>
@@ -119,11 +131,11 @@ export default function ThematicEvolutionTable() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Layers size={20} style={{ color: 'var(--primary-color, #3b82f6)' }} />
             <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>
-              Evolución Histórica de Perfiles de Conocimiento: Región
+              {title || defaultTitle}
             </h3>
           </div>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Tendencia temporal de producción de artículos en revistas latinoamericanas por área temática (1985–2026).
+            {subtitle || defaultSubtitle}
           </span>
         </div>
 

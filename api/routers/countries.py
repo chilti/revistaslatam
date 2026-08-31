@@ -445,3 +445,55 @@ def get_country_slope_data(country_code: str):
         
     return results
 
+@router.get("/{country_code}/thematic-evolution")
+def get_country_thematic_evolution(
+    country_code: str,
+    level: str = Query("domain", pattern="^(domain|field|subfield|topic)$")
+):
+    """Returns aggregated yearly evolution matrix for knowledge fields of journals in a country."""
+    c_code = country_code.upper()
+    df_agg = query_df(f"""
+        SELECT CAST(e.year AS INT) AS year, e.{level} AS name, SUM(e.num_documents) AS num_documents
+        FROM thematic_evolution e
+        JOIN journals j ON REGEXP_EXTRACT(e.journal_id, 'S[0-9]+') = REGEXP_EXTRACT(j.id, 'S[0-9]+')
+        WHERE j.country_code = ? AND e.year >= 1985 AND e.{level} IS NOT NULL AND e.{level} != '' AND e.{level} != 'Sin Clasificación' AND e.{level} != 'Unknown'
+        GROUP BY e.year, e.{level}
+        ORDER BY year ASC, num_documents DESC
+    """, [c_code])
+    
+    return sanitize_records(df_agg)
+
+@router.get("/{country_code}/thematic-profiles")
+def get_country_thematic_profiles(
+    country_code: str,
+    level: str = Query("domain", pattern="^(domain|field|subfield)$")
+):
+    """Returns journal-level thematic breakdown table (cross-tabulation of journals x thematic categories)."""
+    c_code = country_code.upper()
+    df = query_df(f"""
+        SELECT j.display_name AS journal_name, e.{level} AS category, SUM(e.num_documents) AS count
+        FROM thematic_evolution e
+        JOIN journals j ON REGEXP_EXTRACT(e.journal_id, 'S[0-9]+') = REGEXP_EXTRACT(j.id, 'S[0-9]+')
+        WHERE j.country_code = ? AND e.{level} IS NOT NULL AND e.{level} != '' AND e.{level} != 'Sin Clasificación' AND e.{level} != 'Unknown'
+        GROUP BY j.display_name, e.{level}
+    """, [c_code])
+    
+    if df.empty:
+        return {"columns": ["Revista", "Total"], "data": []}
+        
+    pivot = df.pivot(index='journal_name', columns='category', values='count').fillna(0)
+    pivot['Total'] = pivot.sum(axis=1)
+    pivot = pivot.sort_values('Total', ascending=False)
+    
+    columns = ["Revista", "Total"] + [c for c in pivot.columns if c != 'Total']
+    pivot_reset = pivot.reset_index().rename(columns={'journal_name': 'Revista'})
+    
+    for col in columns:
+        if col != 'Revista':
+            pivot_reset[col] = pivot_reset[col].astype(int)
+            
+    return {
+        "columns": columns,
+        "data": sanitize_records(pivot_reset[columns])
+    }
+

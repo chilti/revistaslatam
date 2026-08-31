@@ -6,6 +6,8 @@ import PlotlyChart from '../components/PlotlyChart';
 import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
 import DossierButton from '../components/DossierButton';
 import PageDossierExpander from '../components/PageDossierExpander';
+import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
+import CountryThematicProfilesTable from '../components/CountryThematicProfilesTable';
 import { 
   BookOpen, 
   FileText, 
@@ -1338,6 +1340,18 @@ export default function CountryPage() {
           <PlotlyChart data={treemapTrace} layout={{ height: 540, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
         )}
       </div>
+
+      {/* 6. ANÁLISIS DE PERFILES TEMÁTICOS DE REVISTAS DEL PAÍS (DOMINIO, CAMPO, SUBCAMPO) */}
+      <CountryThematicProfilesTable 
+        countryCode={selectedCountry} 
+        countryName={summary?.country_name || selectedCountry} 
+      />
+
+      {/* 7. EVOLUCIÓN HISTÓRICA DE PERFILES DE CONOCIMIENTO DEL PAÍS (DOMINIO, CAMPO, SUBCAMPO, TÓPICO) */}
+      <ThematicEvolutionTable 
+        countryCode={selectedCountry} 
+        countryName={summary?.country_name || selectedCountry} 
+      />
 
       {/* Journals Catalog Table */}
       <div className="card">
