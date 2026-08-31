@@ -20,7 +20,8 @@ import {
   Radar,
   Activity,
   BoxSelect,
-  GitCommit
+  GitCommit,
+  Download
 } from 'lucide-react';
 
 const DEFAULT_COUNTRIES = [
@@ -79,6 +80,8 @@ export default function JournalPage() {
   const [articles, setArticles] = useState([]);
   const [articleSort, setArticleSort] = useState('cited_by_count');
   const [articleYearFilter, setArticleYearFilter] = useState('');
+  const [articleLimit, setArticleLimit] = useState(100);
+  const [loadingArticles, setLoadingArticles] = useState(false);
   
   const [landscapeData, setLandscapeData] = useState({ articles: [], dispersion: 0 });
   const [trajectory, setTrajectory] = useState({});
@@ -149,7 +152,7 @@ export default function JournalPage() {
     Promise.all([
       api.get(`/journals/${jidParam}/details`),
       api.get(`/journals/${jidParam}/annual?min_year=1970&max_year=2026`),
-      api.get(`/journals/${jidParam}/articles?sort_by=${articleSort}${articleYearFilter ? `&year=${articleYearFilter}` : ''}&limit=100`),
+      api.get(`/journals/${jidParam}/articles?sort_by=${articleSort}${articleYearFilter ? `&year=${articleYearFilter}` : ''}&limit=${articleLimit}`),
       api.get(`/journals/${jidParam}/landscape`),
       api.get(`/journals/${jidParam}/trajectory`),
       api.get(`/journals/${jidParam}/radar-profile`),
@@ -170,7 +173,18 @@ export default function JournalPage() {
         setFilterCountry(jCountry);
       }
     }).catch(console.error).finally(() => setLoading(false));
-  }, [selectedJournalId, articleSort, articleYearFilter]);
+  }, [selectedJournalId]);
+
+  // Reload articles on filter/sort/limit change
+  useEffect(() => {
+    if (!selectedJournalId || loading) return;
+    const jidParam = encodeURIComponent(selectedJournalId);
+    setLoadingArticles(true);
+    api.get(`/journals/${jidParam}/articles?sort_by=${articleSort}${articleYearFilter ? `&year=${articleYearFilter}` : ''}&limit=${articleLimit}`)
+      .then(res => setArticles(res.data || []))
+      .catch(console.error)
+      .finally(() => setLoadingArticles(false));
+  }, [articleSort, articleYearFilter, articleLimit]);
 
   // Load sunburst
   useEffect(() => {
@@ -180,6 +194,7 @@ export default function JournalPage() {
       .then(res => setSunburstData(res.data))
       .catch(console.error);
   }, [selectedJournalId, sunburstInd]);
+
 
   const pData = details?.full_period || {};
   const recData = details?.recent_period || {};
@@ -614,11 +629,30 @@ export default function JournalPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>📄 Artículos de la Revista ({articles.length})</h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Muestra de artículos ordenados por impacto o citación.</span>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              📄 Artículos de la Revista ({articles.length} {articleLimit === 0 ? 'de ' + (prof.works_count?.toLocaleString() || 'total') : 'mostrados'})
+            </h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Listado detallado con identificador OpenAlex, métricas de citación e impacto normalizado.
+            </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Limit Selector */}
+            <select
+              value={articleLimit}
+              onChange={(e) => setArticleLimit(Number(e.target.value))}
+              style={{ fontSize: '12.5px', fontWeight: '600' }}
+              title="Cantidad de artículos a mostrar"
+            >
+              <option value={50}>50 artículos</option>
+              <option value={100}>100 artículos</option>
+              <option value={500}>500 artículos</option>
+              <option value={1000}>1,000 artículos</option>
+              <option value={0}>Todos los artículos ({prof.works_count?.toLocaleString() || 'Total'})</option>
+            </select>
+
+            {/* Sort Selector */}
             <select
               value={articleSort}
               onChange={(e) => setArticleSort(e.target.value)}
@@ -628,35 +662,105 @@ export default function JournalPage() {
               <option value="fwci">Mayor FWCI</option>
               <option value="publication_year">Más Recientes</option>
             </select>
+
+            {/* CSV Download Button */}
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                if (!articles || articles.length === 0) return;
+                const headers = ['OpenAlex_ID', 'DOI', 'Titulo', 'Ano', 'Citas', 'FWCI', 'Percentil', 'Acceso_Abierto', 'Idioma'];
+                const rows = articles.map(art => [
+                  `"${art.id || ''}"`,
+                  `"${art.doi || ''}"`,
+                  `"${(art.title || '').replace(/"/g, '""')}"`,
+                  art.publication_year || '',
+                  art.cited_by_count || 0,
+                  Number(art.fwci || 0).toFixed(2),
+                  Number(art.percentile || 0).toFixed(1),
+                  `"${art.oa_status || 'closed'}"`,
+                  `"${art.language || ''}"`
+                ]);
+                const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement('a');
+                link.setAttribute('href', encodedUri);
+                const countTag = articleLimit === 0 ? 'todos' : `${articles.length}_articulos`;
+                link.setAttribute('download', `articulos_${(prof.display_name || 'revista').slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}_${countTag}_${new Date().toISOString().slice(0, 10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
+              title="Descargar listado de artículos en formato CSV"
+            >
+              <Download size={14} /> Descargar CSV
+            </button>
           </div>
         </div>
 
-        <div className="data-table-container" style={{ maxHeight: '420px' }}>
+        <div className="data-table-container" style={{ maxHeight: '450px' }}>
           <table className="data-table">
             <thead>
               <tr>
                 <th>Título</th>
+                <th>OpenAlex ID</th>
                 <th>Año</th>
                 <th>Citas</th>
                 <th>FWCI</th>
+                <th>Percentil</th>
                 <th>Acceso Abierto</th>
-                <th>Autores</th>
-                <th>Enlace</th>
+                <th>DOI</th>
               </tr>
             </thead>
             <tbody>
               {articles.map((art, idx) => (
                 <tr key={idx}>
-                  <td><strong>{art.title}</strong></td>
-                  <td>{art.publication_year}</td>
-                  <td>{art.cited_by_count?.toLocaleString()}</td>
+                  <td style={{ maxWidth: '340px' }}>
+                    <strong>{art.title || 'Sin título'}</strong>
+                  </td>
+                  <td>
+                    {art.id ? (
+                      <a
+                        href={art.id}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          color: 'var(--accent-primary)',
+                          fontWeight: '600',
+                          fontSize: '11px',
+                          textDecoration: 'none'
+                        }}
+                        title={`Abrir ${art.id} en OpenAlex`}
+                      >
+                        <code>{art.id.replace('https://openalex.org/', '')}</code>
+                        <ExternalLink size={11} />
+                      </a>
+                    ) : '—'}
+                  </td>
+                  <td>{art.publication_year || '—'}</td>
+                  <td>{art.cited_by_count?.toLocaleString() || 0}</td>
                   <td>{Number(art.fwci || 0).toFixed(2)}</td>
+                  <td>{Number(art.percentile || 0).toFixed(1)}</td>
                   <td><span className="badge">{art.oa_status || 'closed'}</span></td>
-                  <td><span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{art.authors || '—'}</span></td>
                   <td>
                     {art.doi ? (
-                      <a href={art.doi} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline', fontSize: '11px' }}>
-                        DOI
+                      <a
+                        href={art.doi}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          color: 'var(--accent-primary)',
+                          textDecoration: 'underline',
+                          fontSize: '11.5px'
+                        }}
+                      >
+                        DOI <ExternalLink size={11} />
                       </a>
                     ) : '—'}
                   </td>
@@ -666,6 +770,7 @@ export default function JournalPage() {
           </table>
         </div>
       </div>
+
     </div>
   );
 }

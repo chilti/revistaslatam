@@ -168,7 +168,7 @@ def get_journal_articles(
     journal_id: str,
     year: int = Query(None, description="Optional year filter"),
     sort_by: str = Query("cited_by_count", pattern="^(cited_by_count|publication_year|fwci)$"),
-    limit: int = Query(100, description="Page limit")
+    limit: int = Query(100, description="Page limit, 0 for all")
 ):
     """Ultra-fast paginated articles retrieval directly from DuckDB."""
     jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
@@ -185,17 +185,20 @@ def get_journal_articles(
         year_filter = "AND publication_year = ?"
         params.append(year)
         
-    params.append(limit)
-    
+    limit_clause = ""
+    if limit and limit > 0:
+        limit_clause = f"LIMIT {int(limit)}"
+        
     sql = f"""
-        SELECT id, title, publication_year, cited_by_count, fwci, doi
+        SELECT id, doi, title, publication_year, cited_by_count, fwci, percentile, oa_status, language
         FROM works
         WHERE journal_id = ? {year_filter}
         ORDER BY {order_clause}
-        LIMIT ?
+        {limit_clause}
     """
     df = query_df(sql, params)
     return sanitize_records(df)
+
 
 @router.get("/{journal_id:path}/landscape")
 def get_journal_landscape(journal_id: str):
