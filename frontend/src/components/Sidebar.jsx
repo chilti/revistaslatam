@@ -94,14 +94,6 @@ export default function Sidebar() {
         );
       })}
 
-      <div style={{ marginTop: 'auto', padding: '16px 12px', background: 'var(--bg-input)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-        <div style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--text-main)' }}>
-          ⚡ DuckDB In-Memory Engine
-        </div>
-        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>
-          3.63M Trabajos • 7,494 Revistas indexadas con latencia &lt; 15 ms.
-        </div>
-      </div>
     </aside>
   );
 }

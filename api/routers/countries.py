@@ -148,6 +148,69 @@ def get_country_sunburst(
         
     return {"nodes": nodes, "indicator": indicator}
 
+@router.get("/{country_code}/treemap")
+def get_country_treemap(
+    country_code: str,
+    indicator: str = Query("fwci_avg_recent"),
+    include_unclassified: bool = Query(False)
+):
+    """Returns nested Treemap format data for Domain -> Field -> Subfield for a country."""
+    c_code = country_code.upper()
+    sunburst_file = CACHE_DIR / 'sunburst_metrics_country.parquet'
+    if not sunburst_file.exists():
+        return {"nodes": []}
+        
+    df = pd.read_parquet(sunburst_file)
+    df = df[df['country_code'] == c_code]
+    
+    if df.empty:
+        return {"nodes": []}
+        
+    if not include_unclassified:
+        df = df[(df['domain'] != 'Sin Clasificación') & (df['domain'] != 'Unknown')]
+        
+    size_col = 'count_recent' if '_recent' in indicator else 'count_full'
+    df = df[df[size_col] > 0].copy()
+    
+    c_name = COUNTRY_NAMES.get(c_code, c_code)
+    root_id = f"{c_code}_ROOT"
+    
+    nodes = []
+    nodes.append({
+        "id": root_id,
+        "label": c_name,
+        "parent": "",
+        "value": float(df[df['level'] == 'domain'][size_col].sum()),
+        "color_val": 1.0,
+        "level": "root"
+    })
+    
+    for _, row in df.iterrows():
+        lvl = row['level']
+        if lvl == 'domain':
+            curr_id = row['domain']
+            parent = root_id
+        elif lvl == 'field':
+            curr_id = f"{row['domain']}||{row['field']}"
+            parent = row['domain']
+        elif lvl == 'subfield':
+            curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
+            parent = f"{row['domain']}||{row['field']}"
+        else:
+            curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}||{row['topic']}"
+            parent = f"{row['domain']}||{row['field']}||{row['subfield']}"
+            
+        nodes.append({
+            "id": curr_id,
+            "label": row[lvl],
+            "parent": parent,
+            "value": float(row[size_col]),
+            "color_val": float(row[indicator]) if pd.notna(row.get(indicator)) else None,
+            "level": lvl
+        })
+        
+    return {"nodes": nodes, "indicator": indicator}
+
 @router.get("/{country_code}/journals")
 def get_country_journals(country_code: str):
     """Returns the list of journals from a specific country."""
@@ -179,7 +242,7 @@ def get_country_umap_journals(country_code: str):
 
 @router.get("/{country_code}/trajectory")
 def get_country_trajectory(country_code: str):
-    """Returns UMAP trajectory curves for the country vs LATAM."""
+    """Returns UMAP trajectory curves for the country vs LATAM enriched with performance metrics."""
     c_code = country_code.upper()
     traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
     if not traj_file.exists():
@@ -188,13 +251,33 @@ def get_country_trajectory(country_code: str):
     df = pd.read_parquet(traj_file)
     df = df[(df['year'] >= 2000) & (df['year'] <= 2025) & (df['id'].isin([c_code, 'LATAM']))]
     
+    # Enrich with metrics
+    c_annual_file = CACHE_DIR / 'metrics_country_annual.parquet'
+    l_annual_file = CACHE_DIR / 'metrics_latam_annual.parquet'
+    
+    all_metrics = []
+    if c_annual_file.exists():
+        c_df = pd.read_parquet(c_annual_file)
+        all_metrics.append(c_df)
+    if l_annual_file.exists():
+        l_df = pd.read_parquet(l_annual_file)
+        l_df['country_code'] = 'LATAM'
+        all_metrics.append(l_df)
+        
+    if all_metrics:
+        metrics_df = pd.concat(all_metrics, ignore_index=True)
+        metric_cols = [c for c in metrics_df.columns if c not in ['id', 'name', 'type']]
+        df = df.merge(metrics_df[metric_cols], left_on=['id', 'year'], right_on=['country_code', 'year'], how='left')
+    
+    cols_to_keep = [c for c in ['year', 'x', 'y', 'fwci_avg', 'pct_oa_diamond', 'pct_top_10', 'pct_top_1', 'pct_lang_en', 'num_documents', 'avg_percentile', 'pct_oa_gold', 'pct_authors_domestic'] if c in df.columns]
+    
     result = {}
     for entity_id in df['id'].unique():
         sub = df[df['id'] == entity_id].sort_values('year')
         result[str(entity_id)] = {
             "name": "Iberoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(str(entity_id), str(entity_id)),
             "is_ref": entity_id == "LATAM",
-            "points": sanitize_records(sub[['year', 'x', 'y']])
+            "points": sanitize_records(sub[cols_to_keep])
         }
     return result
 

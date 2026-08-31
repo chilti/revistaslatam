@@ -251,9 +251,19 @@ def get_country_rankings(period: str = Query("full", pattern="^(full|recent)$"))
     df = df.sort_values('num_documents', ascending=False)
     return sanitize_records(df)
 
+@router.get("/umap-countries")
+def get_regional_umap_countries():
+    """Returns 2D UMAP coordinates and multidimensional profile for all 20 Latin American countries."""
+    umap_file = UMAP_DIR / 'umap_countries_recent.parquet'
+    if not umap_file.exists():
+        return []
+    df = pd.read_parquet(umap_file)
+    df['country_name'] = df['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x))
+    return sanitize_records(df)
+
 @router.get("/trajectories")
 def get_global_trajectories():
-    """Returns UMAP trajectory coordinates (2000-2025) for LATAM and all countries."""
+    """Returns UMAP trajectory coordinates (2000-2025) for LATAM and all countries enriched with performance metrics."""
     traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
     if not traj_file.exists():
         return {}
@@ -266,13 +276,34 @@ def get_global_trajectories():
         (~df['id'].astype(str).str.startswith('http'))
     ]
     
+    # Enrich with metrics
+    c_annual_file = CACHE_DIR / 'metrics_country_annual.parquet'
+    l_annual_file = CACHE_DIR / 'metrics_latam_annual.parquet'
+    
+    all_metrics = []
+    if c_annual_file.exists():
+        c_df = pd.read_parquet(c_annual_file)
+        all_metrics.append(c_df)
+    if l_annual_file.exists():
+        l_df = pd.read_parquet(l_annual_file)
+        l_df['country_code'] = 'LATAM'
+        all_metrics.append(l_df)
+        
+    if all_metrics:
+        metrics_df = pd.concat(all_metrics, ignore_index=True)
+        # Columns to merge
+        metric_cols = [c for c in metrics_df.columns if c not in ['id', 'name', 'type']]
+        df = df.merge(metrics_df[metric_cols], left_on=['id', 'year'], right_on=['country_code', 'year'], how='left')
+    
     entities = {}
+    cols_to_keep = [c for c in ['year', 'x', 'y', 'fwci_avg', 'pct_oa_diamond', 'pct_top_10', 'pct_top_1', 'pct_lang_en', 'num_documents', 'avg_percentile', 'pct_oa_gold', 'pct_authors_domestic'] if c in df.columns]
+    
     for entity_id in df['id'].unique():
         sub = df[df['id'] == entity_id].sort_values('year')
         entities[str(entity_id)] = {
             "name": "Iberoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(str(entity_id), str(entity_id)),
             "is_ref": entity_id == "LATAM",
-            "points": sanitize_records(sub[['year', 'x', 'y']])
+            "points": sanitize_records(sub[cols_to_keep])
         }
     return entities
 

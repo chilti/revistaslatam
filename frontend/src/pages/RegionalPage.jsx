@@ -3,6 +3,8 @@ import api from '../api';
 import { useAppStore } from '../store';
 import KpiCard from '../components/KpiCard';
 import PlotlyChart from '../components/PlotlyChart';
+import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
+import PageDossierExpander from '../components/PageDossierExpander';
 import { 
   BookOpen, 
   FileText, 
@@ -64,6 +66,7 @@ export default function RegionalPage() {
   const [rankingsPeriod, setRankingsPeriod] = useState('full');
   const [rankings, setRankings] = useState([]);
   const [trajectories, setTrajectories] = useState(null);
+  const [umapCountries, setUmapCountries] = useState([]);
   const [scatterData, setScatterData] = useState([]);
   const [scatterX, setScatterX] = useState('num_documents');
   const [scatterY, setScatterY] = useState('fwci_avg');
@@ -115,7 +118,7 @@ export default function RegionalPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const [kpiRes, choroRes, periodsRes, distRes, annualRes, rankRes, trajRes, gapsRes, stackRes, streamRes] = await Promise.all([
+        const [kpiRes, choroRes, periodsRes, distRes, annualRes, rankRes, trajRes, gapsRes, stackRes, streamRes, umapCRes] = await Promise.all([
           api.get('/regional/kpis'),
           api.get(`/regional/choropleth?indicator=${selectedMapIndicator}`),
           api.get('/regional/periods-comparison'),
@@ -125,7 +128,8 @@ export default function RegionalPage() {
           api.get('/regional/trajectories'),
           api.get('/regional/period-gaps'),
           api.get('/regional/stacked-oa-languages'),
-          api.get('/regional/thematic-stream')
+          api.get('/regional/thematic-stream'),
+          api.get('/regional/umap-countries')
         ]);
 
         setKpis(kpiRes.data);
@@ -138,6 +142,7 @@ export default function RegionalPage() {
         setPeriodGaps(gapsRes.data);
         setStackedData(stackRes.data);
         setStreamData(streamRes.data);
+        setUmapCountries(umapCRes.data);
       } catch (err) {
         console.error('Error loading regional data:', err);
       } finally {
@@ -239,7 +244,7 @@ export default function RegionalPage() {
   };
 
   // Sunburst Trace
-  const sunburstTrace = sunburstData && sunburstData.nodes.length > 0 ? [{
+  const sunburstTrace = (sunburstData && Array.isArray(sunburstData.nodes) && sunburstData.nodes.length > 0) ? [{
     type: 'sunburst',
     ids: sunburstData.nodes.map(n => n.id),
     labels: sunburstData.nodes.map(n => n.label),
@@ -256,7 +261,7 @@ export default function RegionalPage() {
   }] : [];
 
   // Treemap Trace
-  const treemapTrace = treemapData && treemapData.nodes.length > 0 ? [{
+  const treemapTrace = (treemapData && Array.isArray(treemapData.nodes) && treemapData.nodes.length > 0) ? [{
     type: 'treemap',
     ids: treemapData.nodes.map(n => n.id),
     labels: treemapData.nodes.map(n => n.label),
@@ -880,19 +885,30 @@ export default function RegionalPage() {
         </div>
       </div>
 
-      {/* Global Trajectories in UMAP */}
-      <div className="card">
-        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
-          📈 Trayectorias de Desempeño Latam (Global 2000–2025)
-        </h3>
-        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Evolución comparativa de todos los países e Iberoamérica (línea verde gruesa) en el espacio UMAP.
-        </p>
-        <PlotlyChart
-          data={trajTraces}
-          layout={{ height: 520, xaxis: { title: 'Dimensión 1' }, yaxis: { title: 'Dimensión 2' } }}
+      {/* 1. Espacio UMAP Multidimensional de Países Reciente (umap_countries_recent) */}
+      {umapCountries && umapCountries.length > 0 && (
+        <UmapTrajectoryViewer
+          title="🌌 Espacio UMAP de Países Latinoamericanos (Perfil Multidimensional Reciente)"
+          subtitle="Proyección topológica no lineal 2D de los 20 países latinoamericanos según su desempeño cienciométrico integral (FWCI, % Diamante, % Top 10%, % Inglés, % Scopus)."
+          points={umapCountries}
+          allowTrajectoryFilter={false}
+          showGridSection={true}
+          height={460}
         />
-      </div>
+      )}
+
+      {/* 2. Global Trajectories in UMAP (2000-2025) */}
+      {trajectories && Object.keys(trajectories).length > 0 && (
+        <UmapTrajectoryViewer
+          title="📈 Trayectorias de Desempeño Latam (Global 2000–2025)"
+          subtitle="Evolución temporal continua de todos los países e Iberoamérica (línea verde) en el espacio UMAP con mapas de calor gaussianos por indicador."
+          trajectories={trajectories}
+          allowTrajectoryFilter={true}
+          showGridSection={true}
+          height={520}
+          initialActiveEntities={['MX', 'LATAM']}
+        />
+      )}
 
       {/* Country Rankings Table */}
       <div className="card">
@@ -1033,6 +1049,304 @@ export default function RegionalPage() {
           }}
         />
       </div>
+
+      {/* ── EXPANDER DE DOSSIER DE ESTUDIO Y ENVÍO A CHATGPT (PIE DE PÁGINA) ── */}
+      <PageDossierExpander
+        pageTitle="Panorama Regional de Revistas Científicas de América Latina"
+        pageDescription="Selecciona cualquiera de las gráficas, tablas o indicadores de esta vista regional para generar un reporte integral o enviarlo a ChatGPT."
+        sections={[
+          {
+            id: 'kpis_macro',
+            title: '1. Indicadores Macro Regionales (Cabecera)',
+            category: 'KPIs Principales',
+            defaultChecked: true,
+            rawData: kpis,
+            buildDataText: () => {
+              if (!kpis) return 'No hay datos de KPIs disponibles.';
+              return [
+                '| Métrica Regional | Valor Global | Contexto |',
+                '|---|---|---|',
+                `| Revistas Activas Indexadas | ${kpis.num_journals?.toLocaleString() || 0} | Cobertura total OpenAlex |`,
+                `| Producción Total de Artículos | ${kpis.total_works?.toLocaleString() || 0} | Registro histórico acumulado |`,
+                `| FWCI Ponderado Promedio | ${kpis.fwci_avg ?? '—'} | Impacto normalizado mundial (Base=1.0) |`,
+                `| % Acceso Abierto Diamante | ${kpis.pct_oa_diamond || 0}% | Sin cobro por procesamiento de artículo (APC) |`,
+                `| % Revistas en DOAJ | ${kpis.pct_doaj || 0}% | Publicaciones con sello de calidad abierta |`,
+                `| % Artículos en Idioma Inglés | ${kpis.pct_lang_en || 0}% | Nivel de internacionalización lingüística |`,
+                `| % Artículos en Top 10% Más Citados | ${kpis.pct_top_10 || 0}% | Excelencia e impacto de citación |`
+              ].join('\n');
+            }
+          },
+          {
+            id: 'periods_comparison',
+            title: '2. Comparativa Macroeconómica por Periodos (Histórico vs Reciente 2021–2025)',
+            category: 'Comparativa Temporal',
+            defaultChecked: true,
+            rawData: periods,
+            buildDataText: () => {
+              if (!periods || !periods.full || !periods.recent) return 'No hay datos de periodos disponibles.';
+              const f = periods.full;
+              const r = periods.recent;
+              return [
+                '| Indicador | Periodo Completo (Histórico) | Periodo Reciente (2021–2025) | Variación |',
+                '|---|---|---|---|',
+                `| Artículos Publicados | ${f.works_count?.toLocaleString() || f.num_documents?.toLocaleString() || '—'} | ${r.works_count?.toLocaleString() || r.num_documents?.toLocaleString() || '—'} | ${r.works_count && f.works_count ? ((r.works_count / f.works_count) * 100).toFixed(1) + '% del total' : '—'} |`,
+                `| FWCI Promedio | ${Number(f.fwci_avg || 0).toFixed(2)} | ${Number(r.fwci_avg || 0).toFixed(2)} | ${(Number(r.fwci_avg || 0) - Number(f.fwci_avg || 0)).toFixed(2)} |`,
+                `| % Acceso Abierto Diamante | ${Number(f.pct_oa_diamond || 0).toFixed(1)}% | ${Number(r.pct_oa_diamond || 0).toFixed(1)}% | ${(Number(r.pct_oa_diamond || 0) - Number(f.pct_oa_diamond || 0)).toFixed(1)}% |`,
+                `| % Acceso Abierto Gold | ${Number(f.pct_oa_gold || 0).toFixed(1)}% | ${Number(r.pct_oa_gold || 0).toFixed(1)}% | ${(Number(r.pct_oa_gold || 0) - Number(f.pct_oa_gold || 0)).toFixed(1)}% |`,
+                `| % Artículos en Inglés | ${Number(f.pct_lang_en || 0).toFixed(1)}% | ${Number(r.pct_lang_en || 0).toFixed(1)}% | ${(Number(r.pct_lang_en || 0) - Number(f.pct_lang_en || 0)).toFixed(1)}% |`,
+                `| % Top 10% Más Citados | ${Number(f.pct_top_10 || 0).toFixed(1)}% | ${Number(r.pct_top_10 || 0).toFixed(1)}% | ${(Number(r.pct_top_10 || 0) - Number(f.pct_top_10 || 0)).toFixed(1)}% |`
+              ].join('\n');
+            }
+          },
+          {
+            id: 'distributions_oa_lang',
+            title: '3. Distribución Global de Vías de Acceso Abierto e Idiomas (Donuts)',
+            category: 'Distribuciones',
+            defaultChecked: false,
+            rawData: distributions,
+            buildDataText: () => {
+              if (!distributions) return 'No hay datos de distribución.';
+              const lines = ['**Vías de Acceso Abierto:**\n'];
+              lines.push('| Modalidad OA | Artículos | % del Total |');
+              lines.push('|---|---|---|');
+              (distributions.oa || []).forEach(o => {
+                lines.push(`| ${o.oa_status || o.status} | ${o.count?.toLocaleString() || o.num_documents?.toLocaleString() || 0} | ${Number(o.pct || 0).toFixed(1)}% |`);
+              });
+              lines.push('\n**Idiomas de Publicación:**\n');
+              lines.push('| Idioma | Artículos | % del Total |');
+              lines.push('|---|---|---|');
+              (distributions.languages || []).forEach(l => {
+                lines.push(`| ${l.language || l.lang} | ${l.count?.toLocaleString() || l.num_documents?.toLocaleString() || 0} | ${Number(l.pct || 0).toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'map_choropleth',
+            title: `4. Mapa Coroplético Espacial (${MAP_INDICATORS.find(m => m.id === selectedMapIndicator)?.label || selectedMapIndicator})`,
+            category: 'Cartografía Geopolítica',
+            defaultChecked: true,
+            rawData: choroplethData,
+            buildDataText: () => {
+              if (!choroplethData || choroplethData.length === 0) return 'No hay datos cartográficos disponibles.';
+              const lines = [
+                `*Indicador Cartográfico:* **${MAP_INDICATORS.find(m => m.id === selectedMapIndicator)?.label || selectedMapIndicator}**\n`,
+                '| País | Código | Revistas | Artículos | Valor del Indicador |',
+                '|---|---|---|---|---|'
+              ];
+              choroplethData.forEach(c => {
+                lines.push(`| ${c.country_name || c.country_code} | ${c.country_code} | ${c.num_journals?.toLocaleString() || 0} | ${c.num_documents?.toLocaleString() || 0} | ${c.actual_value ?? c[selectedMapIndicator] ?? '—'} |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'period_gaps',
+            title: `5. Gráfico de Mancuerna (Dumbbell) — Brechas Histórico vs 2021–2025 (${selectedDumbbellInd.toUpperCase()})`,
+            category: 'Evolución Longitudinal',
+            defaultChecked: false,
+            rawData: periodGaps,
+            buildDataText: () => {
+              if (!periodGaps || periodGaps.length === 0) return 'No hay datos de brechas disponibles.';
+              const lines = [
+                `*Dimensión Analizada:* **${selectedDumbbellInd.toUpperCase()}**\n`,
+                '| País | Valor Histórico | Valor Reciente (2021-2025) | Variación / Brecha |',
+                '|---|---|---|---|'
+              ];
+              periodGaps.forEach(g => {
+                const diff = (g.recent_val != null && g.full_val != null) ? (g.recent_val - g.full_val).toFixed(2) : '—';
+                lines.push(`| ${g.country_name || g.country_code} | ${g.full_val ?? '—'} | ${g.recent_val ?? '—'} | ${diff > 0 ? '+' + diff : diff} |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'stacked_bars',
+            title: `6. Barras Apiladas 100% — Composición de Vías OA e Idiomas por País (${stackedMode === 'oa' ? 'Vías OA' : 'Idiomas'})`,
+            category: 'Estructura por País',
+            defaultChecked: false,
+            rawData: stackedData,
+            buildDataText: () => {
+              const list = Array.isArray(stackedData) ? stackedData : (stackedData?.[stackedMode] || []);
+              if (!list || list.length === 0) return 'No hay datos de barras apiladas.';
+              const lines = [
+                `*Modo:* **${stackedMode === 'oa' ? 'Vías de Acceso Abierto' : 'Idiomas de Publicación'}**\n`,
+                '| País | Desglose Porcentual |',
+                '|---|---|'
+              ];
+              list.slice(0, 15).forEach(item => {
+                const parts = Object.keys(item)
+                  .filter(k => k !== 'country_code' && k !== 'country_name')
+                  .map(k => `${k}: ${Number(item[k] || 0).toFixed(1)}%`)
+                  .join(' · ');
+                lines.push(`| ${item.country_name || item.country_code} | ${parts || '—'} |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'stream_graph',
+            title: '7. Stream Graph / Dinámica Histórica de Grandes Áreas Temáticas (1985–2025)',
+            category: 'Dinámica Temática',
+            defaultChecked: false,
+            rawData: streamData,
+            buildDataText: () => {
+              if (!streamData || streamData.length === 0) return 'No hay datos de evolución temática.';
+              const lines = [
+                '| Año | Dominio / Gran Área | Volumen de Artículos | % del Año |',
+                '|---|---|---|---|'
+              ];
+              streamData.slice(-20).forEach(s => {
+                lines.push(`| ${s.year} | ${s.domain_name || s.field_name || s.topic || s.name || 'Área'} | ${s.works_count?.toLocaleString() || s.count?.toLocaleString() || 0} | ${Number(s.share || s.pct || 0).toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'thematic_hierarchy',
+            title: `8. Estructura Temática Jerárquica (${thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap'})`,
+            category: 'Taxonomía Científica',
+            defaultChecked: false,
+            rawData: thematicViewType === 'sunburst' ? sunburstData : treemapData,
+            buildDataText: () => {
+              const data = thematicViewType === 'sunburst' ? sunburstData : treemapData;
+              const nodes = data?.nodes || (Array.isArray(data) ? data : []);
+              if (!nodes || nodes.length === 0) return 'No hay datos de estructura temática.';
+              const lines = [
+                `*Visualización:* **${thematicViewType === 'sunburst' ? 'Sunburst' : 'Treemap'}** | *Indicador:* **${selectedSunburstInd}**\n`,
+                '| Nivel / Nodo | Padre | Valor / Tamaño | Indicador |',
+                '|---|---|---|---|'
+              ];
+              nodes.slice(0, 20).forEach(n => {
+                lines.push(`| ${n.name || n.label || n.id} | ${n.parent || 'Raíz'} | ${n.value?.toLocaleString() || 0} | ${n.color_metric != null ? Number(n.color_metric).toFixed(2) : '—'} |`);
+              });
+              if (nodes.length > 20) {
+                lines.push(`\n_... y ${nodes.length - 20} ramas temáticas más._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'diverging_deviations',
+            title: `9. Gráfico de Barras Divergentes — Desviación de la Media (${divergingInd})`,
+            category: 'Posicionamiento Relativo',
+            defaultChecked: false,
+            rawData: divergingData,
+            buildDataText: () => {
+              if (!divergingData || divergingData.length === 0) return 'No hay datos de desviación disponibles.';
+              const lines = [
+                `*Indicador Base:* **${divergingInd}**\n`,
+                '| País | Valor Real | Línea Base (Media) | Desviación Neta |',
+                '|---|---|---|---|'
+              ];
+              divergingData.forEach(d => {
+                lines.push(`| ${d.country_name || d.country_code} | ${Number(d.actual_value || 0).toFixed(2)} | ${Number(d.baseline || 0).toFixed(2)} | ${Number(d.deviation || 0) > 0 ? '+' : ''}${Number(d.deviation || 0).toFixed(2)} |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'annual_trends',
+            title: `10. Serie Temporal Anual con Ventana Móvil (1970–2026)`,
+            category: 'Series de Tiempo',
+            defaultChecked: false,
+            rawData: annualTrends,
+            buildDataText: () => {
+              if (!annualTrends || annualTrends.length === 0) return 'No hay series temporales disponibles.';
+              const lines = [
+                '| Año | Artículos Publicados | FWCI Ponderado | % OA Diamante | % Idioma Inglés |',
+                '|---|---|---|---|---|'
+              ];
+              annualTrends.slice(-15).forEach(a => {
+                lines.push(`| ${a.year} | ${a.works_count?.toLocaleString() || a.num_documents?.toLocaleString() || 0} | ${Number(a.fwci_avg || 0).toFixed(2)} | ${Number(a.pct_oa_diamond || 0).toFixed(1)}% | ${Number(a.pct_lang_en || 0).toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'umap_countries',
+            title: '11. Espacio UMAP Multidimensional de Países Reciente (umap_countries_recent)',
+            category: 'Variedades Semánticas / UMAP',
+            defaultChecked: false,
+            rawData: umapCountries,
+            buildDataText: () => {
+              if (!umapCountries || umapCountries.length === 0) return 'No hay coordenadas UMAP de países disponibles.';
+              const lines = [
+                '| País | UMAP-1 | UMAP-2 | FWCI | % OA Diamante | % Top 10% | % Inglés |',
+                '|---|---|---|---|---|---|---|'
+              ];
+              umapCountries.forEach(u => {
+                lines.push(`| ${u.country_name || u.country_code} | ${Number(u.umap_x || u.x || 0).toFixed(2)} | ${Number(u.umap_y || u.y || 0).toFixed(2)} | ${Number(u.fwci_avg || 0).toFixed(2)} | ${Number(u.pct_oa_diamond || 0).toFixed(1)}% | ${Number(u.pct_top_10 || 0).toFixed(1)}% | ${Number(u.pct_lang_en || 0).toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'umap_trajectories',
+            title: '12. Trayectorias de Desempeño Latam en UMAP (Global 2000–2025)',
+            category: 'Variedades Semánticas / UMAP',
+            defaultChecked: false,
+            rawData: trajectories,
+            buildDataText: () => {
+              if (!trajectories || Object.keys(trajectories).length === 0) return 'No hay trayectorias disponibles.';
+              const lines = [
+                '| Entidad / País | Años Registrados | Posición Inicial (2000) | Posición Reciente (2025) |',
+                '|---|---|---|---|'
+              ];
+              Object.keys(trajectories).forEach(k => {
+                const ent = trajectories[k];
+                const pts = ent.points || [];
+                const pStart = pts[0];
+                const pEnd = pts[pts.length - 1];
+                lines.push(`| ${ent.name || k} | ${pts.length} años | (${Number(pStart?.x || 0).toFixed(2)}, ${Number(pStart?.y || 0).toFixed(2)}) | (${Number(pEnd?.x || 0).toFixed(2)}, ${Number(pEnd?.y || 0).toFixed(2)}) |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'rankings_table',
+            title: `13. Tabla Comparativa por País (Ranking ${rankingsPeriod === 'full' ? 'Histórico' : '2021–2025'})`,
+            category: 'Benchmarking Institucional',
+            defaultChecked: false,
+            rawData: rankings,
+            buildDataText: () => {
+              if (!rankings || rankings.length === 0) return 'No hay datos de ranking disponibles.';
+              const lines = [
+                '| Pos | País | Revistas | Artículos | FWCI | % Top 10% | % Diamante | % Inglés |',
+                '|---|---|---|---|---|---|---|---|'
+              ];
+              rankings.slice(0, 20).forEach((r, idx) => {
+                lines.push(`| ${idx + 1} | ${r.country_name || r.country_code} | ${r.num_journals?.toLocaleString() || 0} | ${r.num_documents?.toLocaleString() || 0} | ${Number(r.fwci_avg || 0).toFixed(2)} | ${Number(r.pct_top_10 || 0).toFixed(1)}% | ${Number(r.pct_oa_diamond || 0).toFixed(1)}% | ${Number(r.pct_lang_en || 0).toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'scatter_explorer',
+            title: `14. Explorador de Revistas — Scatter Plot Dinámico (${SCATTER_INDICATORS.find(s => s.id === scatterX)?.label} vs ${SCATTER_INDICATORS.find(s => s.id === scatterY)?.label})`,
+            category: 'Correlaciones Multivariadas',
+            defaultChecked: false,
+            rawData: scatterData,
+            buildDataText: () => {
+              if (!scatterData || scatterData.length === 0) return 'No hay datos de scatter disponibles.';
+              const xLabel = SCATTER_INDICATORS.find(s => s.id === scatterX)?.label || scatterX;
+              const yLabel = SCATTER_INDICATORS.find(s => s.id === scatterY)?.label || scatterY;
+              const lines = [
+                `*Eje X:* **${xLabel}** | *Eje Y:* **${yLabel}**\n`,
+                '| Revista | País | Eje X | Eje Y |',
+                '|---|---|---|---|'
+              ];
+              scatterData.slice(0, 20).forEach(s => {
+                lines.push(`| ${s.display_name} | ${s.country_name || s.country_code} | ${s[scatterX] ?? '—'} | ${s[scatterY] ?? '—'} |`);
+              });
+              if (scatterData.length > 20) {
+                lines.push(`\n_... y ${scatterData.length - 20} revistas más en el gráfico de correlación._`);
+              }
+              return lines.join('\n');
+            }
+          }
+        ]}
+      />
     </div>
   );
 }

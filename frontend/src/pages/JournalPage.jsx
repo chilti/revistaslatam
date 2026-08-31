@@ -3,6 +3,9 @@ import api from '../api';
 import { useAppStore } from '../store';
 import KpiCard from '../components/KpiCard';
 import PlotlyChart from '../components/PlotlyChart';
+import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
+import DossierButton from '../components/DossierButton';
+import PageDossierExpander from '../components/PageDossierExpander';
 import { 
   Search, 
   BookOpen, 
@@ -52,7 +55,7 @@ const DEFAULT_INITIAL_JOURNALS = [
 ];
 
 export default function JournalPage() {
-  const { selectedJournalId, selectedJournalName, setSelectedJournal } = useAppStore();
+  const { selectedJournalId, selectedJournalName, setSelectedJournal, addDossierItem } = useAppStore();
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,8 +71,11 @@ export default function JournalPage() {
   // Journal data
   const [details, setDetails] = useState(null);
   const [annualTrends, setAnnualTrends] = useState([]);
+  const [thematicViewType, setThematicViewType] = useState('sunburst'); // 'sunburst' | 'treemap'
   const [sunburstData, setSunburstData] = useState(null);
+  const [treemapData, setTreemapData] = useState(null);
   const [sunburstInd, setSunburstInd] = useState('fwci_avg_recent');
+  const [sunburstUnclassified, setSunburstUnclassified] = useState(true);
   
   // New Visualizations data
   const [radarData, setRadarData] = useState(null);
@@ -109,13 +115,10 @@ export default function JournalPage() {
 
     fetchPromise
       .then(res => {
-        const list = res.data || [];
-        if (list.length > 0) {
-          setCountryJournals(list);
-          const exists = list.some(j => j.id === selectedJournalId);
-          if (!exists) {
-            setSelectedJournal(list[0].id, list[0].display_name);
-          }
+        const jList = res.data || [];
+        setCountryJournals(jList);
+        if (jList.length > 0 && (!selectedJournalId || !jList.some(j => j.id === selectedJournalId))) {
+          setSelectedJournal(jList[0].id, jList[0].display_name);
         }
       })
       .catch(err => {
@@ -126,7 +129,7 @@ export default function JournalPage() {
       });
   }, [filterCountry]);
 
-  // Search autocomplete
+  // Handle Search Input Debounce
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -168,14 +171,14 @@ export default function JournalPage() {
       setCitationsDist(citRes.data || { citations: [], fwci: [] });
       setConnectedTraj(connRes.data || []);
 
-      const jCountry = detRes.data?.profile?.country_code;
-      if (jCountry && jCountry !== filterCountry && filterCountry !== 'ALL') {
-        setFilterCountry(jCountry);
+      // If details has country_code and filterCountry differs, sync
+      if (detRes.data?.country_code && detRes.data.country_code !== filterCountry && filterCountry !== 'ALL') {
+        setFilterCountry(detRes.data.country_code);
       }
     }).catch(console.error).finally(() => setLoading(false));
   }, [selectedJournalId]);
 
-  // Reload articles on filter/sort/limit change
+  // Reload articles on sort/year/limit change
   useEffect(() => {
     if (!selectedJournalId || loading) return;
     const jidParam = encodeURIComponent(selectedJournalId);
@@ -186,14 +189,20 @@ export default function JournalPage() {
       .finally(() => setLoadingArticles(false));
   }, [articleSort, articleYearFilter, articleLimit]);
 
-  // Load sunburst
+  // Load sunburst / treemap
   useEffect(() => {
     if (!selectedJournalId) return;
     const jidParam = encodeURIComponent(selectedJournalId);
-    api.get(`/journals/${jidParam}/sunburst?indicator=${sunburstInd}`)
-      .then(res => setSunburstData(res.data))
-      .catch(console.error);
-  }, [selectedJournalId, sunburstInd]);
+    if (thematicViewType === 'sunburst') {
+      api.get(`/journals/${jidParam}/sunburst?indicator=${sunburstInd}&include_unclassified=${sunburstUnclassified}`)
+        .then(res => setSunburstData(res.data))
+        .catch(console.error);
+    } else {
+      api.get(`/journals/${jidParam}/treemap?indicator=${sunburstInd}&include_unclassified=${sunburstUnclassified}`)
+        .then(res => setTreemapData(res.data))
+        .catch(console.error);
+    }
+  }, [selectedJournalId, thematicViewType, sunburstInd, sunburstUnclassified]);
 
 
   const pData = details?.full_period || {};
@@ -309,7 +318,7 @@ export default function JournalPage() {
   }] : [];
 
   // Sunburst Trace
-  const sunburstTrace = sunburstData && sunburstData.nodes?.length > 0 ? [{
+  const sunburstTrace = (sunburstData && Array.isArray(sunburstData.nodes) && sunburstData.nodes.length > 0) ? [{
     type: 'sunburst',
     ids: sunburstData.nodes.map(n => n.id),
     labels: sunburstData.nodes.map(n => n.label),
@@ -317,6 +326,22 @@ export default function JournalPage() {
     values: sunburstData.nodes.map(n => n.value),
     marker: {
       colors: sunburstData.nodes.map(n => n.color_val),
+      colorscale: 'Viridis',
+      showscale: true
+    },
+    branchvalues: 'total',
+    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+  }] : [];
+
+  // Treemap Trace
+  const treemapTrace = (treemapData && Array.isArray(treemapData.nodes) && treemapData.nodes.length > 0) ? [{
+    type: 'treemap',
+    ids: treemapData.nodes.map(n => n.id),
+    labels: treemapData.nodes.map(n => n.label),
+    parents: treemapData.nodes.map(n => n.parent),
+    values: treemapData.nodes.map(n => n.value),
+    marker: {
+      colors: treemapData.nodes.map(n => n.color_val),
       colorscale: 'Viridis',
       showscale: true
     },
@@ -444,6 +469,16 @@ export default function JournalPage() {
                 Sitio Web <ExternalLink size={12} />
               </a>
             )}
+            <DossierButton
+              item={{
+                key: `journal_profile_${selectedJournalId}`,
+                title: `Revista: ${prof.display_name || selectedJournalName}`,
+                context: `${prof.publisher ? prof.publisher + ' · ' : ''}${prof.country_name || ''} · ISSN-L: ${prof.issn_l || '—'} · ${prof.works_count?.toLocaleString()} artículos · FWCI ${prof.fwci_avg ?? '—'}`,
+                category: 'Perfil Revista',
+                data: [prof]
+              }}
+              label="Guardar Revista"
+            />
           </div>
         </div>
       </div>
@@ -581,6 +616,18 @@ export default function JournalPage() {
         </div>
       </div>
 
+      {/* TRAYECTORIA MULTIDIMENSIONAL UMAP (REVISTA VS PAÍS) */}
+      {trajectory && Object.keys(trajectory).length > 0 && (
+        <UmapTrajectoryViewer
+          title={`📈 Trayectoria Multidimensional UMAP: ${details?.display_name || selectedJournalName || 'Revista'} vs ${details?.country_code || 'País'}`}
+          subtitle="Evolución temporal continua del perfil cienciométrico en el espacio 2D UMAP frente al promedio de su país."
+          trajectories={trajectory}
+          allowTrajectoryFilter={true}
+          showGridSection={true}
+          height={460}
+        />
+      )}
+
       {/* CONNECTED SCATTER PLOT: Trayectoria Volumen vs Impacto */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
@@ -604,25 +651,68 @@ export default function JournalPage() {
         />
       </div>
 
-      {/* Sunburst de la Revista */}
+      {/* Composición Temática: Sunburst & Treemap */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-            🏵️ Composición Temática de la Revista
-          </h3>
-          <select
-            value={sunburstInd}
-            onChange={(e) => setSunburstInd(e.target.value)}
-            style={{ fontWeight: '600' }}
-          >
-            <option value="fwci_avg_recent">FWCI (2021-2025)</option>
-            <option value="avg_percentile_recent">Percentil (2021-2025)</option>
-            <option value="pct_top_10_recent">% Top 10% (2021-2025)</option>
-            <option value="pct_oa_gold_recent">% OA Gold (2021-2025)</option>
-          </select>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              🏵️ Composición Temática de la Revista
+            </h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Especialización disciplinar por Dominio → Campo → Subcampo. Alterna entre la vista radial (Sunburst) y rectangular (Treemap).
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {/* View Switcher: Sunburst vs Treemap */}
+            <div className="segmented-pills">
+              <button
+                className={`segmented-pill-btn ${thematicViewType === 'sunburst' ? 'active' : ''}`}
+                onClick={() => setThematicViewType('sunburst')}
+              >
+                🏵️ Sunburst
+              </button>
+              <button
+                className={`segmented-pill-btn ${thematicViewType === 'treemap' ? 'active' : ''}`}
+                onClick={() => setThematicViewType('treemap')}
+              >
+                🌲 Treemap
+              </button>
+            </div>
+
+            {/* Indicator Selector */}
+            <select
+              value={sunburstInd}
+              onChange={(e) => setSunburstInd(e.target.value)}
+              style={{ fontWeight: '600' }}
+            >
+              <option value="fwci_avg_recent">FWCI (2021-2025)</option>
+              <option value="avg_percentile_recent">Percentil (2021-2025)</option>
+              <option value="pct_top_10_recent">% Top 10% (2021-2025)</option>
+              <option value="pct_oa_gold_recent">% OA Gold (2021-2025)</option>
+              <option value="fwci_avg_full">FWCI (Todo el Periodo)</option>
+              <option value="avg_percentile_full">Percentil (Todo el Periodo)</option>
+              <option value="pct_top_10_full">% Top 10% (Todo el Periodo)</option>
+              <option value="pct_oa_gold_full">% OA Gold (Todo el Periodo)</option>
+            </select>
+
+            {/* Include Unclassified Checkbox */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={sunburstUnclassified}
+                onChange={(e) => setSunburstUnclassified(e.target.checked)}
+              />
+              Sin Clasificación
+            </label>
+          </div>
         </div>
 
-        <PlotlyChart data={sunburstTrace} layout={{ height: 480, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        {thematicViewType === 'sunburst' ? (
+          <PlotlyChart data={sunburstTrace} layout={{ height: 500, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        ) : (
+          <PlotlyChart data={treemapTrace} layout={{ height: 500, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        )}
       </div>
 
       {/* Top Articles Table */}
@@ -699,7 +789,17 @@ export default function JournalPage() {
         </div>
 
         <div className="data-table-container" style={{ maxHeight: '450px' }}>
-          <table className="data-table">
+          <table className="data-table" style={{ tableLayout: 'fixed', width: '100%' }}>
+            <colgroup>
+              <col style={{ width: '38%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '8%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Título</th>
@@ -715,8 +815,18 @@ export default function JournalPage() {
             <tbody>
               {articles.map((art, idx) => (
                 <tr key={idx}>
-                  <td style={{ maxWidth: '340px' }}>
-                    <strong>{art.title || 'Sin título'}</strong>
+                  <td style={{ overflow: 'hidden' }}>
+                    <strong
+                      title={art.title || 'Sin título'}
+                      style={{
+                        display: 'block',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {art.title || 'Sin título'}
+                    </strong>
                   </td>
                   <td>
                     {art.id ? (
@@ -771,6 +881,191 @@ export default function JournalPage() {
         </div>
       </div>
 
+      {/* ── EXPANDER DE DOSSIER DE ESTUDIO Y ENVÍO A CHATGPT (PIE DE PÁGINA) ── */}
+      <PageDossierExpander
+        pageTitle={`Diagnóstico Cienciométrico de Revista: ${details?.display_name || selectedJournalName}`}
+        pageDescription={`Selecciona cualquiera de las gráficas, tablas o indicadores de ${details?.display_name || selectedJournalName} para generar un reporte integral o enviarlo a ChatGPT.`}
+        sections={[
+          {
+            id: 'journal_profile',
+            title: `1. Perfil y Métricas Principales (${details?.display_name || selectedJournalName})`,
+            category: 'KPIs Principales',
+            defaultChecked: true,
+            rawData: details,
+            buildDataText: () => {
+              if (!details) return 'No hay datos de perfil disponibles.';
+              return [
+                `*Revista:* **${details.display_name || selectedJournalName}**\n`,
+                '| Métrica Editorial | Valor Registrado | Estado / Indexación |',
+                '|---|---|---|',
+                `| OpenAlex ID | ${details.id} | Identificador persistente |`,
+                `| ISSN-L | ${details.issn_l || 'No disponible'} | Registro de ISSN |`,
+                `| Editorial / Institución | ${details.publisher || '—'} | Filiación editorial |`,
+                `| País de Edición | ${details.country_name || details.country_code || '—'} | Sede geográfica |`,
+                `| Total Artículos Publicados | ${details.works_count?.toLocaleString() || 0} | Producción acumulada indexada |`,
+                `| Total Citas Recibidas | ${details.cited_by_count?.toLocaleString() || 0} | Impacto acumulado |`,
+                `| FWCI Ponderado Promedio | ${Number(details.fwci_avg || 0).toFixed(2)} | Impacto normalizado por campo (Base=1.0) |`,
+                `| % Acceso Abierto Diamante | ${Number(details.pct_oa_diamond || 0).toFixed(1)}% | Sin cobro por APC |`,
+                `| % Artículos en Idioma Inglés | ${Number(details.pct_lang_en || 0).toFixed(1)}% | Internacionalización lingüística |`,
+                `| Sello DOAJ | ${details.is_in_doaj ? '✅ Indexada con Sello' : '❌ No'} | Calidad de acceso abierto |`,
+                `| Scopus | ${details.is_scopus ? '✅ Indexada' : '❌ No'} | Cobertura en Scopus |`,
+                `| SciELO | ${details.is_in_scielo ? '✅ Indexada' : '❌ No'} | Cobertura en SciELO |`
+              ].join('\n');
+            }
+          },
+          {
+            id: 'journal_annual',
+            title: `2. Evolución Anual de Producción y Citas (${details?.display_name || selectedJournalName})`,
+            category: 'Series de Tiempo',
+            defaultChecked: true,
+            rawData: annualTrends,
+            buildDataText: () => {
+              if (!annualTrends || annualTrends.length === 0) return 'No hay series anuales disponibles.';
+              const lines = [
+                '| Año | Artículos | Citas | FWCI | % OA Diamante | % Inglés |',
+                '|---|---|---|---|---|---|'
+              ];
+              annualTrends.slice(-15).forEach(a => {
+                lines.push(`| ${a.year} | ${a.works_count?.toLocaleString() || a.num_documents?.toLocaleString() || 0} | ${a.cited_by_count?.toLocaleString() || 0} | ${Number(a.fwci_avg || 0).toFixed(2)} | ${Number(a.pct_oa_diamond || 0).toFixed(1)}% | ${Number(a.pct_lang_en || 0).toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'journal_radar',
+            title: '3. Perfil Multidimensional (Radar Chart de Desempeño)',
+            category: 'Perfil Multidimensional',
+            defaultChecked: false,
+            rawData: radarData,
+            buildDataText: () => {
+              if (!radarData || !radarData.dimensions) return 'No hay datos de radar disponibles.';
+              const lines = [
+                '| Dimensión Evaluada | Valor de la Revista | Media de Referencia |',
+                '|---|---|---|'
+              ];
+              (radarData.dimensions || []).forEach(d => {
+                lines.push(`| ${d.label || d.name} | ${Number(d.value || 0).toFixed(2)} | ${Number(d.benchmark || 1.0).toFixed(2)} |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'journal_thematic_hierarchy',
+            title: `4. Estructura Temática de la Revista (${thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap'})`,
+            category: 'Taxonomía Científica',
+            defaultChecked: false,
+            rawData: thematicViewType === 'sunburst' ? sunburstData : treemapData,
+            buildDataText: () => {
+              const data = thematicViewType === 'sunburst' ? sunburstData : treemapData;
+              const nodes = data?.nodes || (Array.isArray(data) ? data : []);
+              if (!nodes || nodes.length === 0) return 'No hay datos de taxonomía temática.';
+              const lines = [
+                `*Visualización:* **${thematicViewType === 'sunburst' ? 'Sunburst' : 'Treemap'}** | *Indicador:* **${sunburstInd}**\n`,
+                '| Área / Tópico | Artículos | Métrica de Color |',
+                '|---|---|---|'
+              ];
+              nodes.slice(0, 20).forEach(n => {
+                lines.push(`| ${n.name || n.label || n.id} | ${n.value?.toLocaleString() || 0} | ${n.color_metric != null ? Number(n.color_metric).toFixed(2) : '—'} |`);
+              });
+              if (nodes.length > 20) {
+                lines.push(`\n_... y ${nodes.length - 20} ramas temáticas más._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'citations_distribution',
+            title: `5. Distribución del Impacto de Artículos (${distPlotType === 'box' ? 'Box Plot' : 'Violin Plot'})`,
+            category: 'Distribuciones de Impacto',
+            defaultChecked: false,
+            rawData: citationsDist,
+            buildDataText: () => {
+              if (!citationsDist || !citationsDist.citations || citationsDist.citations.length === 0) return 'No hay datos de distribución de citas.';
+              const cits = citationsDist.citations;
+              const sorted = [...cits].sort((a, b) => a - b);
+              const min = sorted[0];
+              const max = sorted[sorted.length - 1];
+              const med = sorted[Math.floor(sorted.length / 2)];
+              const p75 = sorted[Math.floor(sorted.length * 0.75)];
+              const p90 = sorted[Math.floor(sorted.length * 0.90)];
+              return [
+                `*Distribución de Citas por Artículo (${cits.length} artículos analizados):*\n`,
+                '| Estadístico | Citas por Artículo |',
+                '|---|---|',
+                `| Mínimo | ${min} citas |`,
+                `| Mediana (Q2) | ${med} citas |`,
+                `| Percentil 75 (Q3) | ${p75} citas |`,
+                `| Percentil 90 | ${p90} citas |`,
+                `| Máximo de Citas en un Artículo | ${max} citas |`
+              ].join('\n');
+            }
+          },
+          {
+            id: 'umap_journal_trajectory',
+            title: `6. Trayectoria Multidimensional UMAP (${details?.display_name || selectedJournalName})`,
+            category: 'Variedades Semánticas / UMAP',
+            defaultChecked: false,
+            rawData: trajectory,
+            buildDataText: () => {
+              if (!trajectory || Object.keys(trajectory).length === 0) return 'No hay datos de trayectoria UMAP.';
+              const lines = [
+                '| Entidad / Referencia | Puntos Registrados | Coordenadas Inicio | Coordenadas Recientes |',
+                '|---|---|---|---|'
+              ];
+              Object.keys(trajectory).forEach(k => {
+                const ent = trajectory[k];
+                const pts = ent?.points || [];
+                const pStart = pts[0];
+                const pEnd = pts[pts.length - 1];
+                lines.push(`| ${ent.name || k} | ${pts.length} años | (${Number(pStart?.x || 0).toFixed(2)}, ${Number(pStart?.y || 0).toFixed(2)}) | (${Number(pEnd?.x || 0).toFixed(2)}, ${Number(pEnd?.y || 0).toFixed(2)}) |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'semantic_landscape',
+            title: `7. Paisaje Semántico de Artículos (Navegador 2D con ${landscapeData.articles?.length || 0} artículos)`,
+            category: 'Semántica / Procesamiento de Lenguaje Natural',
+            defaultChecked: false,
+            rawData: landscapeData,
+            buildDataText: () => {
+              if (!landscapeData || !landscapeData.articles || landscapeData.articles.length === 0) return 'No hay artículos en el mapa semántico.';
+              const lines = [
+                `*Dispersión Semántica de la Revista:* **${Number(landscapeData.dispersion || 0).toFixed(3)}**\n`,
+                '| Título del Artículo | Año | Coordenadas Semánticas (X, Y) | Citas |',
+                '|---|---|---|---|'
+              ];
+              landscapeData.articles.slice(0, 15).forEach(a => {
+                const titleClean = (a.title || 'Sin título').replace(/\|/g, '-');
+                lines.push(`| ${titleClean.slice(0, 65)}... | ${a.publication_year || a.year || '—'} | (${Number(a.x || 0).toFixed(2)}, ${Number(a.y || 0).toFixed(2)}) | ${a.cited_by_count || 0} |`);
+              });
+              if (landscapeData.articles.length > 15) {
+                lines.push(`\n_... y ${landscapeData.articles.length - 15} artículos más en la proyección semántica._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'top_articles',
+            title: `8. Listado de Artículos Más Citados de la Revista (Top ${Math.min(articles.length, 15)})`,
+            category: 'Artículos Destacados',
+            defaultChecked: false,
+            rawData: articles,
+            buildDataText: () => {
+              if (!articles || articles.length === 0) return 'No hay artículos registrados.';
+              const lines = [
+                '| Título del Artículo | Año | Citas | FWCI | Percentil | Acceso |',
+                '|---|---|---|---|---|---|'
+              ];
+              articles.slice(0, 15).forEach(art => {
+                const titleClean = (art.title || 'Sin título').replace(/\|/g, '-');
+                lines.push(`| ${titleClean.slice(0, 70)}... | ${art.publication_year || '—'} | ${art.cited_by_count?.toLocaleString() || 0} | ${Number(art.fwci || 0).toFixed(2)} | ${Number(art.percentile || 0).toFixed(1)} | ${art.oa_status || 'closed'} |`);
+              });
+              return lines.join('\n');
+            }
+          }
+        ]}
+      />
     </div>
   );
 }

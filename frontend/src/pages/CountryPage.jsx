@@ -3,6 +3,9 @@ import api from '../api';
 import { useAppStore } from '../store';
 import KpiCard from '../components/KpiCard';
 import PlotlyChart from '../components/PlotlyChart';
+import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
+import DossierButton from '../components/DossierButton';
+import PageDossierExpander from '../components/PageDossierExpander';
 import { 
   BookOpen, 
   FileText, 
@@ -27,11 +30,14 @@ export default function CountryPage() {
   const [summary, setSummary] = useState(null);
   const [annualTrends, setAnnualTrends] = useState([]);
   const [annualWindow, setAnnualWindow] = useState(0);
+  const [thematicViewType, setThematicViewType] = useState('sunburst'); // 'sunburst' | 'treemap'
   const [countrySunburst, setCountrySunburst] = useState(null);
+  const [countryTreemap, setCountryTreemap] = useState(null);
   const [sunburstIndicator, setSunburstIndicator] = useState('fwci_avg_recent');
   const [sunburstUnclassified, setSunburstUnclassified] = useState(true);
   const [journals, setJournals] = useState([]);
   const [trajectory, setTrajectory] = useState({});
+  const [umapJournals, setUmapJournals] = useState([]);
   const [landscapeArticles, setLandscapeArticles] = useState([]);
 
   // Specialization Matrix (RCA)
@@ -80,27 +86,35 @@ export default function CountryPage() {
       api.get(`/countries/${selectedCountry}/annual?window=${annualWindow}&min_year=1970&max_year=2026`),
       api.get(`/countries/${selectedCountry}/journals`),
       api.get(`/countries/${selectedCountry}/trajectory`),
+      api.get(`/countries/${selectedCountry}/umap-journals`),
       api.get(`/countries/${selectedCountry}/landscape?limit=2500`),
       api.get(`/countries/${selectedCountry}/slope-data`),
       api.get(`/countries/${selectedCountry}/journals-distribution`)
-    ]).then(([sumRes, annRes, jRes, trajRes, landRes, slopeRes, distRes]) => {
+    ]).then(([sumRes, annRes, jRes, trajRes, umapJRes, landRes, slopeRes, distRes]) => {
       setSummary(sumRes.data);
       setAnnualTrends(annRes.data);
       setJournals(jRes.data);
       setTrajectory(trajRes.data);
+      setUmapJournals(umapJRes.data);
       setLandscapeArticles(landRes.data);
       setSlopeData(slopeRes.data);
       setJournalsDist(distRes.data);
     }).catch(console.error).finally(() => setLoading(false));
   }, [selectedCountry]);
 
-  // Load sunburst
+  // Load sunburst / treemap
   useEffect(() => {
     if (!selectedCountry) return;
-    api.get(`/countries/${selectedCountry}/sunburst?indicator=${sunburstIndicator}&include_unclassified=${sunburstUnclassified}`)
-      .then(res => setCountrySunburst(res.data))
-      .catch(console.error);
-  }, [selectedCountry, sunburstIndicator, sunburstUnclassified]);
+    if (thematicViewType === 'sunburst') {
+      api.get(`/countries/${selectedCountry}/sunburst?indicator=${sunburstIndicator}&include_unclassified=${sunburstUnclassified}`)
+        .then(res => setCountrySunburst(res.data))
+        .catch(console.error);
+    } else {
+      api.get(`/countries/${selectedCountry}/treemap?indicator=${sunburstIndicator}&include_unclassified=${sunburstUnclassified}`)
+        .then(res => setCountryTreemap(res.data))
+        .catch(console.error);
+    }
+  }, [selectedCountry, thematicViewType, sunburstIndicator, sunburstUnclassified]);
 
   // Reload annual on window change
   useEffect(() => {
@@ -115,7 +129,7 @@ export default function CountryPage() {
   const recData = summary?.recent_period || {};
 
   // Sunburst Trace
-  const sunburstTrace = countrySunburst && countrySunburst.nodes.length > 0 ? [{
+  const sunburstTrace = (countrySunburst && Array.isArray(countrySunburst.nodes) && countrySunburst.nodes.length > 0) ? [{
     type: 'sunburst',
     ids: countrySunburst.nodes.map(n => n.id),
     labels: countrySunburst.nodes.map(n => n.label),
@@ -123,6 +137,22 @@ export default function CountryPage() {
     values: countrySunburst.nodes.map(n => n.value),
     marker: {
       colors: countrySunburst.nodes.map(n => n.color_val),
+      colorscale: 'Viridis',
+      showscale: true
+    },
+    branchvalues: 'total',
+    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+  }] : [];
+
+  // Treemap Trace
+  const treemapTrace = (countryTreemap && Array.isArray(countryTreemap.nodes) && countryTreemap.nodes.length > 0) ? [{
+    type: 'treemap',
+    ids: countryTreemap.nodes.map(n => n.id),
+    labels: countryTreemap.nodes.map(n => n.label),
+    parents: countryTreemap.nodes.map(n => n.parent),
+    values: countryTreemap.nodes.map(n => n.value),
+    marker: {
+      colors: countryTreemap.nodes.map(n => n.color_val),
       colorscale: 'Viridis',
       showscale: true
     },
@@ -251,6 +281,16 @@ export default function CountryPage() {
               </option>
             ))}
           </select>
+          <DossierButton
+            item={{
+              key: `country_summary_${selectedCountry}`,
+              title: `Perfil: ${summary?.country_name || selectedCountry}`,
+              context: `${summary?.num_journals?.toLocaleString()} revistas · ${summary?.total_works?.toLocaleString()} artículos · FWCI ${pData?.fwci_avg ?? '—'} · OA Diamante ${pData?.pct_oa_diamond ?? '—'}%`,
+              category: 'Perfil País',
+              data: pData ? [pData] : []
+            }}
+            label="Guardar Perfil"
+          />
         </div>
       </div>
 
@@ -292,11 +332,22 @@ export default function CountryPage() {
 
       {/* DUAL-AXIS CHART: Producción Anual vs FWCI */}
       <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-          <TrendingUp size={18} color="var(--accent-primary)" />
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-            Gráfico de Eje Dual (Dual-Axis Chart) — Producción Anual vs FWCI Ponderado
-          </h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <TrendingUp size={18} color="var(--accent-primary)" />
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              Gráfico de Eje Dual (Dual-Axis Chart) — Producción Anual vs FWCI Ponderado
+            </h3>
+          </div>
+          <DossierButton
+            item={{
+              key: `country_annual_${selectedCountry}`,
+              title: `Tendencia Anual: ${summary?.country_name || selectedCountry}`,
+              context: 'Evolución anual de producción y FWCI ponderado.',
+              category: 'Tendencias Anuales',
+              data: annualTrends.slice(0, 30)
+            }}
+          />
         </div>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
           Correlación temporal entre el volumen de artículos publicados (barras azules) y el impacto de citación normalizado (línea verde).
@@ -320,6 +371,31 @@ export default function CountryPage() {
           }}
         />
       </div>
+
+      {/* 1. TRAYECTORIA DE DESEMPEÑO (UMAP PAÍS VS LATAM) */}
+      {trajectory && Object.keys(trajectory).length > 0 && (
+        <UmapTrajectoryViewer
+          title={`📈 Trayectoria de Desempeño: ${summary?.country_name || selectedCountry} vs Iberoamérica (2000–2025)`}
+          subtitle="Evolución multidimensional del país proyectada en el espacio UMAP con la referencia regional continua y mapas de calor gaussianos por indicador."
+          trajectories={trajectory}
+          allowTrajectoryFilter={true}
+          showGridSection={true}
+          height={460}
+        />
+      )}
+
+      {/* 2. MAPA UMAP DE SIMILITUD ENTRE REVISTAS DEL PAÍS */}
+      {umapJournals && umapJournals.length > 0 && (
+        <UmapTrajectoryViewer
+          title={`🌌 Mapa UMAP de Similitud de Revistas (${summary?.country_name || selectedCountry})`}
+          subtitle={`Distribución topológica 2D de las ${umapJournals.length} revistas científicas del país según sus indicadores de desempeño (FWCI, % Diamante, % Top 10%, % Inglés).`}
+          points={umapJournals}
+          allowTrajectoryFilter={false}
+          showGridSection={true}
+          height={460}
+          defaultShowLabels={false}
+        />
+      )}
 
       {/* HEATMAP DE ESPECIALIZACIÓN TEMÁTICA (RCA) */}
       <div className="card">
@@ -424,7 +500,7 @@ export default function CountryPage() {
         </div>
       </div>
 
-      {/* Sunburst Section */}
+      {/* Sunburst & Treemap Section */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
@@ -432,11 +508,28 @@ export default function CountryPage() {
               🏵️ Jerarquía Temática Nacional: Dominio → Campo → Subcampo
             </h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Especialización temática y masa crítica de artículos del país.
+              Especialización temática y masa crítica de artículos del país. Alterna entre la vista radial (Sunburst) y la vista rectangular compacta (Treemap).
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {/* View Switcher: Sunburst vs Treemap */}
+            <div className="segmented-pills">
+              <button
+                className={`segmented-pill-btn ${thematicViewType === 'sunburst' ? 'active' : ''}`}
+                onClick={() => setThematicViewType('sunburst')}
+              >
+                🏵️ Sunburst
+              </button>
+              <button
+                className={`segmented-pill-btn ${thematicViewType === 'treemap' ? 'active' : ''}`}
+                onClick={() => setThematicViewType('treemap')}
+              >
+                🌲 Treemap
+              </button>
+            </div>
+
+            {/* Indicator Picker */}
             <select
               value={sunburstIndicator}
               onChange={(e) => setSunburstIndicator(e.target.value)}
@@ -446,11 +539,29 @@ export default function CountryPage() {
               <option value="avg_percentile_recent">Percentil (2021-2025)</option>
               <option value="pct_top_10_recent">% Top 10% (2021-2025)</option>
               <option value="pct_oa_gold_recent">% OA Gold (2021-2025)</option>
+              <option value="fwci_avg_full">FWCI (Todo el Periodo)</option>
+              <option value="avg_percentile_full">Percentil (Todo el Periodo)</option>
+              <option value="pct_top_10_full">% Top 10% (Todo el Periodo)</option>
+              <option value="pct_oa_gold_full">% OA Gold (Todo el Periodo)</option>
             </select>
+
+            {/* Include Unclassified Checkbox */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={sunburstUnclassified}
+                onChange={(e) => setSunburstUnclassified(e.target.checked)}
+              />
+              Sin Clasificación
+            </label>
           </div>
         </div>
 
-        <PlotlyChart data={sunburstTrace} layout={{ height: 520, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        {thematicViewType === 'sunburst' ? (
+          <PlotlyChart data={sunburstTrace} layout={{ height: 540, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        ) : (
+          <PlotlyChart data={treemapTrace} layout={{ height: 540, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        )}
       </div>
 
       {/* Journals Catalog Table */}
@@ -544,6 +655,204 @@ export default function CountryPage() {
           </table>
         </div>
       </div>
+
+      {/* ── EXPANDER DE DOSSIER DE ESTUDIO Y ENVÍO A CHATGPT (PIE DE PÁGINA) ── */}
+      <PageDossierExpander
+        pageTitle={`Perfil y Diagnóstico Cienciométrico: ${summary?.country_name || selectedCountry}`}
+        pageDescription={`Selecciona cualquiera de las gráficas, tablas o indicadores de ${summary?.country_name || selectedCountry} para generar un reporte integral o consultar a ChatGPT.`}
+        sections={[
+          {
+            id: 'country_kpis',
+            title: `1. Indicadores Clave y Perfil Macro (${summary?.country_name || selectedCountry})`,
+            category: 'KPIs Principales',
+            defaultChecked: true,
+            rawData: { summary, pData },
+            buildDataText: () => {
+              if (!summary && !pData) return 'No hay datos de perfil disponibles.';
+              return [
+                `*País:* **${summary?.country_name || selectedCountry} (${selectedCountry})**\n`,
+                '| Métrica Cienciométrica | Valor Actual | Contexto Nacional |',
+                '|---|---|---|',
+                `| Revistas Activas en OpenAlex | ${summary?.num_journals?.toLocaleString() || 0} | Publicaciones con sede en el país |`,
+                `| Producción Histórica de Artículos | ${summary?.total_works?.toLocaleString() || 0} | Volumen acumulado indexado |`,
+                `| FWCI Ponderado Promedio | ${pData?.fwci_avg ?? '—'} | Citas ponderadas por campo (Base mundial=1.0) |`,
+                `| % Acceso Abierto Diamante | ${pData?.pct_oa_diamond || 0}% | Revistas sin APC para autores |`,
+                `| % Revistas con Sello DOAJ | ${pData?.pct_doaj || 0}% | Estándares de calidad y visibilidad abierta |`,
+                `| % Artículos en Top 10% de Citas | ${pData?.pct_top_10 || 0}% | Segmento de alto impacto |`,
+                `| % Artículos en Idioma Inglés | ${pData?.pct_lang_en || 0}% | Tasa de adopción de lengua franca científica |`
+              ].join('\n');
+            }
+          },
+          {
+            id: 'country_annual',
+            title: `2. Gráfico de Eje Dual — Producción Anual vs FWCI Ponderado (1970–2026)`,
+            category: 'Series de Tiempo',
+            defaultChecked: true,
+            rawData: annualTrends,
+            buildDataText: () => {
+              if (!annualTrends || annualTrends.length === 0) return 'No hay series temporales disponibles.';
+              const lines = [
+                '| Año | Artículos Publicados | FWCI Ponderado | % OA Diamante | % Idioma Inglés |',
+                '|---|---|---|---|---|'
+              ];
+              annualTrends.slice(-15).forEach(a => {
+                lines.push(`| ${a.year} | ${a.works_count?.toLocaleString() || a.num_documents?.toLocaleString() || 0} | ${Number(a.fwci_avg || 0).toFixed(2)} | ${Number(a.pct_oa_diamond || 0).toFixed(1)}% | ${Number(a.pct_lang_en || 0).toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'umap_trajectory_country',
+            title: `3. Trayectoria de Desempeño UMAP (${summary?.country_name || selectedCountry} vs Iberoamérica)`,
+            category: 'Variedades Semánticas / UMAP',
+            defaultChecked: false,
+            rawData: trajData,
+            buildDataText: () => {
+              if (!trajData || Object.keys(trajData).length === 0) return 'No hay datos de trayectoria disponibles.';
+              const lines = [
+                '| Entidad | Puntos Registrados | Coordenadas Inicio (2000) | Coordenadas Recientes (2025) |',
+                '|---|---|---|---|'
+              ];
+              Object.keys(trajData).forEach(k => {
+                const ent = trajData[k];
+                const pts = ent?.points || [];
+                const pStart = pts[0];
+                const pEnd = pts[pts.length - 1];
+                lines.push(`| ${ent.name || k} | ${pts.length} años | (${Number(pStart?.x || 0).toFixed(2)}, ${Number(pStart?.y || 0).toFixed(2)}) | (${Number(pEnd?.x || 0).toFixed(2)}, ${Number(pEnd?.y || 0).toFixed(2)}) |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'umap_country_journals',
+            title: `4. Mapa UMAP de Similitud de Revistas (${umapJournals.length} revistas)`,
+            category: 'Variedades Semánticas / UMAP',
+            defaultChecked: false,
+            rawData: umapJournals,
+            buildDataText: () => {
+              if (!umapJournals || umapJournals.length === 0) return 'No hay datos de distribución UMAP disponibles.';
+              const lines = [
+                '| Revista | UMAP-1 | UMAP-2 | FWCI | % OA Diamante | % Top 10% | Artículos |',
+                '|---|---|---|---|---|---|---|'
+              ];
+              umapJournals.slice(0, 25).forEach(u => {
+                lines.push(`| ${u.display_name || u.name} | ${Number(u.umap_x || u.x || 0).toFixed(2)} | ${Number(u.umap_y || u.y || 0).toFixed(2)} | ${Number(u.fwci_avg || 0).toFixed(2)} | ${Number(u.pct_oa_diamond || 0).toFixed(1)}% | ${Number(u.pct_top_10 || 0).toFixed(1)}% | ${u.works_count?.toLocaleString() || 0} |`);
+              });
+              if (umapJournals.length > 25) {
+                lines.push(`\n_... y ${umapJournals.length - 25} revistas más en el espacio UMAP._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'thematic_specialization_rca',
+            title: '5. Heatmap de Especialización Temática (Ventajas Comparativas Reveladas - RCA)',
+            category: 'Especialización Temática',
+            defaultChecked: false,
+            rawData: landscapeData,
+            buildDataText: () => {
+              if (!landscapeData || landscapeData.length === 0) return 'No hay datos de especialización temática.';
+              const lines = [
+                '| Área Temática / Campo | Especialización RCA (>1.0 = Ventaja) | Artículos | FWCI |',
+                '|---|---|---|---|'
+              ];
+              landscapeData.slice(0, 15).forEach(l => {
+                const rcaVal = l.rca ?? l.value ?? 0;
+                const advantage = rcaVal >= 1.0 ? '🌟 Ventaja Especializada' : 'Normal';
+                lines.push(`| ${l.domain || l.field || l.name || 'Área'} | ${Number(rcaVal).toFixed(2)} (${advantage}) | ${l.works_count?.toLocaleString() || l.count || 0} | ${l.fwci_avg != null ? Number(l.fwci_avg).toFixed(2) : '—'} |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'slope_rankings',
+            title: '6. Gráfico de Pendiente (Slope Chart) — Cambios de Posición en Rankings',
+            category: 'Evolución de Posicionamiento',
+            defaultChecked: false,
+            rawData: slopeData,
+            buildDataText: () => {
+              if (!slopeData || slopeData.length === 0) return 'No hay datos de cambios de ranking.';
+              const lines = [
+                '| Indicador | Posición Histórica | Posición Reciente (2021–2025) | Variación de Ranking |',
+                '|---|---|---|---|'
+              ];
+              slopeData.forEach(s => {
+                const rankDiff = (s.rank_full != null && s.rank_recent != null) ? s.rank_full - s.rank_recent : 0;
+                const direction = rankDiff > 0 ? `▲ Ganó ${rankDiff} puestos` : (rankDiff < 0 ? `▼ Perdió ${Math.abs(rankDiff)} puestos` : '= Mantiene puesto');
+                lines.push(`| ${s.indicator || s.label} | #${s.rank_full ?? '—'} (${s.val_full ?? '—'}) | #${s.rank_recent ?? '—'} (${s.val_recent ?? '—'}) | ${direction} |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'country_thematic_hierarchy',
+            title: `7. Estructura Temática Jerárquica del País (${thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap'})`,
+            category: 'Taxonomía Científica',
+            defaultChecked: false,
+            rawData: thematicViewType === 'sunburst' ? countrySunburst : countryTreemap,
+            buildDataText: () => {
+              const data = thematicViewType === 'sunburst' ? countrySunburst : countryTreemap;
+              const nodes = data?.nodes || (Array.isArray(data) ? data : []);
+              if (!nodes || nodes.length === 0) return 'No hay datos de taxonomía para este país.';
+              const lines = [
+                `*Visualización:* **${thematicViewType === 'sunburst' ? 'Sunburst' : 'Treemap'}** | *Indicador:* **${sunburstIndicator}**\n`,
+                '| Rama / Área Temática | Padre | Artículos / Peso | Métrica |',
+                '|---|---|---|---|'
+              ];
+              nodes.slice(0, 20).forEach(n => {
+                lines.push(`| ${n.name || n.label || n.id} | ${n.parent || 'Raíz'} | ${n.value?.toLocaleString() || 0} | ${n.color_metric != null ? Number(n.color_metric).toFixed(2) : '—'} |`);
+              });
+              if (nodes.length > 20) {
+                lines.push(`\n_... y ${nodes.length - 20} ramas temáticas más._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'journals_distribution',
+            title: `8. Distribución de Revistas por Desempeño (Beeswarm / Jitter)`,
+            category: 'Distribuciones',
+            defaultChecked: false,
+            rawData: journalsDist,
+            buildDataText: () => {
+              if (!journalsDist || journalsDist.length === 0) return 'No hay datos de distribución de revistas.';
+              const lines = [
+                `*Métrica de Distribución:* **${beeswarmMetric}**\n`,
+                '| Revista | Valor Registrado | Artículos Publicados |',
+                '|---|---|---|'
+              ];
+              journalsDist.slice(0, 20).forEach(j => {
+                lines.push(`| ${j.display_name} | ${j[beeswarmMetric] ?? '—'} | ${j.works_count?.toLocaleString() || 0} |`);
+              });
+              if (journalsDist.length > 20) {
+                lines.push(`\n_... y ${journalsDist.length - 20} revistas más en la distribución._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'journals_catalog',
+            title: `9. Catálogo Completo de Revistas (${journals.length} revistas)`,
+            category: 'Catálogo de Publicaciones',
+            defaultChecked: false,
+            rawData: journals,
+            buildDataText: () => {
+              if (!journals || journals.length === 0) return 'No hay catálogo de revistas disponible.';
+              const lines = [
+                '| Revista | ISSN-L | Editorial / Institución | Artículos | FWCI | % Diamante | DOAJ |',
+                '|---|---|---|---|---|---|---|'
+              ];
+              journals.slice(0, 25).forEach(j => {
+                lines.push(`| ${j.display_name} | ${j.issn_l || '—'} | ${j.publisher || '—'} | ${j.works_count?.toLocaleString() || 0} | ${Number(j.fwci_avg || 0).toFixed(2)} | ${Number(j.pct_oa_diamond || 0).toFixed(1)}% | ${j.is_in_doaj ? 'Sí' : 'No'} |`);
+              });
+              if (journals.length > 25) {
+                lines.push(`\n_... y ${journals.length - 25} revistas adicionales en el catálogo nacional._`);
+              }
+              return lines.join('\n');
+            }
+          }
+        ]}
+      />
     </div>
   );
 }

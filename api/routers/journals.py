@@ -163,6 +163,71 @@ def get_journal_sunburst(
         
     return {"nodes": nodes, "indicator": indicator}
 
+@router.get("/{journal_id:path}/treemap")
+def get_journal_treemap(
+    journal_id: str,
+    indicator: str = Query("fwci_avg_recent"),
+    include_unclassified: bool = Query(False)
+):
+    """Returns nested Treemap format data for Domain -> Field -> Subfield for a journal."""
+    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    sunburst_file = CACHE_DIR / 'sunburst_metrics_journal.parquet'
+    if not sunburst_file.exists():
+        return {"nodes": []}
+        
+    try:
+        df = pd.read_parquet(sunburst_file, filters=[('journal_id', '==', jid)])
+    except Exception:
+        df = pd.DataFrame()
+        
+    if df.empty:
+        return {"nodes": []}
+        
+    if not include_unclassified:
+        df = df[(df['domain'] != 'Sin Clasificación') & (df['domain'] != 'Unknown')]
+        
+    size_col = 'count_recent' if '_recent' in indicator else 'count_full'
+    df = df[df[size_col] > 0].copy()
+    
+    root_id = "JOURNAL_ROOT"
+    
+    nodes = []
+    nodes.append({
+        "id": root_id,
+        "label": "Revista",
+        "parent": "",
+        "value": float(df[df['level'] == 'domain'][size_col].sum()),
+        "color_val": 1.0,
+        "level": "root"
+    })
+    
+    for _, row in df.iterrows():
+        lvl = row['level']
+        if lvl == 'domain':
+            curr_id = row['domain']
+            parent = root_id
+        elif lvl == 'field':
+            curr_id = f"{row['domain']}||{row['field']}"
+            parent = row['domain']
+        elif lvl == 'subfield':
+            curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
+            parent = f"{row['domain']}||{row['field']}"
+        else:
+            curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}||{row['topic']}"
+            parent = f"{row['domain']}||{row['field']}||{row['subfield']}"
+            
+        nodes.append({
+            "id": curr_id,
+            "label": row[lvl],
+            "parent": parent,
+            "value": float(row[size_col]),
+            "color_val": float(row[indicator]) if pd.notna(row.get(indicator)) else None,
+            "level": lvl
+        })
+        
+    return {"nodes": nodes, "indicator": indicator}
+
+
 @router.get("/{journal_id:path}/articles")
 def get_journal_articles(
     journal_id: str,
@@ -226,7 +291,7 @@ def get_journal_landscape(journal_id: str):
 
 @router.get("/{journal_id:path}/trajectory")
 def get_journal_trajectory(journal_id: str):
-    """Returns UMAP trajectory for the journal vs its country."""
+    """Returns UMAP trajectory for the journal vs its country enriched with performance metrics."""
     jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
     
     # Get country code
@@ -240,13 +305,36 @@ def get_journal_trajectory(journal_id: str):
     df = pd.read_parquet(traj_file)
     df = df[(df['year'] >= 2000) & (df['year'] <= 2025) & (df['id'].isin([jid, c_code]))]
     
+    # Enrich with metrics
+    j_annual_file = CACHE_DIR / 'metrics_journal_annual.parquet'
+    c_annual_file = CACHE_DIR / 'metrics_country_annual.parquet'
+    
+    all_metrics = []
+    if j_annual_file.exists():
+        j_df = pd.read_parquet(j_annual_file)
+        j_sub = j_df[j_df['journal_id'] == jid].copy()
+        j_sub['id'] = jid
+        all_metrics.append(j_sub)
+    if c_annual_file.exists() and c_code:
+        c_df = pd.read_parquet(c_annual_file)
+        c_sub = c_df[c_df['country_code'] == c_code].copy()
+        c_sub['id'] = c_code
+        all_metrics.append(c_sub)
+        
+    if all_metrics:
+        metrics_df = pd.concat(all_metrics, ignore_index=True)
+        metric_cols = [c for c in metrics_df.columns if c not in ['name', 'type', 'journal_id', 'country_code']]
+        df = df.merge(metrics_df[metric_cols], on=['id', 'year'], how='left')
+        
+    cols_to_keep = [c for c in ['year', 'x', 'y', 'fwci_avg', 'pct_oa_diamond', 'pct_top_10', 'pct_top_1', 'pct_lang_en', 'num_documents', 'avg_percentile', 'pct_oa_gold', 'pct_authors_domestic'] if c in df.columns]
+    
     result = {}
     for entity_id in df['id'].unique():
         sub = df[df['id'] == entity_id].sort_values('year')
         result[str(entity_id)] = {
             "name": f"País: {c_code}" if entity_id == c_code else "Revista",
             "is_country": entity_id == c_code,
-            "points": sanitize_records(sub[['year', 'x', 'y']])
+            "points": sanitize_records(sub[cols_to_keep])
         }
     return result
 

@@ -45,10 +45,6 @@ export default function Navbar() {
             Inteligencia Científica y Cartografía Topológica
           </span>
         </div>
-        <div className="badge success" style={{ marginLeft: '12px', gap: '4px' }}>
-          <Database size={12} />
-          <span>OpenAlex 2025 + DuckDB OLAP</span>
-        </div>
       </div>
 
       {/* Actions / Theme switcher / Dossier button */}
