@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
 import KpiCard from '../components/KpiCard';
@@ -16,11 +16,12 @@ import {
   Share2,
   Calendar,
   Globe,
-  ListFilter
+  ListFilter,
+  Loader2
 } from 'lucide-react';
 
 export default function JournalPage() {
-  const { selectedJournalId, selectedJournalName, setSelectedJournal } = useAppStore();
+  const { selectedJournalId, selectedJournalName, setSelectedJournal, selectedCountry } = useAppStore();
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,7 +30,7 @@ export default function JournalPage() {
   
   // Country & Journal Combo state
   const [countriesList, setCountriesList] = useState([]);
-  const [filterCountry, setFilterCountry] = useState('MX');
+  const [filterCountry, setFilterCountry] = useState(selectedCountry || 'MX');
   const [countryJournals, setCountryJournals] = useState([]);
   const [loadingJournals, setLoadingJournals] = useState(false);
   
@@ -50,26 +51,42 @@ export default function JournalPage() {
   // Load countries catalog
   useEffect(() => {
     api.get('/countries')
-      .then(res => setCountriesList(res.data))
+      .then(res => {
+        if (res.data && Array.isArray(res.data)) {
+          setCountriesList(res.data);
+        }
+      })
       .catch(console.error);
   }, []);
 
-  // Load journals for the selected country combo
+  // Fetch journals whenever filterCountry changes
   useEffect(() => {
-    if (!filterCountry) return;
+    const code = filterCountry || 'MX';
     setLoadingJournals(true);
     
-    if (filterCountry === 'ALL') {
-      api.get('/journals/search?limit=300')
-        .then(res => setCountryJournals(res.data))
-        .catch(console.error)
-        .finally(() => setLoadingJournals(false));
-    } else {
-      api.get(`/countries/${filterCountry}/journals`)
-        .then(res => setCountryJournals(res.data))
-        .catch(console.error)
-        .finally(() => setLoadingJournals(false));
-    }
+    const fetchPromise = code === 'ALL'
+      ? api.get('/journals/search?limit=300')
+      : api.get(`/countries/${code}/journals`);
+
+    fetchPromise
+      .then(res => {
+        const list = res.data || [];
+        setCountryJournals(list);
+
+        // If current selected journal is not in this country's list, auto-select the top journal
+        if (list.length > 0) {
+          const exists = list.some(j => j.id === selectedJournalId);
+          if (!exists) {
+            setSelectedJournal(list[0].id, list[0].display_name);
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching country journals:', err);
+      })
+      .finally(() => {
+        setLoadingJournals(false);
+      });
   }, [filterCountry]);
 
   // Search autocomplete
@@ -81,7 +98,7 @@ export default function JournalPage() {
     const timer = setTimeout(() => {
       setIsSearching(true);
       api.get(`/journals/search?q=${encodeURIComponent(searchQuery)}&limit=10`)
-        .then(res => setSearchResults(res.data))
+        .then(res => setSearchResults(res.data || []))
         .catch(console.error)
         .finally(() => setIsSearching(false));
     }, 250);
@@ -103,12 +120,12 @@ export default function JournalPage() {
       api.get(`/journals/${jidParam}/trajectory`)
     ]).then(([detRes, annRes, artRes, landRes, trajRes]) => {
       setDetails(detRes.data);
-      setAnnualTrends(annRes.data);
-      setArticles(artRes.data);
-      setLandscapeData(landRes.data);
-      setTrajectory(trajRes.data);
+      setAnnualTrends(annRes.data || []);
+      setArticles(artRes.data || []);
+      setLandscapeData(landRes.data || { articles: [], dispersion: 0 });
+      setTrajectory(trajRes.data || {});
 
-      // Auto-sync country filter if available
+      // Synchronize country filter with the journal's country if different
       const jCountry = detRes.data?.profile?.country_code;
       if (jCountry && jCountry !== filterCountry && filterCountry !== 'ALL') {
         setFilterCountry(jCountry);
@@ -289,17 +306,26 @@ export default function JournalPage() {
             </label>
             <select
               value={selectedJournalId}
+              disabled={loadingJournals}
               onChange={(e) => {
                 const chosen = countryJournals.find(j => j.id === e.target.value);
-                setSelectedJournal(e.target.value, chosen?.display_name || selectedJournalName);
+                if (chosen) {
+                  setSelectedJournal(chosen.id, chosen.display_name);
+                }
               }}
-              style={{ width: '100%', fontSize: '13.5px', fontWeight: '600', padding: '9px 12px' }}
+              style={{ width: '100%', fontSize: '13.5px', fontWeight: '600', padding: '9px 12px', opacity: loadingJournals ? 0.7 : 1 }}
             >
-              {countryJournals.map(j => (
-                <option key={j.id} value={j.id}>
-                  {j.display_name} ({j.country_code || 'LATAM'}) — {j.works_count?.toLocaleString()} arts
-                </option>
-              ))}
+              {loadingJournals ? (
+                <option value="">Cargando revistas...</option>
+              ) : countryJournals.length === 0 ? (
+                <option value="">No hay revistas para este país</option>
+              ) : (
+                countryJournals.map(j => (
+                  <option key={j.id} value={j.id}>
+                    {j.display_name} ({j.country_code || 'LATAM'}) — {j.works_count?.toLocaleString()} arts
+                  </option>
+                ))
+              )}
             </select>
           </div>
         </div>
