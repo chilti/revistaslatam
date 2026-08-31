@@ -259,7 +259,12 @@ def get_global_trajectories():
         return {}
         
     df = pd.read_parquet(traj_file)
-    df = df[(df['year'] >= 2000) & (df['year'] <= 2025)]
+    df = df[
+        (df['year'] >= 2000) & 
+        (df['year'] <= 2025) & 
+        (df['type'].isin(['country', 'region']) | (df['id'] == 'LATAM')) &
+        (~df['id'].astype(str).str.startswith('http'))
+    ]
     
     entities = {}
     for entity_id in df['id'].unique():
@@ -270,6 +275,7 @@ def get_global_trajectories():
             "points": sanitize_records(sub[['year', 'x', 'y']])
         }
     return entities
+
 
 
 @router.get("/radar-profiles")
