@@ -296,7 +296,7 @@ export default function CountryPage() {
         </div>
       </div>
 
-      {/* Top Contextual KPI Cards (Without duplicate FWCI) */}
+      {/* Top Contextual KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
         <KpiCard
           title="Revistas Activas"
@@ -309,6 +309,12 @@ export default function CountryPage() {
           value={summary?.total_works?.toLocaleString() || summary?.full_period?.num_documents?.toLocaleString()}
           subtitle="Producción Histórica"
           icon={FileText}
+        />
+        <KpiCard
+          title="FWCI Promedio"
+          value={pData?.fwci_avg != null ? Number(pData.fwci_avg).toFixed(2) : '0.00'}
+          subtitle="Impacto Normalizado"
+          icon={Zap}
         />
         <KpiCard
           title="% OA Diamante"
@@ -324,12 +330,6 @@ export default function CountryPage() {
           icon={ShieldCheck}
           badge="DOAJ"
         />
-        <KpiCard
-          title="% Idioma Inglés"
-          value={`${pData?.pct_lang_en ?? summary?.full_period?.pct_lang_en ?? 0}%`}
-          subtitle="Internacionalización"
-          icon={Globe2}
-        />
       </div>
 
       {/* ── CONSOLIDATED PERFORMANCE INDICATORS PANEL FOR COUNTRY ── */}
@@ -337,7 +337,7 @@ export default function CountryPage() {
         const fullP = summary?.full_period || {};
         const recP  = summary?.recent_period || {};
 
-        const fullDocs = fullP.num_documents ?? fullP.works_count ?? 0;
+        const fullDocs = fullP.num_documents ?? fullP.works_count ?? summary?.total_works ?? 0;
         const recDocs  = recP.num_documents ?? recP.works_count ?? 0;
 
         const fullFwci = fullP.fwci_avg != null ? Number(fullP.fwci_avg) : 0;
@@ -346,161 +346,214 @@ export default function CountryPage() {
 
         const fullTop10 = fullP.pct_top_10 != null ? Number(fullP.pct_top_10) : 0;
         const recTop10  = recP.pct_top_10 != null ? Number(recP.pct_top_10) : 0;
+        const top10Delta = (recTop10 - fullTop10).toFixed(2);
 
         const fullTop1 = fullP.pct_top_1 != null ? Number(fullP.pct_top_1) : 0;
         const recTop1  = recP.pct_top_1 != null ? Number(recP.pct_top_1) : 0;
+        const top1Delta = (recTop1 - fullTop1).toFixed(2);
 
         const fullPerc = fullP.avg_percentile != null ? (Number(fullP.avg_percentile) <= 1.0 ? Number(fullP.avg_percentile) * 100 : Number(fullP.avg_percentile)) : 0;
         const recPerc  = recP.avg_percentile != null ? (Number(recP.avg_percentile) <= 1.0 ? Number(recP.avg_percentile) * 100 : Number(recP.avg_percentile)) : 0;
         const percDelta = (recPerc - fullPerc).toFixed(1);
 
+        const langEs = Number(fullP.pct_lang_es || 0);
+        const langEn = Number(fullP.pct_lang_en || 0);
+        const langPt = Number(fullP.pct_lang_pt || 0);
+        const langOther = fullP.pct_lang_other != null 
+          ? Number(fullP.pct_lang_other) 
+          : Math.max(0, 100 - (langEs + langEn + langPt));
+
         return (
-          <div className="card" style={{
-            background: 'var(--bg-card)',
-            border: '1.5px solid var(--accent-primary)',
-            borderRadius: '14px',
-            padding: '20px 24px',
-            boxShadow: '0 4px 20px rgba(2, 132, 199, 0.08)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  background: 'rgba(2, 132, 199, 0.12)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--accent-primary)'
-                }}>
-                  <Activity size={18} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: 'var(--text-main)' }}>
-                    Indicadores de Desempeño ({summary?.country_name || selectedCountry})
-                  </h3>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Comparativa de impacto y excelencia: Periodo Completo vs Periodo Reciente
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-              {/* Periodo Completo */}
-              <div style={{
-                background: 'var(--bg-input)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '10px',
-                padding: '16px 18px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '14px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-                  <span style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--text-main)' }}>
-                    Periodo Completo: 0–2026
-                  </span>
-                  <span className="badge" style={{ fontSize: '11px', background: 'var(--bg-card)' }}>Histórico</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* 1. Impacto y Citación & Periodo Reciente */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px' }}>
+              {/* Impacto y Citación (Periodo Completo) */}
+              <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Activity size={18} style={{ color: 'var(--primary-color, #3b82f6)' }} />
+                    <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)' }}>
+                      📊 Impacto y Citación (Histórico)
+                    </span>
+                  </div>
+                  <span className="badge" style={{ fontSize: '11px' }}>0–2026</span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {fullDocs.toLocaleString()}
                     </div>
                   </div>
-
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-primary)', marginTop: '3px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--primary-color, #3b82f6)', marginTop: '2px' }}>
                       {fullFwci.toFixed(2)}
                     </div>
                   </div>
-
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
-                      {fullTop10.toFixed(3)}%
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#f59e0b', marginTop: '2px' }}>
+                      {fullTop10.toFixed(2)}%
                     </div>
                   </div>
-
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#ec4899', marginTop: '2px' }}>
                       {fullTop1.toFixed(3)}%
                     </div>
                   </div>
-
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {fullPerc.toFixed(1)}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Periodo Reciente */}
-              <div style={{
-                background: 'var(--bg-input)',
-                border: '1.5px solid rgba(16, 185, 129, 0.4)',
-                borderRadius: '10px',
-                padding: '16px 18px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '14px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
-                  <span style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--accent-success)' }}>
-                    Periodo Reciente: 2021–2025
-                  </span>
+              {/* Periodo Reciente: 2021-2025 */}
+              <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px', border: '1.5px solid rgba(16, 185, 129, 0.4)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sparkles size={18} style={{ color: '#10b981' }} />
+                    <span style={{ fontSize: '15px', fontWeight: '800', color: '#10b981' }}>
+                      ⚡ Periodo Reciente: 2021–2025
+                    </span>
+                  </div>
                   <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981', fontSize: '11px' }}>
-                    Reciente
+                    Último Lustro
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {recDocs.toLocaleString()}
                     </div>
                   </div>
-
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-success)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {recFwci.toFixed(2)}
-                      <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: '700' }}>
+                      <span style={{ fontSize: '11px', color: '#10b981', fontWeight: '700' }}>
                         ({Number(fwciDelta) >= 0 ? '+' : ''}{fwciDelta})
                       </span>
                     </div>
                   </div>
-
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
-                      {recTop10.toFixed(3)}%
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#f59e0b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {recTop10.toFixed(2)}%
+                      <span style={{ fontSize: '11px', color: Number(top10Delta) >= 0 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
+                        ({Number(top10Delta) >= 0 ? '+' : ''}{top10Delta}%)
+                      </span>
                     </div>
                   </div>
-
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#ec4899', marginTop: '2px' }}>
                       {recTop1.toFixed(3)}%
                     </div>
                   </div>
-
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-success)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {recPerc.toFixed(1)}
-                      <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: '700' }}>
+                      <span style={{ fontSize: '11px', color: '#10b981', fontWeight: '700' }}>
                         ({Number(percDelta) >= 0 ? '+' : ''}{percDelta})
                       </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Ciencia Abierta y Visibilidad & Distribución Lingüística */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px' }}>
+              {/* Ciencia Abierta y Visibilidad */}
+              <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ShieldCheck size={18} style={{ color: '#38bdf8' }} />
+                    <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)' }}>
+                      🔓 Ciencia Abierta y Visibilidad
+                    </span>
+                  </div>
+                  <span className="badge" style={{ fontSize: '11px' }}>Acceso e Indexación</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Diamante</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8', marginTop: '2px' }}>
+                      {Number(fullP.pct_oa_diamond || 0).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Gold</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
+                      {Number(fullP.pct_oa_gold || 0).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Verde</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#34d399', marginTop: '2px' }}>
+                      {Number(fullP.pct_oa_green || 0).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% en Scopus</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
+                      {Number(fullP.pct_scopus || 0).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% en DOAJ</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px' }}>
+                      {Number(fullP.pct_doaj || 0).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Distribución Lingüística de Publicación */}
+              <div className="card" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Globe2 size={18} style={{ color: '#a855f7' }} />
+                    <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)' }}>
+                      🌐 Distribución Lingüística de Publicación
+                    </span>
+                  </div>
+                  <span className="badge" style={{ fontSize: '11px' }}>Idiomas</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Español</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#a855f7', marginTop: '2px' }}>
+                      {langEs.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Inglés</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8', marginTop: '2px' }}>
+                      {langEn.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Portugués</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#f59e0b', marginTop: '2px' }}>
+                      {langPt.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Otros Idiomas</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {langOther.toFixed(1)}%
                     </div>
                   </div>
                 </div>
@@ -857,9 +910,17 @@ export default function CountryPage() {
                 `| Producción Histórica de Artículos | ${summary?.total_works?.toLocaleString() || 0} | Volumen acumulado indexado |`,
                 `| FWCI Ponderado Promedio | ${pData?.fwci_avg ?? '—'} | Citas ponderadas por campo (Base mundial=1.0) |`,
                 `| % Acceso Abierto Diamante | ${pData?.pct_oa_diamond || 0}% | Revistas sin APC para autores |`,
+                `| % OA Gold | ${pData?.pct_oa_gold || 0}% | Publicación con cargo APC |`,
+                `| % OA Verde | ${pData?.pct_oa_green || 0}% | Autoarchivo en repositorios |`,
+                `| % en Scopus | ${pData?.pct_scopus || 0}% | Revistas indexadas en Scopus |`,
                 `| % Revistas con Sello DOAJ | ${pData?.pct_doaj || 0}% | Estándares de calidad y visibilidad abierta |`,
                 `| % Artículos en Top 10% de Citas | ${pData?.pct_top_10 || 0}% | Segmento de alto impacto |`,
-                `| % Artículos en Idioma Inglés | ${pData?.pct_lang_en || 0}% | Tasa de adopción de lengua franca científica |`
+                `| % Artículos en Top 1% de Citas | ${pData?.pct_top_1 || 0}% | Segmento de máxima excelencia |`,
+                `| Percentil Promedio Normalizado | ${pData?.avg_percentile ?? '—'} | Impacto normalizado |`,
+                `| % Idioma Español | ${pData?.pct_lang_es || 0}% | Publicaciones en castellano |`,
+                `| % Idioma Inglés | ${pData?.pct_lang_en || 0}% | Lengua franca científica |`,
+                `| % Idioma Portugués | ${pData?.pct_lang_pt || 0}% | Publicaciones en portugués |`,
+                `| % Otros Idiomas | ${pData?.pct_lang_other || 0}% | Otras lenguas |`
               ].join('\n');
             }
           },

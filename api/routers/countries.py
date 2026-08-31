@@ -48,6 +48,11 @@ def get_country_summary(country_code: str = Path(..., description="2-letter coun
     full_data = df_period.iloc[0].to_dict() if not df_period.empty else {}
     rec_data = df_rec.iloc[0].to_dict() if not df_rec.empty else {}
     
+    if full_data and not full_data.get('pct_doaj'):
+        df_doaj = query_df("SELECT ROUND(100.0 * SUM(CASE WHEN is_in_doaj = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) as pct_doaj FROM journals WHERE country_code = ?", [c_code])
+        if not df_doaj.empty and pd.notna(df_doaj['pct_doaj'].iloc[0]):
+            full_data['pct_doaj'] = float(df_doaj['pct_doaj'].iloc[0])
+            
     num_j = int(df_j_count['num_journals'].iloc[0]) if not df_j_count.empty and pd.notna(df_j_count['num_journals'].iloc[0]) else 0
     total_w = int(df_j_count['total_works'].iloc[0]) if not df_j_count.empty and pd.notna(df_j_count['total_works'].iloc[0]) else 0
     
