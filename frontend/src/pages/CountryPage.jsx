@@ -933,22 +933,22 @@ export default function CountryPage() {
         </>
       )}
 
-      {/* 3. HUELLA SEMÁNTICA Y EVOLUCIÓN TEMPORAL DE ARTÍCULOS */}
+      {/* 3. EVOLUCIÓN EN EL PAISAJE CIENTÍFICO (LATAM) */}
       {landscapeTraces.length > 0 && (
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Compass size={18} color="var(--accent-primary)" />
-              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
-                🌌 Huella Semántica y Evolución Temporal de Artículos: {summary?.country_name || selectedCountry}
+              <Compass size={20} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '17px', fontWeight: '700', margin: 0 }}>
+                🌌 Evolución de {summary?.country_name || selectedCountry} en el Paisaje Científico (LATAM)
               </h3>
             </div>
             <span className="badge" style={{ fontSize: '11px' }}>
               {countryArts.length} Artículos del País
             </span>
           </div>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            Proyección de los artículos de revistas del país sobre el paisaje regional. El color indica el Año de Publicación (<code style={{ color: 'var(--primary-color)' }}>publication_year</code>).
+          <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+            Mapeo de los artículos de revistas de {summary?.country_name || selectedCountry} sobre el espacio temático global de Latinoamérica. La barra de color ilustra la progresión temporal de las publicaciones.
           </p>
 
           <PlotlyChart
