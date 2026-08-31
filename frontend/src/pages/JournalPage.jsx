@@ -186,18 +186,19 @@ export default function JournalPage() {
   const prof = details?.profile || {};
 
   // Dual-Axis Chart: Volume vs FWCI
+  const validAnnual = (annualTrends || []).filter(d => d.year >= 1970 && d.year <= 2026);
   const dualAxisTraces = [
     {
-      x: annualTrends.map(d => d.year),
-      y: annualTrends.map(d => d.num_documents),
+      x: validAnnual.map(d => d.year),
+      y: validAnnual.map(d => d.num_documents),
       name: 'Artículos Publicados',
       type: 'bar',
       marker: { color: 'rgba(2, 132, 199, 0.65)' },
       yaxis: 'y'
     },
     {
-      x: annualTrends.map(d => d.year),
-      y: annualTrends.map(d => d.fwci_avg),
+      x: validAnnual.map(d => d.year),
+      y: validAnnual.map(d => d.fwci_avg),
       name: 'FWCI Anual',
       type: 'scatter',
       mode: 'lines+markers',
@@ -206,8 +207,8 @@ export default function JournalPage() {
       yaxis: 'y2'
     },
     {
-      x: annualTrends.map(d => d.year),
-      y: annualTrends.map(() => 1.0),
+      x: validAnnual.map(d => d.year),
+      y: validAnnual.map(() => 1.0),
       name: 'Media Mundial (1.0)',
       type: 'scatter',
       mode: 'lines',
@@ -215,6 +216,7 @@ export default function JournalPage() {
       yaxis: 'y2'
     }
   ];
+
 
   // Radar Chart Traces
   const radarTraces = [];

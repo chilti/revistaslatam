@@ -343,7 +343,7 @@ def get_journal_citations_distribution(journal_id: str):
     df = query_df("""
         SELECT cited_by_count, fwci, percentile, publication_year, oa_status
         FROM works 
-        WHERE journal_id = ? 
+        WHERE journal_id = ? AND publication_year >= 1970 AND publication_year <= 2026
         ORDER BY cited_by_count DESC
         LIMIT 2500
     """, [jid])
@@ -365,8 +365,9 @@ def get_journal_connected_trajectory(journal_id: str):
     df = query_df("""
         SELECT year, num_documents, fwci_avg, avg_percentile, pct_top_10, pct_oa_diamond
         FROM metrics_journal_annual 
-        WHERE journal_id = ? 
+        WHERE journal_id = ? AND year >= 1970 AND year <= 2026
         ORDER BY year ASC
     """, [jid])
     return sanitize_records(df)
+
 
