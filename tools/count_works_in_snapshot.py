@@ -10,7 +10,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 # Configuración
-SNAPSHOT_BASE = Path('/mnt/expansion/openalex-snapshot/data')
+SNAPSHOT_BASE = Path('/mnt/expansion/openalex/openalex-snapshot/data')
 WORKS_DIR = SNAPSHOT_BASE / 'works'
 JOURNAL_ID = 'https://openalex.org/S2737081250'
 JOURNAL_NAME = 'Estudios Demográficos y Urbanos'

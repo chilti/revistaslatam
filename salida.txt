@@ -1,0 +1,8 @@
+Iniciando Pipeline de Actualización de Datos y Métricas v2.0
+Fecha/Hora: 2026-02-13T14:54:10.580948
+
+======================================================================
+PASO INICIADO: Extracción de Datos de Revistas y Trabajos (PostgreSQL -> Parquet)
+Ejecutando: pipeline/extract_postgres.py
+======================================================================
+

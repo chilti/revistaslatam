@@ -27,6 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def rewrite_proxy_path(request, call_next):
+    if request.scope["path"].startswith("/revistaslatam/"):
+        request.scope["path"] = request.scope["path"].replace("/revistaslatam", "", 1)
+    response = await call_next(request)
+    return response
+
 # Gzip compression for large payload transfers (UMAP points, Sunburst trees)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -64,6 +71,8 @@ if FRONTEND_DIST.exists() and (FRONTEND_DIST / "index.html").exists():
 
     @app.get("/{full_path:path}")
     def serve_frontend(full_path: str):
+        with open("request_debug.log", "a") as f:
+            f.write(f"Catch-all received: {full_path}\n")
         file_path = FRONTEND_DIST / full_path
         if full_path and file_path.exists() and file_path.is_file():
             return FileResponse(file_path)

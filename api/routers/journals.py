@@ -18,6 +18,15 @@ def strip_accents(text: str) -> str:
     if not text: return ""
     return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
+def normalize_journal_id(raw_id: str) -> str:
+    if not raw_id:
+        return ""
+    clean = raw_id.strip()
+    clean = clean.replace("https:/openalex.org/", "").replace("https://openalex.org/", "").replace("http:/openalex.org/", "").replace("http://openalex.org/", "")
+    if "/" in clean:
+        clean = clean.split("/")[-1]
+    return f"https://openalex.org/{clean}"
+
 @router.get("/search")
 def search_journals(
     q: str = Query("", description="Query string for journal name or ISSN"),
@@ -53,8 +62,7 @@ def search_journals(
 @router.get("/{journal_id:path}/details")
 def get_journal_details(journal_id: str):
     """Returns technical profile and multi-tier indicators for a journal."""
-    # Standardize OpenAlex ID
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     
     df = query_df("SELECT * FROM journals WHERE id = ?", [jid])
     if df.empty:
@@ -93,7 +101,7 @@ def get_journal_annual(
     max_year: int = Query(2026, description="Maximum year filter")
 ):
     """Returns longitudinal time series of a journal."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     df = query_df(
         "SELECT * FROM metrics_journal_annual WHERE journal_id = ? AND year >= ? AND year <= ? ORDER BY year ASC",
         [jid, min_year, max_year]
@@ -117,7 +125,7 @@ def get_journal_sunburst(
     include_unclassified: bool = Query(True)
 ):
     """Returns 4-level sunburst nodes for a journal."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     sunburst_file = CACHE_DIR / 'sunburst_metrics_journal.parquet'
     if not sunburst_file.exists():
         return {"nodes": []}
@@ -170,7 +178,7 @@ def get_journal_treemap(
     include_unclassified: bool = Query(False)
 ):
     """Returns nested Treemap format data for Domain -> Field -> Subfield for a journal."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     sunburst_file = CACHE_DIR / 'sunburst_metrics_journal.parquet'
     if not sunburst_file.exists():
         return {"nodes": []}
@@ -236,7 +244,7 @@ def get_journal_articles(
     limit: int = Query(100, description="Page limit, 0 for all")
 ):
     """Ultra-fast paginated articles retrieval directly from DuckDB."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     
     order_clause = {
         'cited_by_count': 'cited_by_count DESC',
@@ -268,7 +276,7 @@ def get_journal_articles(
 @router.get("/{journal_id:path}/landscape")
 def get_journal_landscape(journal_id: str):
     """Returns articles of this journal in the landscape + spatial dispersion metric."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     landscape_file = UMAP_DIR / 'umap_articles_landscape.parquet'
     if not landscape_file.exists():
         return {"articles": [], "dispersion": 0.0}
@@ -292,7 +300,7 @@ def get_journal_landscape(journal_id: str):
 @router.get("/{journal_id:path}/trajectory")
 def get_journal_trajectory(journal_id: str):
     """Returns UMAP trajectory for the journal vs its country enriched with performance metrics."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     
     # Get country code
     df_j = query_df("SELECT country_code FROM journals WHERE id = ?", [jid])
@@ -342,7 +350,7 @@ def get_journal_trajectory(journal_id: str):
 @router.get("/{journal_id:path}/radar-profile")
 def get_journal_radar_profile(journal_id: str):
     """Returns normalized [0, 1] 6-dimension editorial maturity profile for radar chart."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     
     df_j = query_df("SELECT * FROM journals WHERE id = ?", [jid])
     if df_j.empty:
@@ -429,7 +437,7 @@ def get_journal_radar_profile(journal_id: str):
 @router.get("/{journal_id:path}/citations-distribution")
 def get_journal_citations_distribution(journal_id: str):
     """Returns article citation counts and FWCI from works table for Box Plot and Violin Plot."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     
     df = query_df("""
         SELECT cited_by_count, fwci, percentile, publication_year, oa_status
@@ -452,7 +460,7 @@ def get_journal_citations_distribution(journal_id: str):
 @router.get("/{journal_id:path}/connected-trajectory")
 def get_journal_connected_trajectory(journal_id: str):
     """Returns longitudinal time series (works vs FWCI) for Connected Scatter Plot."""
-    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    jid = normalize_journal_id(journal_id)
     df = query_df("""
         SELECT year, num_documents, fwci_avg, avg_percentile, pct_top_10, pct_oa_diamond
         FROM metrics_journal_annual 

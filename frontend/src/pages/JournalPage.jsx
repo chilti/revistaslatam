@@ -150,7 +150,8 @@ export default function JournalPage() {
     if (!selectedJournalId) return;
     setLoading(true);
 
-    const jidParam = encodeURIComponent(selectedJournalId);
+    const cleanJid = selectedJournalId.includes('/') ? selectedJournalId.split('/').pop() : selectedJournalId;
+    const jidParam = encodeURIComponent(cleanJid);
 
     Promise.all([
       api.get(`/journals/${jidParam}/details`),
@@ -181,7 +182,8 @@ export default function JournalPage() {
   // Reload articles on sort/year/limit change
   useEffect(() => {
     if (!selectedJournalId || loading) return;
-    const jidParam = encodeURIComponent(selectedJournalId);
+    const cleanJid = selectedJournalId.includes('/') ? selectedJournalId.split('/').pop() : selectedJournalId;
+    const jidParam = encodeURIComponent(cleanJid);
     setLoadingArticles(true);
     api.get(`/journals/${jidParam}/articles?sort_by=${articleSort}${articleYearFilter ? `&year=${articleYearFilter}` : ''}&limit=${articleLimit}`)
       .then(res => setArticles(res.data || []))
@@ -192,7 +194,8 @@ export default function JournalPage() {
   // Load sunburst / treemap
   useEffect(() => {
     if (!selectedJournalId) return;
-    const jidParam = encodeURIComponent(selectedJournalId);
+    const cleanJid = selectedJournalId.includes('/') ? selectedJournalId.split('/').pop() : selectedJournalId;
+    const jidParam = encodeURIComponent(cleanJid);
     if (thematicViewType === 'sunburst') {
       api.get(`/journals/${jidParam}/sunburst?indicator=${sunburstInd}&include_unclassified=${sunburstUnclassified}`)
         .then(res => setSunburstData(res.data))

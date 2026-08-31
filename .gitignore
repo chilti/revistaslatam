@@ -9,6 +9,7 @@ venv/
 # Project Data (Large files)
 *.parquet
 data/
+data_r/
 *.backup
 *.log
 *.duckdb
