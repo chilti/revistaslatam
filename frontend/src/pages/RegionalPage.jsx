@@ -19,7 +19,9 @@ import {
   GitCommit,
   BarChart2,
   Activity,
-  Layers3
+  Layers3,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export default function RegionalPage() {
@@ -894,27 +896,64 @@ export default function RegionalPage() {
 
       {/* Country Rankings Table */}
       <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>🏆 Tabla Comparativa por País (Ranking)</h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Desempeño general de los 20 países latinoamericanos.</span>
           </div>
 
-          <div className="segmented-pills">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="segmented-pills">
+              <button
+                className={`segmented-pill-btn ${rankingsPeriod === 'full' ? 'active' : ''}`}
+                onClick={() => setRankingsPeriod('full')}
+              >
+                Periodo Completo
+              </button>
+              <button
+                className={`segmented-pill-btn ${rankingsPeriod === 'recent' ? 'active' : ''}`}
+                onClick={() => setRankingsPeriod('recent')}
+              >
+                Reciente (2021-2025)
+              </button>
+            </div>
+
+            {/* CSV Download Button */}
             <button
-              className={`segmented-pill-btn ${rankingsPeriod === 'full' ? 'active' : ''}`}
-              onClick={() => setRankingsPeriod('full')}
+              className="btn-secondary"
+              onClick={() => {
+                if (!rankings || rankings.length === 0) return;
+                const headers = ['Codigo', 'Pais', 'Revistas', 'Documentos', 'FWCI', 'Pct_Top_10', 'Pct_Top_1', 'Pct_OA_Diamante', 'Pct_OA_Gold', 'Pct_Espanol', 'Pct_Ingles'];
+                const rows = rankings.map(r => [
+                  r.country_code,
+                  `"${(r.country_name || '').replace(/"/g, '""')}"`,
+                  r.num_journals || 0,
+                  r.num_documents || 0,
+                  Number(r.fwci_avg || 0).toFixed(2),
+                  Number(r.pct_top_10 || 0).toFixed(3),
+                  Number(r.pct_top_1 || 0).toFixed(3),
+                  Number(r.pct_oa_diamond || 0).toFixed(1),
+                  Number(r.pct_oa_gold || 0).toFixed(1),
+                  Number(r.pct_lang_es || 0).toFixed(1),
+                  Number(r.pct_lang_en || 0).toFixed(1)
+                ]);
+                const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement('a');
+                link.setAttribute('href', encodedUri);
+                link.setAttribute('download', `ranking_paises_${rankingsPeriod}_${new Date().toISOString().slice(0, 10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
+              title="Descargar ranking en formato CSV"
             >
-              Periodo Completo
-            </button>
-            <button
-              className={`segmented-pill-btn ${rankingsPeriod === 'recent' ? 'active' : ''}`}
-              onClick={() => setRankingsPeriod('recent')}
-            >
-              Reciente (2021-2025)
+              <Download size={14} /> Descargar CSV
             </button>
           </div>
         </div>
+
 
         <div className="data-table-container" style={{ maxHeight: '420px' }}>
           <table className="data-table">
