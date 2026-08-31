@@ -27,7 +27,8 @@ import {
   ChevronUp,
   Search,
   FileSpreadsheet,
-  BarChart2
+  BarChart2,
+  PieChart
 } from 'lucide-react';
 
 export default function CountryPage() {
@@ -51,6 +52,7 @@ export default function CountryPage() {
   const [scatterDataList, setScatterDataList] = useState([]);
   const [dynScatterX, setDynScatterX] = useState('num_documents');
   const [dynScatterY, setDynScatterY] = useState('fwci_avg');
+  const [piePeriod, setPiePeriod] = useState('full'); // 'full' | 'recent'
 
   // Specialization Matrix (RCA)
   const [rcaData, setRcaData] = useState(null);
@@ -395,6 +397,54 @@ export default function CountryPage() {
       opacity: 0.85
     },
     hovertemplate: `<b>%{text}</b><br>${xLabel}: %{x:,.2f}<br>${yLabel}: %{y:,.2f}<br>Documentos: %{customdata[1]:,}<extra></extra>`
+  }];
+
+  // OA & Language Pie Traces
+  const activePieData = piePeriod === 'recent' ? (summary?.recent_period || {}) : (summary?.full_period || {});
+
+  const oaPieValues = [
+    { label: 'Diamante', value: Number(activePieData.pct_oa_diamond || 0), color: '#38bdf8' },
+    { label: 'Gold', value: Number(activePieData.pct_oa_gold || 0), color: '#fbbf24' },
+    { label: 'Verde', value: Number(activePieData.pct_oa_green || 0), color: '#34d399' },
+    { label: 'Híbrido', value: Number(activePieData.pct_oa_hybrid || 0), color: '#a78bfa' },
+    { label: 'Bronce', value: Number(activePieData.pct_oa_bronze || 0), color: '#fb923c' },
+    { label: 'Cerrado', value: Number(activePieData.pct_oa_closed || 0), color: '#f87171' },
+  ].filter(item => item.value > 0);
+
+  const oaPieTrace = [{
+    type: 'pie',
+    values: oaPieValues.map(v => v.value),
+    labels: oaPieValues.map(v => v.label),
+    marker: {
+      colors: oaPieValues.map(v => v.color)
+    },
+    hole: 0.4,
+    textinfo: 'label+percent',
+    hoverinfo: 'label+percent+value',
+    hovertemplate: '<b>%{label}</b>: %{value:.1f}%<extra></extra>'
+  }];
+
+  const langPieValues = [
+    { label: 'Español', value: Number(activePieData.pct_lang_es || 0), color: '#a855f7' },
+    { label: 'Inglés', value: Number(activePieData.pct_lang_en || 0), color: '#38bdf8' },
+    { label: 'Portugués', value: Number(activePieData.pct_lang_pt || 0), color: '#f59e0b' },
+    { label: 'Francés', value: Number(activePieData.pct_lang_fr || 0), color: '#ec4899' },
+    { label: 'Alemán', value: Number(activePieData.pct_lang_de || 0), color: '#10b981' },
+    { label: 'Italiano', value: Number(activePieData.pct_lang_it || 0), color: '#6366f1' },
+    { label: 'Otros', value: Number(activePieData.pct_lang_other || 0), color: '#94a3b8' },
+  ].filter(item => item.value > 0);
+
+  const langPieTrace = [{
+    type: 'pie',
+    values: langPieValues.map(v => v.value),
+    labels: langPieValues.map(v => v.label),
+    marker: {
+      colors: langPieValues.map(v => v.color)
+    },
+    hole: 0.4,
+    textinfo: 'label+percent',
+    hoverinfo: 'label+percent+value',
+    hovertemplate: '<b>%{label}</b>: %{value:.1f}%<extra></extra>'
   }];
 
   return (
@@ -1147,6 +1197,82 @@ export default function CountryPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* 5. DISTRIBUCIÓN Y CARACTERÍSTICAS DE LAS PUBLICACIONES (PIES DE OA E IDIOMAS) */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <PieChart size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
+                Distribución y Características de las Publicaciones
+              </h3>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Composición porcentual de modalidades de acceso abierto e idiomas de publicación en revistas de {summary?.country_name || selectedCountry}.
+            </span>
+          </div>
+
+          <div className="segmented-pills">
+            <button
+              className={`segmented-pill-btn ${piePeriod === 'full' ? 'active' : ''}`}
+              onClick={() => setPiePeriod('full')}
+            >
+              Período Completo (0–2026)
+            </button>
+            <button
+              className={`segmented-pill-btn ${piePeriod === 'recent' ? 'active' : ''}`}
+              onClick={() => setPiePeriod('recent')}
+            >
+              Período Reciente (2021–2025)
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+          {/* OA Pie */}
+          <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: '700', textAlign: 'center', marginBottom: '8px', color: 'var(--text-main)' }}>
+              🔓 Distribución por Acceso Abierto
+            </h4>
+            {oaPieValues.length > 0 ? (
+              <PlotlyChart
+                data={oaPieTrace}
+                layout={{
+                  height: 320,
+                  margin: { l: 20, r: 20, t: 10, b: 20 },
+                  legend: { orientation: 'h', y: -0.1 }
+                }}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                Sin datos de acceso abierto disponibles.
+              </div>
+            )}
+          </div>
+
+          {/* Language Pie */}
+          <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: '700', textAlign: 'center', marginBottom: '8px', color: 'var(--text-main)' }}>
+              🌐 Distribución por Idiomas
+            </h4>
+            {langPieValues.length > 0 ? (
+              <PlotlyChart
+                data={langPieTrace}
+                layout={{
+                  height: 320,
+                  margin: { l: 20, r: 20, t: 10, b: 20 },
+                  legend: { orientation: 'h', y: -0.1 }
+                }}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                Sin datos de idioma disponibles.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Sunburst & Treemap Section */}
