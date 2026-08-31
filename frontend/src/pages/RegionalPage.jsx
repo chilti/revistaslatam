@@ -15,7 +15,11 @@ import {
   Compass, 
   Radar, 
   PlusCircle,
-  CheckCircle2
+  CheckCircle2,
+  GitCommit,
+  BarChart2,
+  Activity,
+  Layers3
 } from 'lucide-react';
 
 export default function RegionalPage() {
@@ -27,9 +31,29 @@ export default function RegionalPage() {
   const [selectedMapIndicator, setSelectedMapIndicator] = useState('num_journals');
   const [periods, setPeriods] = useState(null);
   const [distributions, setDistributions] = useState({ oa: [], languages: [] });
+  
+  // Thematic hierarchy
+  const [thematicViewType, setThematicViewType] = useState('sunburst'); // 'sunburst' | 'treemap'
   const [sunburstData, setSunburstData] = useState(null);
+  const [treemapData, setTreemapData] = useState(null);
   const [selectedSunburstInd, setSelectedSunburstInd] = useState('fwci_avg_recent');
   const [sunburstUnclassified, setSunburstUnclassified] = useState(true);
+  
+  // Dumbbell Chart & Gaps
+  const [periodGaps, setPeriodGaps] = useState([]);
+  const [selectedDumbbellInd, setSelectedDumbbellInd] = useState('fwci'); // 'fwci' | 'diamond' | 'top10' | 'english'
+
+  // Stacked Bars
+  const [stackedData, setStackedData] = useState([]);
+  const [stackedMode, setStackedMode] = useState('oa'); // 'oa' | 'lang'
+
+  // Stream Graph
+  const [streamData, setStreamData] = useState([]);
+
+  // Diverging Bars
+  const [divergingData, setDivergingData] = useState([]);
+  const [divergingInd, setDivergingInd] = useState('fwci_avg');
+
   const [thematicLevel, setThematicLevel] = useState('domain');
   const [thematicProfiles, setThematicProfiles] = useState(null);
   const [annualTrends, setAnnualTrends] = useState([]);
@@ -37,12 +61,9 @@ export default function RegionalPage() {
   const [rankingsPeriod, setRankingsPeriod] = useState('full');
   const [rankings, setRankings] = useState([]);
   const [trajectories, setTrajectories] = useState(null);
-  const [radarProfiles, setRadarProfiles] = useState(null);
-  const [umapSimilarity, setUmapSimilarity] = useState([]);
   const [scatterData, setScatterData] = useState([]);
   const [scatterX, setScatterX] = useState('num_documents');
   const [scatterY, setScatterY] = useState('fwci_avg');
-  const [showRadar, setShowRadar] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const MAP_INDICATORS = [
@@ -91,7 +112,7 @@ export default function RegionalPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const [kpiRes, choroRes, periodsRes, distRes, annualRes, rankRes, trajRes, radarRes, umapRes] = await Promise.all([
+        const [kpiRes, choroRes, periodsRes, distRes, annualRes, rankRes, trajRes, gapsRes, stackRes, streamRes] = await Promise.all([
           api.get('/regional/kpis'),
           api.get(`/regional/choropleth?indicator=${selectedMapIndicator}`),
           api.get('/regional/periods-comparison'),
@@ -99,8 +120,9 @@ export default function RegionalPage() {
           api.get(`/regional/annual-trends?window=${annualWindow}`),
           api.get(`/regional/rankings?period=${rankingsPeriod}`),
           api.get('/regional/trajectories'),
-          api.get('/regional/radar-profiles'),
-          api.get('/regional/umap-similarity')
+          api.get('/regional/period-gaps'),
+          api.get('/regional/stacked-oa-languages'),
+          api.get('/regional/thematic-stream')
         ]);
 
         setKpis(kpiRes.data);
@@ -110,8 +132,9 @@ export default function RegionalPage() {
         setAnnualTrends(annualRes.data);
         setRankings(rankRes.data);
         setTrajectories(trajRes.data);
-        setRadarProfiles(radarRes.data);
-        setUmapSimilarity(umapRes.data);
+        setPeriodGaps(gapsRes.data);
+        setStackedData(stackRes.data);
+        setStreamData(streamRes.data);
       } catch (err) {
         console.error('Error loading regional data:', err);
       } finally {
@@ -121,12 +144,25 @@ export default function RegionalPage() {
     loadData();
   }, []);
 
-  // Reload Sunburst
+  // Reload Choropleth on indicator change
   useEffect(() => {
-    api.get(`/regional/sunburst?indicator=${selectedSunburstInd}&include_unclassified=${sunburstUnclassified}`)
-      .then(res => setSunburstData(res.data))
+    api.get(`/regional/choropleth?indicator=${selectedMapIndicator}`)
+      .then(res => setChoroplethData(res.data))
       .catch(console.error);
-  }, [selectedSunburstInd, sunburstUnclassified]);
+  }, [selectedMapIndicator]);
+
+  // Reload Sunburst / Treemap
+  useEffect(() => {
+    if (thematicViewType === 'sunburst') {
+      api.get(`/regional/sunburst?indicator=${selectedSunburstInd}&include_unclassified=${sunburstUnclassified}`)
+        .then(res => setSunburstData(res.data))
+        .catch(console.error);
+    } else {
+      api.get(`/regional/treemap?indicator=${selectedSunburstInd}&include_unclassified=${sunburstUnclassified}`)
+        .then(res => setTreemapData(res.data))
+        .catch(console.error);
+    }
+  }, [thematicViewType, selectedSunburstInd, sunburstUnclassified]);
 
   // Reload Thematic Profiles
   useEffect(() => {
@@ -135,26 +171,33 @@ export default function RegionalPage() {
       .catch(console.error);
   }, [thematicLevel]);
 
-  // Reload Annual Trends on smoothing change
+  // Reload Annual Trends
   useEffect(() => {
     api.get(`/regional/annual-trends?window=${annualWindow}`)
       .then(res => setAnnualTrends(res.data))
       .catch(console.error);
   }, [annualWindow]);
 
-  // Reload Rankings on period change
+  // Reload Rankings
   useEffect(() => {
     api.get(`/regional/rankings?period=${rankingsPeriod}`)
       .then(res => setRankings(res.data))
       .catch(console.error);
   }, [rankingsPeriod]);
 
-  // Reload Scatter explorer
+  // Reload Scatter
   useEffect(() => {
     api.get(`/regional/journals-scatter?x_col=${scatterX}&y_col=${scatterY}`)
       .then(res => setScatterData(res.data))
       .catch(console.error);
   }, [scatterX, scatterY]);
+
+  // Reload Diverging Bars
+  useEffect(() => {
+    api.get(`/regional/diverging-bars?indicator=${divergingInd}`)
+      .then(res => setDivergingData(res.data))
+      .catch(console.error);
+  }, [divergingInd]);
 
   // Prepare Choropleth Trace
   const choroTrace = [{
@@ -187,8 +230,8 @@ export default function RegionalPage() {
       lataxis: { range: [-60, 35] },
       lonaxis: { range: [-120, -30] }
     },
-    height: 550,
-    margin: { l: 0, r: 0, t: 40, b: 0 }
+    height: 520,
+    margin: { l: 0, r: 0, t: 30, b: 0 }
   };
 
   // Sunburst Trace
@@ -208,34 +251,178 @@ export default function RegionalPage() {
     hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
   }] : [];
 
-  // Global Trajectories Traces
-  const trajTraces = [];
-  if (trajectories) {
-    Object.keys(trajectories).forEach(k => {
-      const item = trajectories[k];
-      trajTraces.push({
-        x: item.points.map(p => p.x),
-        y: item.points.map(p => p.y),
-        mode: 'lines+markers',
-        name: item.name,
-        text: item.points.map(p => `${item.name} (${p.year})`),
-        line: {
-          shape: 'spline',
-          width: item.is_ref ? 4 : 2,
-          color: item.is_ref ? '#10b981' : undefined
-        },
-        marker: { size: item.is_ref ? 6 : 4 }
+  // Treemap Trace
+  const treemapTrace = treemapData && treemapData.nodes.length > 0 ? [{
+    type: 'treemap',
+    ids: treemapData.nodes.map(n => n.id),
+    labels: treemapData.nodes.map(n => n.label),
+    parents: treemapData.nodes.map(n => n.parent),
+    values: treemapData.nodes.map(n => n.value),
+    marker: {
+      colors: treemapData.nodes.map(n => n.color_val),
+      colorscale: 'Viridis',
+      showscale: true,
+      colorbar: { title: SUNBURST_INDICATORS.find(s => s.id === selectedSunburstInd)?.label || 'Indicador' }
+    },
+    branchvalues: 'total',
+    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+  }] : [];
+
+  // Dumbbell Chart Traces
+  const dumbbellTraces = [];
+  if (periodGaps.length > 0) {
+    const valKeyFull = selectedDumbbellInd === 'fwci' ? 'fwci_avg_full' :
+                       selectedDumbbellInd === 'diamond' ? 'pct_oa_diamond_full' :
+                       selectedDumbbellInd === 'top10' ? 'pct_top_10_full' : 'pct_lang_en_full';
+    const valKeyRec = selectedDumbbellInd === 'fwci' ? 'fwci_avg_recent' :
+                      selectedDumbbellInd === 'diamond' ? 'pct_oa_diamond_recent' :
+                      selectedDumbbellInd === 'top10' ? 'pct_top_10_recent' : 'pct_lang_en_recent';
+
+    // Lines connecting Full -> Recent
+    periodGaps.forEach(d => {
+      dumbbellTraces.push({
+        x: [d[valKeyFull], d[valKeyRec]],
+        y: [d.country_name, d.country_name],
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#94a3b8', width: 2.5 },
+        showlegend: false,
+        hoverinfo: 'none'
       });
+    });
+
+    // Full Period Dots
+    dumbbellTraces.push({
+      x: periodGaps.map(d => d[valKeyFull]),
+      y: periodGaps.map(d => d.country_name),
+      type: 'scatter',
+      mode: 'markers',
+      name: 'Periodo Histórico',
+      marker: { color: '#0284c7', size: 10, symbol: 'circle' },
+      hovertemplate: '<b>%{y}</b> (Histórico): %{x:.2f}<extra></extra>'
+    });
+
+    // Recent Period Dots
+    dumbbellTraces.push({
+      x: periodGaps.map(d => d[valKeyRec]),
+      y: periodGaps.map(d => d.country_name),
+      type: 'scatter',
+      mode: 'markers',
+      name: 'Reciente (2021–2025)',
+      marker: { color: '#10b981', size: 11, symbol: 'diamond' },
+      hovertemplate: '<b>%{y}</b> (2021–2025): %{x:.2f}<extra></extra>'
     });
   }
 
+  // 100% Stacked Bars Traces
+  const stackedTraces = [];
+  if (stackedData.length > 0) {
+    if (stackedMode === 'oa') {
+      const oaTypes = [
+        { key: 'oa_diamond', label: 'Diamante', color: '#0284c7' },
+        { key: 'oa_gold', label: 'Gold (APC)', color: '#f59e0b' },
+        { key: 'oa_green', label: 'Verde (Repositorio)', color: '#10b981' },
+        { key: 'oa_hybrid', label: 'Híbrido', color: '#8b5cf6' },
+        { key: 'oa_bronze', label: 'Bronce', color: '#d97706' },
+        { key: 'oa_closed', label: 'Cerrado', color: '#64748b' }
+      ];
+      oaTypes.forEach(t => {
+        stackedTraces.push({
+          x: stackedData.map(d => d[t.key]),
+          y: stackedData.map(d => d.country_name),
+          name: t.label,
+          type: 'bar',
+          orientation: 'h',
+          marker: { color: t.color },
+          hovertemplate: `<b>%{y}</b>: %{x}% ${t.label}<extra></extra>`
+        });
+      });
+    } else {
+      const langTypes = [
+        { key: 'lang_es', label: 'Español', color: '#0284c7' },
+        { key: 'lang_pt', label: 'Portugués', color: '#10b981' },
+        { key: 'lang_en', label: 'Inglés', color: '#f59e0b' },
+        { key: 'lang_other', label: 'Otros', color: '#94a3b8' }
+      ];
+      langTypes.forEach(t => {
+        stackedTraces.push({
+          x: stackedData.map(d => d[t.key]),
+          y: stackedData.map(d => d.country_name),
+          name: t.label,
+          type: 'bar',
+          orientation: 'h',
+          marker: { color: t.color },
+          hovertemplate: `<b>%{y}</b>: %{x}% ${t.label}<extra></extra>`
+        });
+      });
+    }
+  }
+
+  // Stream Graph Traces
+  const streamTraces = [];
+  if (streamData.length > 0) {
+    const domains = ['Health Sciences', 'Social Sciences', 'Physical Sciences', 'Life Sciences'];
+    const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6'];
+    domains.forEach((dom, i) => {
+      if (streamData[0] && dom in streamData[0]) {
+        streamTraces.push({
+          x: streamData.map(d => d.year),
+          y: streamData.map(d => d[dom]),
+          name: dom,
+          type: 'scatter',
+          mode: 'lines',
+          stackgroup: 'one',
+          line: { shape: 'spline', color: colors[i % colors.length] },
+          hovertemplate: `<b>${dom}</b> (%{x}): %{y:,.0f} artículos<extra></extra>`
+        });
+      }
+    });
+  }
+
+  // Diverging Bar Trace
+  const divergingTrace = divergingData.length > 0 ? [{
+    x: divergingData.map(d => d.deviation),
+    y: divergingData.map(d => d.country_name),
+    type: 'bar',
+    orientation: 'h',
+    marker: {
+      color: divergingData.map(d => d.deviation >= 0 ? '#10b981' : '#ef4444')
+    },
+    hovertemplate: '<b>%{y}</b><br>Valor: %{customdata[0]:.2f}<br>Línea Base: %{customdata[1]:.2f}<br>Desviación: %{x:+.2f}<extra></extra>',
+    customdata: divergingData.map(d => [d.actual_value, d.baseline])
+  }] : [];
+
+  // Trajectories Traces
+  const trajTraces = [];
+  if (trajectories && typeof trajectories === 'object') {
+    Object.keys(trajectories).forEach(k => {
+      const item = trajectories[k];
+      if (item && Array.isArray(item.points) && item.points.length > 0) {
+        trajTraces.push({
+          x: item.points.map(p => p.x),
+          y: item.points.map(p => p.y),
+          mode: 'lines+markers',
+          name: item.name || k,
+          text: item.points.map(p => `${item.name || k} (${p.year})`),
+          line: {
+            shape: 'spline',
+            width: item.is_ref ? 4 : 2,
+            color: item.is_ref ? '#10b981' : undefined
+          },
+          marker: { size: item.is_ref ? 6 : 4 }
+        });
+      }
+    });
+  }
+
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Header & Page Title */}
+      {/* Header & Title */}
       <div>
-        <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Panorama Regional</h2>
+        <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Panorama Regional (Latinoamérica e Iberoamérica)</h2>
         <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          Visión macro de la producción, impacto cienciométrico y modelos de acceso abierto en América Latina.
+          Visión macro de la producción científica, brechas temporales, modelos de acceso abierto y cartografía temática.
         </p>
       </div>
 
@@ -315,76 +502,163 @@ export default function RegionalPage() {
         <PlotlyChart data={choroTrace} layout={choroLayout} />
       </div>
 
-      {/* Periods Comparison & Distributions */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
-        {/* Historical vs Recent */}
-        <div className="card">
-          <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>
-            📈 Desempeño: Periodo Completo vs Reciente (2021-2025)
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-            <div style={{ background: 'var(--bg-input)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--accent-primary)', marginBottom: '8px' }}>Periodo Histórico</div>
-              <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div><strong>Docs:</strong> {periods?.full_period?.num_documents?.toLocaleString() || '—'}</div>
-                <div><strong>FWCI:</strong> {Number(periods?.full_period?.fwci_avg || 0).toFixed(2)}</div>
-                <div><strong>Top 10%:</strong> {Number(periods?.full_period?.pct_top_10 || 0).toFixed(3)}%</div>
-                <div><strong>Top 1%:</strong> {Number(periods?.full_period?.pct_top_1 || 0).toFixed(3)}%</div>
-                <div><strong>Percentil:</strong> {Number(periods?.full_period?.avg_percentile || 0).toFixed(1)}</div>
-              </div>
-            </div>
-            <div style={{ background: 'var(--bg-input)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--accent-success)', marginBottom: '8px' }}>Reciente (2021-2025)</div>
-              <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div><strong>Docs:</strong> {periods?.recent_period?.num_documents?.toLocaleString() || '—'}</div>
-                <div><strong>FWCI:</strong> {Number(periods?.recent_period?.fwci_avg || 0).toFixed(2)}</div>
-                <div><strong>Top 10%:</strong> {Number(periods?.recent_period?.pct_top_10 || 0).toFixed(3)}%</div>
-                <div><strong>Top 1%:</strong> {Number(periods?.recent_period?.pct_top_1 || 0).toFixed(3)}%</div>
-                <div><strong>Percentil:</strong> {Number(periods?.recent_period?.avg_percentile || 0).toFixed(1)}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Distributions Pie Charts */}
-        <div className="card">
-          <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>
-            🔓 Acceso Abierto e Idiomas de Publicación
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <PlotlyChart
-              data={[{
-                type: 'pie',
-                values: distributions.oa.map(d => d.percentage),
-                labels: distributions.oa.map(d => d.type),
-                textinfo: 'percent+label',
-                hole: 0.45
-              }]}
-              layout={{ height: 230, margin: { l: 10, r: 10, t: 10, b: 10 }, showlegend: false }}
-            />
-            <PlotlyChart
-              data={[{
-                type: 'pie',
-                values: distributions.languages.map(d => d.percentage),
-                labels: distributions.languages.map(d => d.language),
-                textinfo: 'percent+label',
-                hole: 0.45
-              }]}
-              layout={{ height: 230, margin: { l: 10, r: 10, t: 10, b: 10 }, showlegend: false }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Sunburst Section */}
+      {/* DUMBBELL CHART: Brechas de Periodos */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>🏵️ Temáticas de Investigación Regionales (Sunburst 4 Niveles)</h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Jerarquía: Dominio → Campo → Subcampo → Tópico.</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <GitCommit size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+                Gráfico de Mancuerna (Dumbbell Chart) — Brecha Histórico vs Reciente (2021–2025)
+              </h3>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Visualiza la aceleración o desaceleración cienciométrica de cada país entre el promedio histórico (punto azul) y el último lustro (diamante verde).
+            </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="segmented-pills">
+            <button
+              className={`segmented-pill-btn ${selectedDumbbellInd === 'fwci' ? 'active' : ''}`}
+              onClick={() => setSelectedDumbbellInd('fwci')}
+            >
+              FWCI Promedio
+            </button>
+            <button
+              className={`segmented-pill-btn ${selectedDumbbellInd === 'diamond' ? 'active' : ''}`}
+              onClick={() => setSelectedDumbbellInd('diamond')}
+            >
+              % OA Diamante
+            </button>
+            <button
+              className={`segmented-pill-btn ${selectedDumbbellInd === 'top10' ? 'active' : ''}`}
+              onClick={() => setSelectedDumbbellInd('top10')}
+            >
+              % Top 10%
+            </button>
+            <button
+              className={`segmented-pill-btn ${selectedDumbbellInd === 'english' ? 'active' : ''}`}
+              onClick={() => setSelectedDumbbellInd('english')}
+            >
+              % Inglés
+            </button>
+          </div>
+        </div>
+
+        <PlotlyChart
+          data={dumbbellTraces}
+          layout={{
+            height: 540,
+            margin: { l: 140, r: 20, t: 20, b: 40 },
+            xaxis: {
+              title: selectedDumbbellInd === 'fwci' ? 'FWCI Ponderado' : 'Porcentaje (%)',
+              zeroline: false
+            },
+            yaxis: { autorange: 'reversed' },
+            legend: { orientation: 'h', y: 1.08, x: 0.2 }
+          }}
+        />
+      </div>
+
+      {/* 100% STACKED BAR CHARTS: Composición de Vías OA e Idiomas */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <BarChart2 size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+                Barras Apiladas 100% (100% Stacked Bar) — Vías de Acceso e Idiomas por País
+              </h3>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Composición porcentual de publicaciones según modalidad de acceso abierto o idioma editorial por país.
+            </span>
+          </div>
+
+          <div className="segmented-pills">
+            <button
+              className={`segmented-pill-btn ${stackedMode === 'oa' ? 'active' : ''}`}
+              onClick={() => setStackedMode('oa')}
+            >
+              Vías de Acceso Abierto
+            </button>
+            <button
+              className={`segmented-pill-btn ${stackedMode === 'lang' ? 'active' : ''}`}
+              onClick={() => setStackedMode('lang')}
+            >
+              Idiomas de Publicación
+            </button>
+          </div>
+        </div>
+
+        <PlotlyChart
+          data={stackedTraces}
+          layout={{
+            barmode: 'stack',
+            height: 520,
+            margin: { l: 140, r: 20, t: 20, b: 40 },
+            xaxis: { title: 'Porcentaje Acumulado (%)', range: [0, 100] },
+            yaxis: { autorange: 'reversed' },
+            legend: { orientation: 'h', y: 1.08, x: 0.1 }
+          }}
+        />
+      </div>
+
+      {/* STREAM GRAPH: Evolución de Grandes Áreas Temáticas */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <Activity size={18} color="var(--accent-primary)" />
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+            Stream Graph / Área Apilada — Dinámica Histórica de Grandes Áreas (1985–2025)
+          </h3>
+        </div>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+          Evolución y peso relativo del volumen de producción científica en América Latina por dominios de conocimiento.
+        </p>
+
+        <PlotlyChart
+          data={streamTraces}
+          layout={{
+            height: 380,
+            margin: { l: 50, r: 20, t: 20, b: 40 },
+            xaxis: { title: 'Año de Publicación' },
+            yaxis: { title: 'Artículos Publicados' },
+            legend: { orientation: 'h', y: 1.1, x: 0.15 }
+          }}
+        />
+      </div>
+
+      {/* THEMATIC HIERARCHY: SUNBURST & TREEMAP SWITCHER */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Layers3 size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+                Estructura Temática Jerárquica: Dominio → Campo → Subcampo → Tópico
+              </h3>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Alterna entre la vista radial (Sunburst) y la vista rectangular compacta (Treemap).
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div className="segmented-pills">
+              <button
+                className={`segmented-pill-btn ${thematicViewType === 'sunburst' ? 'active' : ''}`}
+                onClick={() => setThematicViewType('sunburst')}
+              >
+                🏵️ Sunburst
+              </button>
+              <button
+                className={`segmented-pill-btn ${thematicViewType === 'treemap' ? 'active' : ''}`}
+                onClick={() => setThematicViewType('treemap')}
+              >
+                🌲 Treemap
+              </button>
+            </div>
+
             <select
               value={selectedSunburstInd}
               onChange={(e) => setSelectedSunburstInd(e.target.value)}
@@ -401,12 +675,51 @@ export default function RegionalPage() {
                 checked={sunburstUnclassified}
                 onChange={(e) => setSunburstUnclassified(e.target.checked)}
               />
-              <span>Incluir Sin Clasificación</span>
+              <span>Sin Clasificación</span>
             </label>
           </div>
         </div>
 
-        <PlotlyChart data={sunburstTrace} layout={{ height: 550, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        {thematicViewType === 'sunburst' ? (
+          <PlotlyChart data={sunburstTrace} layout={{ height: 560, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        ) : (
+          <PlotlyChart data={treemapTrace} layout={{ height: 560, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
+        )}
+      </div>
+
+      {/* DIVERGING BARS: Posicionamiento frente a la Media Regional */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              Gráfico de Barras Divergentes (Diverging Bar Chart) — Desviación de la Media
+            </h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Países que superan la línea base (verde) vs países por debajo de la media regional (rojo).
+            </span>
+          </div>
+
+          <select
+            value={divergingInd}
+            onChange={(e) => setDivergingInd(e.target.value)}
+            style={{ fontWeight: '600' }}
+          >
+            <option value="fwci_avg">FWCI (Base = 1.0 Mundial)</option>
+            <option value="pct_oa_diamond">% OA Diamante (Base = Media LATAM)</option>
+            <option value="pct_top_10">% Top 10% (Base = Media LATAM)</option>
+            <option value="pct_lang_en">% Inglés (Base = Media LATAM)</option>
+          </select>
+        </div>
+
+        <PlotlyChart
+          data={divergingTrace}
+          layout={{
+            height: 500,
+            margin: { l: 140, r: 20, t: 20, b: 40 },
+            xaxis: { title: 'Desviación Absoluta respecto a Línea Base', zeroline: true, zerolinewidth: 2, zerolinecolor: '#334155' },
+            yaxis: { autorange: 'reversed' }
+          }}
+        />
       </div>
 
       {/* Thematic Profiles Table */}
@@ -504,7 +817,7 @@ export default function RegionalPage() {
                 line: { color: '#0284c7', width: 2 }
               }
             ]}
-            layout={{ title: 'Evolución de Documentos Publicados', height: 320 }}
+            layout={{ title: 'Evolución de Documentos Publicados', height: 300 }}
           />
 
           <PlotlyChart
@@ -526,59 +839,7 @@ export default function RegionalPage() {
                 line: { color: '#ef4444', dash: 'dash' }
               }
             ]}
-            layout={{ title: 'Evolución del FWCI Promedio', height: 320 }}
-          />
-
-          <PlotlyChart
-            data={[
-              {
-                x: annualTrends.map(d => d.year),
-                y: annualTrends.map(d => d.pct_top_10),
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Top 10%',
-                line: { color: '#f59e0b', width: 2 }
-              },
-              {
-                x: annualTrends.map(d => d.year),
-                y: annualTrends.map(d => d.pct_top_1),
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Top 1%',
-                line: { color: '#ef4444', width: 2 }
-              }
-            ]}
-            layout={{ title: 'Evolución de Artículos Altamente Citados', height: 320 }}
-          />
-
-          <PlotlyChart
-            data={[
-              {
-                x: annualTrends.map(d => d.year),
-                y: annualTrends.map(d => d.pct_oa_diamond),
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Diamante',
-                line: { color: '#0284c7', width: 2 }
-              },
-              {
-                x: annualTrends.map(d => d.year),
-                y: annualTrends.map(d => d.pct_oa_gold),
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Gold',
-                line: { color: '#f59e0b', width: 2 }
-              },
-              {
-                x: annualTrends.map(d => d.year),
-                y: annualTrends.map(d => d.pct_oa_green),
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Verde',
-                line: { color: '#10b981', width: 2 }
-              }
-            ]}
-            layout={{ title: 'Evolución de Modalidades de Acceso Abierto', height: 320 }}
+            layout={{ title: 'Evolución del FWCI Promedio', height: 300 }}
           />
         </div>
       </div>
@@ -593,7 +854,7 @@ export default function RegionalPage() {
         </p>
         <PlotlyChart
           data={trajTraces}
-          layout={{ height: 550, xaxis: { title: 'Dimensión 1' }, yaxis: { title: 'Dimensión 2' } }}
+          layout={{ height: 520, xaxis: { title: 'Dimensión 1' }, yaxis: { title: 'Dimensión 2' } }}
         />
       </div>
 

@@ -182,5 +182,6 @@ if __name__ == "__main__":
     print(f"{'*'*80}")
     print("\nSiguientes pasos recomendados:")
     print("1. Verifica los archivos generados en 'data/cache/', 'data/umap/', 'data/som/' y 'data/revistaslatam.duckdb'.")
-    print("2. Ejecuta el dashboard de alto rendimiento para visualizar los cambios:")
-    print("   streamlit run dashboard.py\n")
+    print("2. Ejecuta la plataforma web de alto rendimiento (FastAPI + React):")
+    print("   uvicorn api.main:app --host 0.0.0.0 --port 8000\n")
+

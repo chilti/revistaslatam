@@ -1,136 +1,108 @@
-# Análisis Bibliométrico (Revistas LATAM)
+# Análisis Bibliométrico y Cienciométrico (Revistas LATAM)
 
-Este proyecto es una plataforma integral de recolección, procesamiento y visualización de datos bibliométricos a gran escala, impulsada por la API de OpenAlex. Su objetivo principal es evaluar el impacto y la evolución de la producción científica a través de indicadores avanzados (como FWCI e Índice H) y representaciones visuales interactivas. Se centra en un análisis detallado del impacto y alcance de las revistas científicas latinoamericanas, gestionado a través de `dashboard.py` y los pipelines especializados en `pipeline_revistaslatam/`.
+Plataforma integral de recolección, procesamiento y visualización de datos bibliométricos a gran escala sobre la ciencia latinoamericana, impulsada por **OpenAlex**, **DuckDB**, **FastAPI** y **React 18 / Vite**. 
 
-## 🌐 Despliegue
+Su objetivo principal es evaluar el impacto, la soberanía editorial del Acceso Abierto Diamante y la evolución de la producción científica en América Latina e Iberoamérica a través de indicadores cienciométricos avanzados (FWCI, Percentiles, Índice H, Multilingüismo) y representaciones visuales interactivas (Scimago Graphica + WebGL GPU).
+
+---
+
+## 🌐 Despliegue Oficial
 El sistema se encuentra desplegado y accesible en:
 - **Servidor Principal**: [https://dinamica1.fciencias.unam.mx/revistaslatam/](https://dinamica1.fciencias.unam.mx/revistaslatam/)
 - **Servidor Espejo**: [https://dinamica10.fciencias.unam.mx/revistaslatam/](https://dinamica10.fciencias.unam.mx/revistaslatam/)
 
+---
 
+## 🚀 Funcionalidades Principales
 
-## 🚀 Funcionalidades
+- **Ingesta y Extracción Masiva**: Procesamiento de más de 7,400 revistas y 3.63 millones de artículos científicos latinoamericanos.
+- **Motor Cienciométrico OLAP**: Cálculo de indicadores de impacto ponderado por campo (FWCI), percentiles normalizados, cohorte Top 10% / Top 1%, Índices H e i10, y tasas de acceso abierto (Diamante vs Gold comercial).
+- **Cartografía Semántica Trilingüe (UMAP 2D)**: Proyección topológica continua del conocimiento científico regional mediante modelos Transformer neuronales (*Nomic Embed Text v2*) con filtros léxicos en Español, Portugués e Inglés.
+- **Visualización Analítica Interactiva**:
+  - **Panorama Regional**: Brechas históricas vs recientes (*Dumbbell Chart*), composición 100% de vías OA e idiomas, estructura jerárquica (*Sunburst 4 Niveles* y *Treemap*), flujo temporal de disciplinas (*Stream Graph*) y desviaciones (*Diverging Bars*).
+  - **Nivel País**: Matrices de Especialización Científica (*Índice RCA 20×28*), gráficos de eje dual (Volumen vs FWCI), dispersión de revistas (*Beeswarm Plot*) y dinámicas de ranking (*Slope Chart*).
+  - **Nivel Revista**: Ficha técnica editorial, perfiles de madurez (*Radar Chart 6D*), distribución real de citas y Ley de Lotka (*Box / Violin Plot*) y trayectoria cíclica (*Connected Scatter Plot*).
+  - **Redes y Flujos**: Matriz de cooperación Sur-Sur (*Circular Chord*), canalización disciplinar (*Diagrama Alluvial*) y arcos geográficos de coautoría global.
+  - **Mapas Semánticos**: Renderizado de hasta 100,000 puntos en WebGL GPU acelerado a 60 FPS y delimitación territorial mediante *Envolturas Convexas (Convex Hulls)*.
 
-- **Descarga Masiva**: Obtiene datos de miles de revistas latinoamericanas y sus artículos.
-- **Procesamiento Inteligente**: Calcula indicadores como FWCI (Field-Weighted Citation Impact), percentiles de citas, Índice H, y más.
-- **Dashboard Interactivo**: Visualización de datos con Streamlit y Plotly.
-  - Análisis por Región, País y Revista.
-  - Gráficos de impacto, redes de colaboración (futuro), y evolución temporal.
+---
 
 ## 🛠️ Instalación
 
-1.  **Clonar el repositorio**:
-    ```bash
-    git clone https://github.com/chilti/revistas_latam.git
-    cd revistas_latam
-    ```
+### 1. Clonar el repositorio y configurar el entorno Python:
+```bash
+git clone https://github.com/chilti/revistas_latam.git
+cd revistas_latam
 
-2.  **Crear un entorno virtual** (recomendado):
-    ```bash
-    python -m venv .venv
-    # Windows:
-    .venv\Scripts\activate
-    # Linux/Mac:
-    source .venv/bin/activate
-    ```
+# Crear y activar entorno virtual
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# Linux/Mac:
+source .venv/bin/activate
 
-3.  **Instalar dependencias**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+# Instalar dependencias backend y pipelines
+pip install -r requirements.txt
+```
 
-## 📊 Arquitectura y Uso
-
-- **Dashboard:** `dashboard.py`
-- **Pipelines:** Scripts ubicados en la carpeta `pipeline_revistaslatam/` (y scripts legacy en la raíz o en `src/`).
+### 2. Instalar dependencias del Frontend (React / Vite):
+```bash
+cd frontend
+npm install
+cd ..
+```
 
 ---
 
-### Uso
+## ⚙️ Procesamiento y Pipeline Maestro de Datos
 
-#### 1. Recolección de Datos
-El script `data_collector.py` (o equivalentes en `pipeline_revistaslatam/`) descarga la información desde OpenAlex.
-*Nota: La primera ejecución puede tardar varias horas dependiendo del volumen de datos.*
+Toda la recolección, cálculo de métricas, proyecciones topológicas y consolidación OLAP se orquestan de manera automatizada mediante el **Pipeline Maestro**: `pipeline_revistaslatam/run_pipeline.py`.
 
-```bash
-python src/data_collector.py
-```
-Esto generará archivos `.parquet` en la carpeta `data/`.
-
-### 2. Precalcular Indicadores (Recomendado)
-Después de descargar los artículos, ejecuta el script de precálculo para acelerar el dashboard.
-
-#### Opción A: Script Optimizado Paralelo (Recomendado)
-Para máquinas con múltiples cores y grandes volúmenes de datos:
-
-```bash
-python precompute_metrics_parallel_optimized.py
+```mermaid
+graph LR
+    F1[1. Extracción y Consolidación] --> F2[2. Enriquecimiento Temático OpenAlex]
+    F2 --> F3[3. Cálculo Paralelo de Métricas y Sunburst]
+    F3 --> F4[4. Proyecciones UMAP, SOM y Redes]
+    F4 --> F5[5. Indexación DuckDB OLAP]
 ```
 
-**Características**:
-- ✅ **Procesamiento paralelo**: Usa múltiples cores para acelerar el cálculo
-- ✅ **Procesamiento incremental**: Solo calcula métricas para revistas/países nuevos
-- ✅ **Optimizado para memoria**: Procesa en chunks para evitar saturar la RAM
-- ✅ **Recuperación de errores**: Continúa donde se quedó si falla
+### Ejecución del Pipeline Maestro
 
-**Opciones**:
-- `--force`: Recalcula todas las métricas desde cero (ignora cache)
-
-**Ejemplo**:
+#### Opción 1: Ejecución Completa de Extremo a Extremo
+Ejecuta todas las fases desde la ingesta de datos hasta la creación de la base analítica DuckDB:
 ```bash
-# Primera ejecución - calcula todo
-python precompute_metrics_parallel_optimized.py
-
-# Ejecuciones posteriores - solo procesa lo nuevo
-python precompute_metrics_parallel_optimized.py
-
-# Forzar recálculo completo
-python precompute_metrics_parallel_optimized.py --force
+python pipeline_revistaslatam/run_pipeline.py
 ```
 
-**Documentación detallada**:
-- 📖 [Guía de Cálculo de Métricas](METRICS_CALCULATION_GUIDE.md) - Explicación detallada de cómo se calcula cada métrica
-- 📖 [Procesamiento Incremental](INCREMENTAL_PROCESSING.md) - Cómo funciona el modo incremental
-- 📖 [Correcciones de Cálculo](CALCULATION_FIXES.md) - Validación de consistencia con script original
-
-#### Opción B: Script Original (Más Simple)
-Para datasets pequeños o primera vez:
-
+#### Opción 2: Modo Sólo Cálculo (`--only-compute`) ⭐ Recomendado para Actualizaciones Analíticas
+Recalcula todas las métricas anuales, periodos recientes, indicadores jerárquicos, mapas UMAP/SOM y la base DuckDB utilizando los datos Parquet locales existentes:
 ```bash
-python precompute_metrics.py
+python pipeline_revistaslatam/run_pipeline.py --only-compute
 ```
 
-**Opciones**:
-- `--force`: Forzar recálculo aunque exista caché válido
+#### Opciones Adicionales de Ejecución:
+- `--skip-extraction`: Omite la descarga de base de datos y procesa directamente los archivos Parquet en `data/`.
+- `--skip-maps`: Ejecuta el cálculo de indicadores analíticos omitiendo el entrenamiento de mapas UMAP/SOM (ideal para pruebas ultrarrápidas).
 
 ---
 
-**Métricas calculadas** (ambos scripts):
+## 🌐 Ejecución de la Plataforma Web
 
-- FWCI (Field-Weighted Citation Impact)
-- Percentiles de citas
-- % Top 10% (artículos altamente citados)
-- % Artículos en acceso abierto
-- % Revistas indexadas en Scopus, CORE, DOAJ
-
-Los resultados se guardan en `data/cache/` y el dashboard los cargará automáticamente.
-
-**Opciones:**
-- `python precompute_metrics.py --force`: Forzar recálculo aunque exista caché válido
-
-### 3. Ejecutar la Plataforma
-
-#### Opción A: Aplicación Desacoplada de Alto Rendimiento (FastAPI + React / Vite) ⭐ Recomendado
-Permite interactividad instantánea a 60 FPS con aceleración por GPU WebGL y latencia de consultas < 15 ms:
-
+### Modo Producción (Recomendado)
+Inicia el servidor REST de alto rendimiento en FastAPI, sirviendo la API DuckDB y la SPA de React compilada:
 ```bash
-# Modo Producción (un solo comando para backend + frontend bundle)
+# Compilar el bundle del frontend (si hubo cambios en React)
+cd frontend && npm run build && cd ..
+
+# Iniciar servidor unificado
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
-> Acceso Web: `http://localhost:8000` | Documentación Swagger: `http://localhost:8000/docs`
+- 🖥️ **Acceso Web**: `http://localhost:8000`
+- 📖 **Documentación Swagger API**: `http://localhost:8000/docs`
 
+### Modo Desarrollo
+Para desarrollo interactivo con recarga en caliente (*Hot Module Replacement*):
 ```bash
-# Modo Desarrollo
 # Terminal 1: Backend FastAPI
 uvicorn api.main:app --reload --port 8000
 
@@ -139,47 +111,57 @@ cd frontend
 npm run dev
 ```
 
-#### Opción B: Dashboard Monolítico (Streamlit)
-```bash
-streamlit run dashboard.py
+---
+
+## 📂 Estructura del Repositorio
+
+```text
+revistaslatam/
+├── api/                             # Backend REST API (FastAPI + DuckDB)
+│   ├── main.py                      # Punto de entrada de la API y servidor estático
+│   ├── db.py                        # Capa de acceso DuckDB y Parquet OLAP
+│   ├── constants.py                 # Catálogos de países, coordenadas y paletas
+│   └── routers/                     # Endpoints analíticos desacoplados
+│       ├── regional.py              # Endpoints macro y panorama regional
+│       ├── countries.py             # Endpoints a nivel país y matriz RCA
+│       ├── journals.py              # Endpoints a nivel revista, radar y boxplot
+│       ├── networks.py              # Endpoints de redes, Chord y Alluvial
+│       ├── maps.py                  # Endpoints de nubes de puntos y Convex Hull
+│       └── reports.py               # Generación y exportación de dossiers
+│
+├── frontend/                        # Aplicación SPA (React 18 + Vite + Plotly + WebGL)
+│   ├── src/
+│   │   ├── pages/                   # Vistas principales (Regional, País, Revista, Redes, Mapas)
+│   │   ├── components/              # Componentes UI (WebGLCanvas, PlotlyChart, KpiCard, Dossier)
+│   │   └── store.js                 # Estado global de la aplicación (Zustand)
+│   └── dist/                        # Bundle optimizado para producción
+│
+├── pipeline_revistaslatam/          # Pipeline Maestro y scripts de procesamiento
+│   ├── run_pipeline.py              # Orquestador Maestro de 5 fases
+│   ├── precompute_metrics_parallel.py # Motor paralelo de cálculo cienciométrico
+│   ├── compute_topics_metrics_postgres.py # Métricas jerárquicas temáticas
+│   ├── calculate_umap.py            # Variedades UMAP y baricentros
+│   ├── build_networks.py            # Redes de coautoría y flujos
+│   └── build_duckdb.py              # Consolidación e indexación OLAP DuckDB
+│
+├── data/                            # Almacén de datos y caché analítico
+│   ├── revistaslatam.duckdb         # Base de datos analítica OLAP
+│   ├── latin_american_works.parquet # Registro histórico de artículos
+│   ├── latin_american_journals.parquet # Catálogo de revistas indexadas
+│   ├── cache/                       # Métricas precacheadas y jerarquías
+│   └── umap/                        # Coordenadas topológicas y paisajes
+│
+└── docs/                            # Documentación técnica y metodológica
+    ├── inventario_completo_indicadores.md # Inventario exhaustivo de métricas y gráficos
+    ├── METRICS_CALCULATION_GUIDE.md # Fórmulas cienciométricas detalladas
+    └── INCREMENTAL_PROCESSING.md    # Arquitectura de procesamiento incremental
 ```
 
-## 📂 Estructura del Proyecto
+---
 
-### Aplicaciones y Servidores
-- `api/`: Backend REST API de alto rendimiento (**FastAPI** + **DuckDB OLAP Engine**).
-- `frontend/`: Aplicación SPA (**React 18** + **Vite** + **Plotly.js** + **WebGL GPU**).
-- `dashboard.py`: Aplicación clásica (**Streamlit**).
-
-### Pipelines
-- `pipeline_revistaslatam/`: Scripts originales y legacy para el procesamiento de **Revistas LATAM**.
-
-### Otros Archivos y Módulos Legacy
-- `precompute_metrics*.py`: Scripts para precalcular indicadores en la versión LATAM.
-- `src/`: Módulos de lógica originariamente usados por LATAM (`data_collector.py`, `data_processor.py`, `performance_metrics.py`).
-- `data/`: Almacenamiento de datos y caché local.
-
-### 📚 Documentación
-
-- **[METRICS_CALCULATION_GUIDE.md](METRICS_CALCULATION_GUIDE.md)**: Guía completa y detallada de cómo se calcula cada métrica
-  - Definiciones de todas las métricas
-  - Fórmulas y ejemplos paso a paso
-  - Proceso de cálculo paralelo
-  - Validación de resultados
-  
-- **[INCREMENTAL_PROCESSING.md](INCREMENTAL_PROCESSING.md)**: Documentación del procesamiento incremental
-  - Cómo funciona el modo incremental
-  - Ventajas y casos de uso
-  - Comparación de rendimiento
-  
-- **[CALCULATION_FIXES.md](CALCULATION_FIXES.md)**: Validación de consistencia con script original
-  - Correcciones aplicadas
-  - Verificación de equivalencia
-
-
-## 📝 Notas
-- Este proyecto utiliza `pyalex` para interactuar con OpenAlex.
-- Los datos complejos se almacenan como cadenas JSON dentro de archivos Parquet para máxima compatibilidad.
+## 📝 Notas Técnicas
+- **Compatibilidad**: Desarrollado con compatibilidad nativa para Windows y Linux.
+- **Rendimiento**: DuckDB ejecuta consultas analíticas en memoria columnar con tiempos de respuesta inferiores a 15 ms.
 
 ---
-Desarrollado para el análisis de la ciencia en Latinoamérica. 🌎
+Desarrollado para el análisis y fortalecimiento de la ciencia abierta en Latinoamérica. 🌎

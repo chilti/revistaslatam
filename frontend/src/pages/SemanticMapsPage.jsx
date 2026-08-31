@@ -12,7 +12,8 @@ import {
   Compass, 
   ExternalLink,
   BookOpen,
-  FileText
+  FileText,
+  Pentagon
 } from 'lucide-react';
 
 export default function SemanticMapsPage() {
@@ -25,6 +26,8 @@ export default function SemanticMapsPage() {
   const [artCountryFilter, setArtCountryFilter] = useState('');
   const [artCommFilter, setArtCommFilter] = useState('');
   const [artSampleLimit, setArtSampleLimit] = useState(50000);
+  const [showConvexHull, setShowConvexHull] = useState(false);
+  const [convexHullPoints, setConvexHullPoints] = useState([]);
   
   // Journals state
   const [journalPoints, setJournalPoints] = useState([]);
@@ -56,6 +59,17 @@ export default function SemanticMapsPage() {
       .finally(() => setLoading(false));
   }, [activeTab, artCountryFilter, artCommFilter, artSampleLimit]);
 
+  // Load Convex Hull if enabled
+  useEffect(() => {
+    if (showConvexHull && artCountryFilter && artCountryFilter !== 'Todos') {
+      api.get(`/maps/convex-hull?country=${artCountryFilter}`)
+        .then(res => setConvexHullPoints(res.data?.hull || []))
+        .catch(console.error);
+    } else {
+      setConvexHullPoints([]);
+    }
+  }, [showConvexHull, artCountryFilter]);
+
   // Load journals points
   useEffect(() => {
     if (activeTab !== 'journals') return;
@@ -70,6 +84,38 @@ export default function SemanticMapsPage() {
       .finally(() => setLoading(false));
   }, [activeTab, journalCountryFilter, journalCommFilter]);
 
+  // Plotly Traces for Articles + Convex Hull
+  const articleTraces = [
+    {
+      x: articlePoints.map(p => p.umap_x),
+      y: articlePoints.map(p => p.umap_y),
+      mode: 'markers',
+      marker: {
+        size: 5,
+        color: articlePoints.map(p => p.publication_year || 2020),
+        colorscale: 'Turbo',
+        showscale: true,
+        opacity: 0.8
+      },
+      text: articlePoints.map(p => `${p.title}<br>Revista: ${p.journal_name}<br>Año: ${p.publication_year} | FWCI: ${p.fwci}`),
+      type: 'scatter',
+      name: 'Artículos'
+    }
+  ];
+
+  if (convexHullPoints.length > 0) {
+    articleTraces.push({
+      x: convexHullPoints.map(p => p.x),
+      y: convexHullPoints.map(p => p.y),
+      mode: 'lines',
+      fill: 'toself',
+      fillcolor: 'rgba(239, 68, 68, 0.15)',
+      line: { color: '#ef4444', width: 2.5, dash: 'solid' },
+      name: `Envoltura Convexa (${artCountryFilter})`,
+      type: 'scatter'
+    });
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header & Tabs */}
@@ -78,7 +124,7 @@ export default function SemanticMapsPage() {
           <div>
             <h2 style={{ fontSize: '24px', fontWeight: '800' }}>🗺️ Mapas Semántico</h2>
             <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Proyección topológica continua del conocimiento científico (UMAP + Stopwords Trilingües + Baricentros).
+              Proyección topológica continua del conocimiento científico (UMAP + Stopwords Trilingües + Baricentros + Envolturas Convexas).
             </p>
           </div>
 
@@ -95,7 +141,7 @@ export default function SemanticMapsPage() {
               onClick={() => setEngine('plotly')}
               style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
             >
-              <BarChart3 size={14} /> 📊 Plotly
+              <BarChart3 size={14} /> 📊 Plotly (2D Hull)
             </button>
           </div>
         </div>
@@ -173,6 +219,17 @@ export default function SemanticMapsPage() {
                 <option value={100000}>100,000 puntos</option>
               </select>
             </div>
+
+            {/* Convex Hull Toggle */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer', marginLeft: 'auto', background: 'var(--bg-input)', padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+              <input
+                type="checkbox"
+                checked={showConvexHull}
+                onChange={(e) => setShowConvexHull(e.target.checked)}
+              />
+              <Pentagon size={14} color="#ef4444" />
+              <span>Envoltura Convexa (Convex Hull)</span>
+            </label>
           </div>
 
           {/* Engine Visualizer */}
@@ -186,20 +243,7 @@ export default function SemanticMapsPage() {
           ) : (
             <div className="card">
               <PlotlyChart
-                data={[{
-                  x: articlePoints.map(p => p.umap_x),
-                  y: articlePoints.map(p => p.umap_y),
-                  mode: 'markers',
-                  marker: {
-                    size: 5,
-                    color: articlePoints.map(p => p.publication_year || 2020),
-                    colorscale: 'Turbo',
-                    showscale: true,
-                    opacity: 0.8
-                  },
-                  text: articlePoints.map(p => `${p.title}<br>Revista: ${p.journal_name}<br>Año: ${p.publication_year} | FWCI: ${p.fwci}`),
-                  type: 'scatter'
-                }]}
+                data={articleTraces}
                 layout={{ height: 680, title: `Paisaje Temático de ${articlePoints.length.toLocaleString()} Artículos` }}
               />
             </div>
@@ -215,7 +259,7 @@ export default function SemanticMapsPage() {
               <li><strong>Procesamiento Trilingüe:</strong> Filtro avanzado de <em>stopwords</em> en Español, Portugués e Inglés.</li>
               <li><strong>Vectorización Densa:</strong> Embeddings de alta dimensionalidad mediante modelos neuronales Transformer (<em>Nomic Embed Text v2</em>) normalizados en norma <em>L₂</em>.</li>
               <li><strong>Variedades No Lineales (UMAP 2D):</strong> Reducción topológica con métrica del coseno (<code>n_neighbors=30</code>, <code>min_dist=0.35</code>), proyectando la variedad continua a 2D.</li>
-              <li><strong>Etiquetado de Comunidades:</strong> Identificación de macro-comunidades científicas mediante clustering no supervisado.</li>
+              <li><strong>Envolturas Convexas (Convex Hulls):</strong> Delimitación de polígonos mínimos que encierran el territorio temático de un país o revista seleccionados.</li>
             </ol>
           </div>
         </div>

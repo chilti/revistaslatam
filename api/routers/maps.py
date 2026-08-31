@@ -77,3 +77,41 @@ def get_articles_landscape_data(
     ]
     avail_cols = [c for c in cols if c in df.columns]
     return sanitize_records(df[avail_cols])
+
+@router.get("/convex-hull")
+def get_convex_hull(
+    country: str = Query(None),
+    journal_id: str = Query(None)
+):
+    """Computes the 2D convex hull polygon coordinates (scipy.spatial.ConvexHull) for country or journal."""
+    from scipy.spatial import ConvexHull
+    
+    landscape_file = UMAP_DIR / 'umap_articles_landscape.parquet'
+    if not landscape_file.exists():
+        return {"hull": []}
+        
+    df = pd.read_parquet(landscape_file)
+    if journal_id:
+        sub = df[df['journal_id'] == journal_id]
+    elif country and country != "Todos":
+        sub = df[df['country_code'] == country]
+    else:
+        sub = df
+        
+    points = sub[['umap_x', 'umap_y']].dropna().values
+    if len(points) < 3:
+        return {"hull": []}
+        
+    try:
+        hull = ConvexHull(points)
+        hull_pts = points[hull.vertices]
+        # Close loop
+        closed_pts = np.vstack([hull_pts, hull_pts[0]])
+        return {
+            "hull": [{"x": float(p[0]), "y": float(p[1])} for p in closed_pts],
+            "count": len(points)
+        }
+    except Exception as e:
+        print(f"[Convex Hull Error]: {e}")
+        return {"hull": [], "count": len(points)}
+

@@ -1,21 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import PlotlyChart from '../components/PlotlyChart';
-import { Share2, GitFork, Globe2 } from 'lucide-react';
+import { Share2, GitFork, Globe2, CircleDot, Network } from 'lucide-react';
 
 export default function NetworksPage() {
-  const [activeTab, setActiveTab] = useState('collab');
+  const [activeTab, setActiveTab] = useState('collab'); // 'collab' | 'chord' | 'alluvial' | 'sankey'
   const [collabData, setCollabData] = useState({ nodes: [], edges: [] });
   const [sankeyData, setSankeyData] = useState(null);
+  const [chordData, setChordData] = useState({ entities: [], matrix: [] });
+  const [alluvialData, setAlluvialData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       api.get('/networks/collaboration'),
-      api.get('/networks/sankey')
-    ]).then(([collabRes, sankeyRes]) => {
+      api.get('/networks/sankey'),
+      api.get('/networks/chord'),
+      api.get('/networks/alluvial')
+    ]).then(([collabRes, sankeyRes, chordRes, alluvRes]) => {
       setCollabData(collabRes.data);
       setSankeyData(sankeyRes.data);
+      setChordData(chordRes.data);
+      setAlluvialData(alluvRes.data);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
@@ -74,6 +80,35 @@ export default function NetworksPage() {
     }
   }] : [];
 
+  // Alluvial Trace
+  const alluvialTrace = alluvialData && alluvialData.node_labels ? [{
+    type: 'sankey',
+    node: {
+      pad: 18,
+      thickness: 22,
+      line: { color: 'black', width: 0.5 },
+      label: alluvialData.node_labels,
+      color: '#10b981'
+    },
+    link: {
+      source: alluvialData.links.source,
+      target: alluvialData.links.target,
+      value: alluvialData.links.value,
+      color: 'rgba(16, 185, 129, 0.25)'
+    }
+  }] : [];
+
+  // Chord Heatmap Matrix Trace
+  const chordHeatmapTrace = chordData.entities.length > 0 ? [{
+    type: 'heatmap',
+    z: chordData.matrix,
+    x: chordData.entities.map(e => e.name),
+    y: chordData.entities.map(e => e.name),
+    colorscale: 'Blues',
+    colorbar: { title: 'Coautorías' },
+    hovertemplate: '<b>%{y}</b> - <b>%{x}</b><br>Coautorías: %{z:,}<extra></extra>'
+  }] : [];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
@@ -81,7 +116,7 @@ export default function NetworksPage() {
           🌐 Redes de Colaboración Internacional y Flujos Disciplinares
         </h2>
         <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-          Análisis de coautoría internacional y flujos de conocimiento interdisciplinares para Latinoamérica.
+          Análisis de coautoría intrarregional, flujos de conocimiento interdisciplinares y cartografía de redes para Latinoamérica.
         </p>
 
         {/* Tabs */}
@@ -91,14 +126,28 @@ export default function NetworksPage() {
             onClick={() => setActiveTab('collab')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <Globe2 size={16} /> Red de Coautoría Internacional
+            <Globe2 size={16} /> Red de Coautoría Global (Mapa)
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'chord' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chord')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <CircleDot size={16} /> Matriz de Cooperación Sur-Sur
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'alluvial' ? 'active' : ''}`}
+            onClick={() => setActiveTab('alluvial')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <GitFork size={16} /> Diagrama Alluvial: Dominio → Vía OA
           </button>
           <button
             className={`tab-btn ${activeTab === 'sankey' ? 'active' : ''}`}
             onClick={() => setActiveTab('sankey')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <GitFork size={16} /> Diagrama Sankey Interdisciplinar
+            <Network size={16} /> Flujo Disciplinar Sankey
           </button>
         </div>
       </div>
@@ -107,7 +156,7 @@ export default function NetworksPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="card">
             <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>
-              🌍 Matriz de Coautoría País-País (Mapa Global)
+              🌍 Matriz de Coautoría País-País (Connection Map Global)
             </h3>
             <PlotlyChart
               data={geoTraces}
@@ -120,7 +169,7 @@ export default function NetworksPage() {
                   center: { lat: 5, lon: -60 },
                   projection_scale: 1.4
                 },
-                height: 580,
+                height: 560,
                 margin: { l: 10, r: 10, t: 30, b: 10 }
               }}
             />
@@ -155,6 +204,46 @@ export default function NetworksPage() {
         </div>
       )}
 
+      {activeTab === 'chord' && (
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <CircleDot size={18} color="var(--accent-primary)" />
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              Matriz Circular de Coautoría Bilateral en Iberoamérica (Cooperación Sur-Sur)
+            </h3>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+            Intensidad de artículos científicos co-publicados entre los 10 países con mayor producción en la región.
+          </p>
+          <PlotlyChart
+            data={chordHeatmapTrace}
+            layout={{
+              height: 540,
+              margin: { l: 140, r: 20, t: 20, b: 90 },
+              xaxis: { tickangle: -35 }
+            }}
+          />
+        </div>
+      )}
+
+      {activeTab === 'alluvial' && (
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <GitFork size={18} color="var(--accent-primary)" />
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              Diagrama Alluvial — Flujo Dominio del Conocimiento → Vía de Acceso Abierto
+            </h3>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+            Mapea la canalización del conocimiento según el modelo de acceso abierto (Diamante universitario vs Gold con APC).
+          </p>
+          <PlotlyChart
+            data={alluvialTrace}
+            layout={{ height: 600, margin: { l: 20, r: 20, t: 20, b: 20 } }}
+          />
+        </div>
+      )}
+
       {activeTab === 'sankey' && (
         <div className="card">
           <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>
@@ -162,7 +251,7 @@ export default function NetworksPage() {
           </h3>
           <PlotlyChart
             data={sankeyTrace}
-            layout={{ height: 680, margin: { l: 20, r: 20, t: 20, b: 20 } }}
+            layout={{ height: 620, margin: { l: 20, r: 20, t: 20, b: 20 } }}
           />
         </div>
       )}

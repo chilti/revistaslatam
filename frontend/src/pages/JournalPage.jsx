@@ -16,7 +16,11 @@ import {
   Share2,
   Calendar,
   Globe,
-  ListFilter
+  ListFilter,
+  Radar,
+  Activity,
+  BoxSelect,
+  GitCommit
 } from 'lucide-react';
 
 const DEFAULT_COUNTRIES = [
@@ -66,6 +70,12 @@ export default function JournalPage() {
   const [sunburstData, setSunburstData] = useState(null);
   const [sunburstInd, setSunburstInd] = useState('fwci_avg_recent');
   
+  // New Visualizations data
+  const [radarData, setRadarData] = useState(null);
+  const [citationsDist, setCitationsDist] = useState({ citations: [], fwci: [], percentiles: [], years: [] });
+  const [distPlotType, setDistPlotType] = useState('box'); // 'box' | 'violin'
+  const [connectedTraj, setConnectedTraj] = useState([]);
+  
   const [articles, setArticles] = useState([]);
   const [articleSort, setArticleSort] = useState('cited_by_count');
   const [articleYearFilter, setArticleYearFilter] = useState('');
@@ -74,7 +84,7 @@ export default function JournalPage() {
   const [trajectory, setTrajectory] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Load countries catalog from API
+  // Load countries catalog
   useEffect(() => {
     api.get('/countries')
       .then(res => {
@@ -101,7 +111,6 @@ export default function JournalPage() {
           setCountryJournals(list);
           const exists = list.some(j => j.id === selectedJournalId);
           if (!exists) {
-            // Only change if current selected is not in the new country list
             setSelectedJournal(list[0].id, list[0].display_name);
           }
         }
@@ -142,15 +151,20 @@ export default function JournalPage() {
       api.get(`/journals/${jidParam}/annual`),
       api.get(`/journals/${jidParam}/articles?sort_by=${articleSort}${articleYearFilter ? `&year=${articleYearFilter}` : ''}&limit=100`),
       api.get(`/journals/${jidParam}/landscape`),
-      api.get(`/journals/${jidParam}/trajectory`)
-    ]).then(([detRes, annRes, artRes, landRes, trajRes]) => {
+      api.get(`/journals/${jidParam}/trajectory`),
+      api.get(`/journals/${jidParam}/radar-profile`),
+      api.get(`/journals/${jidParam}/citations-distribution`),
+      api.get(`/journals/${jidParam}/connected-trajectory`)
+    ]).then(([detRes, annRes, artRes, landRes, trajRes, radarRes, citRes, connRes]) => {
       setDetails(detRes.data);
       setAnnualTrends(annRes.data || []);
       setArticles(artRes.data || []);
       setLandscapeData(landRes.data || { articles: [], dispersion: 0 });
       setTrajectory(trajRes.data || {});
+      setRadarData(radarRes.data);
+      setCitationsDist(citRes.data || { citations: [], fwci: [] });
+      setConnectedTraj(connRes.data || []);
 
-      // Synchronize country filter with the journal's country if different
       const jCountry = detRes.data?.profile?.country_code;
       if (jCountry && jCountry !== filterCountry && filterCountry !== 'ALL') {
         setFilterCountry(jCountry);
@@ -158,7 +172,7 @@ export default function JournalPage() {
     }).catch(console.error).finally(() => setLoading(false));
   }, [selectedJournalId, articleSort, articleYearFilter]);
 
-  // Sunburst
+  // Load sunburst
   useEffect(() => {
     if (!selectedJournalId) return;
     const jidParam = encodeURIComponent(selectedJournalId);
@@ -167,371 +181,450 @@ export default function JournalPage() {
       .catch(console.error);
   }, [selectedJournalId, sunburstInd]);
 
-  const profile = details?.profile || {};
   const pData = details?.full_period || {};
   const recData = details?.recent_period || {};
+  const prof = details?.profile || {};
 
-  // Trajectory Trace
-  const trajTraces = [];
-  Object.keys(trajectory).forEach(k => {
-    const item = trajectory[k];
-    trajTraces.push({
-      x: item.points.map(p => p.x),
-      y: item.points.map(p => p.y),
-      mode: 'lines+markers+text',
-      name: item.name,
-      text: item.points.map(p => String(p.year).slice(-2)),
-      textposition: 'top center',
-      line: { shape: 'spline', width: item.is_country ? 3 : 2, color: item.is_country ? '#f59e0b' : '#0284c7' }
-    });
-  });
-
-  // Landscape Scatter Trace
-  const landscapeTraces = [
+  // Dual-Axis Chart: Volume vs FWCI
+  const dualAxisTraces = [
     {
-      x: landscapeData.articles.map(a => a.umap_x),
-      y: landscapeData.articles.map(a => a.umap_y),
-      mode: 'markers',
-      marker: {
-        size: 8,
-        color: landscapeData.articles.map(a => a.publication_year || 2020),
-        colorscale: 'Turbo',
-        showscale: true,
-        colorbar: { title: 'Año' }
-      },
-      text: landscapeData.articles.map(a => `${a.title}<br>Año: ${a.publication_year} | FWCI: ${a.fwci}`),
-      name: profile.display_name || selectedJournalName
+      x: annualTrends.map(d => d.year),
+      y: annualTrends.map(d => d.num_documents),
+      name: 'Artículos Publicados',
+      type: 'bar',
+      marker: { color: 'rgba(2, 132, 199, 0.65)' },
+      yaxis: 'y'
+    },
+    {
+      x: annualTrends.map(d => d.year),
+      y: annualTrends.map(d => d.fwci_avg),
+      name: 'FWCI Anual',
+      type: 'scatter',
+      mode: 'lines+markers',
+      line: { color: '#10b981', width: 3 },
+      marker: { size: 6, color: '#10b981' },
+      yaxis: 'y2'
+    },
+    {
+      x: annualTrends.map(d => d.year),
+      y: annualTrends.map(() => 1.0),
+      name: 'Media Mundial (1.0)',
+      type: 'scatter',
+      mode: 'lines',
+      line: { color: '#ef4444', dash: 'dash', width: 1.5 },
+      yaxis: 'y2'
     }
   ];
 
-  // Radar Trace for recent performance
-  const radarCategories = ['FWCI Ponderado', 'Percentil', '% Top 10%', '% Top 1%', '% OA Diamante', '% Autoría Doméstica'];
-  const radarValues = [
-    Math.min(100, (Number(recData.fwci_avg || profile.fwci_avg || 0) / 2.0) * 100),
-    Number(recData.avg_percentile || profile.avg_percentile || 0),
-    Math.min(100, (Number(recData.pct_top_10 || 0) / 20.0) * 100),
-    Math.min(100, (Number(recData.pct_top_1 || 0) / 2.0) * 100),
-    Number(recData.pct_oa_diamond || profile.pct_oa_diamond || 0),
-    Number(recData.pct_authors_domestic || profile.pct_authors_domestic || 0)
-  ];
+  // Radar Chart Traces
+  const radarTraces = [];
+  if (radarData && radarData.axes) {
+    const axes = [...radarData.axes, radarData.axes[0]]; // Close polygon
+    
+    // Journal
+    const jVals = radarData.axes.map(a => radarData.journal[a] || 0);
+    jVals.push(jVals[0]);
+    radarTraces.push({
+      type: 'scatterpolar',
+      r: jVals,
+      theta: axes,
+      fill: 'toself',
+      name: prof.display_name || 'Esta Revista',
+      line: { color: '#0284c7', width: 2.5 },
+      fillcolor: 'rgba(2, 132, 199, 0.25)'
+    });
+
+    // Country
+    if (radarData.country) {
+      const cVals = radarData.axes.map(a => radarData.country[a] || 0);
+      cVals.push(cVals[0]);
+      radarTraces.push({
+        type: 'scatterpolar',
+        r: cVals,
+        theta: axes,
+        name: `Promedio País (${prof.country_code})`,
+        line: { color: '#f59e0b', width: 1.5, dash: 'dot' }
+      });
+    }
+
+    // LATAM
+    if (radarData.latam) {
+      const lVals = radarData.axes.map(a => radarData.latam[a] || 0);
+      lVals.push(lVals[0]);
+      radarTraces.push({
+        type: 'scatterpolar',
+        r: lVals,
+        theta: axes,
+        name: 'Referencia LATAM',
+        line: { color: '#10b981', width: 1.5, dash: 'dash' }
+      });
+    }
+  }
+
+  // Citations Box / Violin Plot Traces
+  const distTraces = citationsDist.citations.length > 0 ? [{
+    type: distPlotType,
+    y: citationsDist.citations,
+    boxpoints: 'outliers',
+    marker: { color: '#0284c7', size: 5 },
+    line: { color: '#0284c7' },
+    name: 'Citas por Artículo',
+    boxmean: true
+  }] : [];
+
+  // Connected Scatter Plot (Volumen vs FWCI Trajectory)
+  const connectedTraces = connectedTraj.length > 0 ? [{
+    x: connectedTraj.map(d => d.num_documents),
+    y: connectedTraj.map(d => d.fwci_avg),
+    text: connectedTraj.map(d => String(d.year)),
+    type: 'scatter',
+    mode: 'lines+markers+text',
+    textposition: 'top center',
+    line: { color: '#0284c7', shape: 'spline', width: 2.5 },
+    marker: {
+      size: 8,
+      color: connectedTraj.map(d => d.year),
+      colorscale: 'Viridis',
+      showscale: true,
+      colorbar: { title: 'Año', thickness: 12 }
+    },
+    hovertemplate: '<b>Año %{text}</b><br>Artículos: %{x}<br>FWCI: %{y:.2f}<extra></extra>'
+  }] : [];
+
+  // Sunburst Trace
+  const sunburstTrace = sunburstData && sunburstData.nodes?.length > 0 ? [{
+    type: 'sunburst',
+    ids: sunburstData.nodes.map(n => n.id),
+    labels: sunburstData.nodes.map(n => n.label),
+    parents: sunburstData.nodes.map(n => n.parent),
+    values: sunburstData.nodes.map(n => n.value),
+    marker: {
+      colors: sunburstData.nodes.map(n => n.color_val),
+      colorscale: 'Viridis',
+      showscale: true
+    },
+    branchvalues: 'total',
+    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+  }] : [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-      {/* Search & Country/Journal Combos Container */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
-        
-        {/* Row 1: Instant Text Autocomplete Search */}
-        <div>
-          <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Search size={14} color="var(--accent-primary)" /> Buscador Instantáneo por Nombre o ISSN:
-          </label>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: 'var(--bg-input)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '8px',
-            padding: '8px 14px',
-            gap: '10px'
-          }}>
-            <Search size={16} color="var(--text-muted)" />
-            <input
-              type="text"
-              placeholder="Escribe el nombre de la revista o ISSN (ej. Estudios Demográficos, 0186-7210)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '13.5px', outline: 'none', color: 'var(--text-main)' }}
-            />
-            {isSearching && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Buscando...</span>}
+      {/* Search and Country Selector Header */}
+      <div className="card" style={{ padding: '18px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+          {/* Quick Country + Journal Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>País:</span>
+              <select
+                value={filterCountry}
+                onChange={(e) => setFilterCountry(e.target.value)}
+                style={{ fontSize: '13px', fontWeight: '700', padding: '6px 12px' }}
+              >
+                <option value="ALL">🌎 Todos los Países</option>
+                {countriesList.map(c => (
+                  <option key={c.country_code} value={c.country_code}>
+                    {c.country_name} ({c.country_code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>Revista:</span>
+              <select
+                value={selectedJournalId}
+                onChange={(e) => {
+                  const targetJ = countryJournals.find(j => j.id === e.target.value);
+                  setSelectedJournal(e.target.value, targetJ ? targetJ.display_name : '');
+                }}
+                style={{ fontSize: '13px', fontWeight: '700', maxWidth: '380px', padding: '6px 12px' }}
+                disabled={loadingJournals}
+              >
+                {countryJournals.map(j => (
+                  <option key={j.id} value={j.id}>
+                    {j.display_name} ({j.works_count?.toLocaleString()} docs)
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* Autocomplete dropdown results */}
-          {searchResults.length > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: '74px',
-              left: '20px',
-              right: '20px',
-              zIndex: 100,
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '10px',
-              boxShadow: 'var(--card-shadow)',
-              maxHeight: '340px',
-              overflowY: 'auto'
-            }}>
-              {searchResults.map((j) => (
-                <div
-                  key={j.id}
-                  onClick={() => {
-                    setSelectedJournal(j.id, j.display_name);
-                    if (j.country_code) setFilterCountry(j.country_code);
-                    setSearchQuery('');
-                    setSearchResults([]);
-                  }}
-                  style={{
-                    padding: '12px 18px',
-                    borderBottom: '1px solid var(--border-color)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-input)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div>
-                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-main)' }}>
-                      {j.display_name}
-                    </div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                      {j.country_code} • ISSN: {j.issn_l || 'N/A'} • {j.publisher || 'Editorial no registrada'}
+          {/* Autocomplete Search Bar */}
+          <div style={{ position: 'relative', width: '320px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px', gap: '8px' }}>
+              <Search size={16} color="var(--text-muted)" />
+              <input
+                type="text"
+                placeholder="Buscar revista o ISSN..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
+              />
+            </div>
+
+            {searchResults.length > 0 && (
+              <div style={{ position: 'absolute', top: '42px', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 100, maxHeight: '280px', overflowY: 'auto' }}>
+                {searchResults.map(j => (
+                  <div
+                    key={j.id}
+                    onClick={() => {
+                      setSelectedJournal(j.id, j.display_name);
+                      setSearchQuery('');
+                      setSearchResults([]);
+                    }}
+                    style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '12.5px' }}
+                    className="search-item-hover"
+                  >
+                    <strong>{j.display_name}</strong>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {j.publisher || 'Editorial no especificada'} • {j.country_code} • {j.works_count} docs
                     </div>
                   </div>
-                  <span className="badge">
-                    {j.works_count?.toLocaleString()} arts
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Row 2: Cascading Country and Journal Combos */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '14px',
-          paddingTop: '12px',
-          borderTop: '1px solid var(--border-color)'
-        }}>
-          {/* Country Combo */}
-          <div>
-            <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Globe size={14} color="var(--accent-primary)" /> 1. Filtrar por País:
-            </label>
-            <select
-              value={filterCountry}
-              onChange={(e) => setFilterCountry(e.target.value)}
-              style={{ width: '100%', fontSize: '13.5px', fontWeight: '600', padding: '9px 12px' }}
-            >
-              <option value="ALL">🌐 Todos los Países (Iberoamérica)</option>
-              {countriesList.map(c => (
-                <option key={c.country_code} value={c.country_code}>
-                  {c.country_name} ({c.country_code}) — {c.num_journals} revistas
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Journal Combo */}
-          <div>
-            <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ListFilter size={14} color="var(--accent-primary)" /> 2. Seleccionar Revista ({countryJournals.length} disponibles):
-            </label>
-            <select
-              value={selectedJournalId}
-              disabled={loadingJournals && countryJournals.length === 0}
-              onChange={(e) => {
-                const chosen = countryJournals.find(j => j.id === e.target.value);
-                if (chosen) {
-                  setSelectedJournal(chosen.id, chosen.display_name);
-                }
-              }}
-              style={{ width: '100%', fontSize: '13.5px', fontWeight: '600', padding: '9px 12px' }}
-            >
-              {/* If selected journal is not yet in the list, keep it as an option so selection is never lost */}
-              {countryJournals.every(j => j.id !== selectedJournalId) && (
-                <option value={selectedJournalId}>
-                  {selectedJournalName} (Seleccionada)
-                </option>
-              )}
-              {countryJournals.map(j => (
-                <option key={j.id} value={j.id}>
-                  {j.display_name} ({j.country_code || 'LATAM'}) — {j.works_count?.toLocaleString()} arts
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Journal Technical Profile Header */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: '800' }}>
-                {profile.display_name || selectedJournalName}
-              </h2>
-              {profile.community_name && (
-                <span className="badge">🏷️ {profile.community_name}</span>
-              )}
-            </div>
-            <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              ISSN-L: <strong>{profile.issn_l || 'N/A'}</strong> • País: <strong>{profile.country_name || profile.country_code || 'México'}</strong> • Editorial: <strong>{profile.publisher || 'N/A'}</strong>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <a
-              href={profile.id || selectedJournalId}
-              target="_blank"
-              rel="noreferrer"
-              className="segmented-pill-btn"
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', textDecoration: 'none', background: 'var(--bg-input)' }}
-            >
-              <ExternalLink size={13} /> OpenAlex ↗
-            </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* KPIs Fila 1: Producción y Citación */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-        <KpiCard title="Total Documentos" value={profile.works_count?.toLocaleString()} icon={FileText} />
-        <KpiCard title="Total Citas" value={profile.cited_by_count?.toLocaleString()} icon={Award} />
-        <KpiCard title="FWCI Promedio" value={Number(profile.fwci_avg || profile['2yr_mean_citedness'] || 0).toFixed(2)} icon={Zap} />
-        <KpiCard title="Índice H" value={profile.h_index || '—'} icon={TrendingUp} />
+      {/* Journal Title & Technical Badges */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h2 style={{ fontSize: '24px', fontWeight: '800' }}>
+              {prof.display_name || selectedJournalName}
+            </h2>
+            <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {prof.publisher ? `${prof.publisher} • ` : ''}{prof.country_name || prof.country_code} • ISSN-L: <code>{prof.issn_l || 'No disponible'}</code>
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {prof.is_in_doaj && (
+              <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981' }}>
+                ✓ DOAJ Seal
+              </span>
+            )}
+            {prof.is_scopus && (
+              <span className="badge" style={{ background: 'rgba(2, 132, 199, 0.15)', color: '#0284c7', border: '1px solid #0284c7' }}>
+                ✓ Scopus
+              </span>
+            )}
+            {prof.is_in_scielo && (
+              <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid #f59e0b' }}>
+                ✓ SciELO
+              </span>
+            )}
+            {prof.homepage_url && (
+              <a
+                href={prof.homepage_url}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-primary"
+                style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                Sitio Web <ExternalLink size={12} />
+              </a>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* KPIs Fila 2: Indicadores Avanzados & Red */}
+      {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-        <KpiCard title="Índice i10" value={profile.i10_index || '—'} />
-        <KpiCard title="PageRank Citas (‰)" value={Number(profile.pagerank || 0).toFixed(3)} />
-        <KpiCard title="Eigenfactor Score (%)" value={Number(profile.eigenfactor || 0).toFixed(4)} />
-        <KpiCard title="Percentil Promedio" value={Number(profile.avg_percentile || 0).toFixed(1)} />
+        <KpiCard
+          title="Total Artículos"
+          value={prof.works_count?.toLocaleString()}
+          subtitle="En OpenAlex Snapshot"
+          icon={BookOpen}
+        />
+        <KpiCard
+          title="Total Citas"
+          value={prof.cited_by_count?.toLocaleString()}
+          subtitle="Impacto de Citación"
+          icon={FileText}
+        />
+        <KpiCard
+          title="FWCI Promedio"
+          value={Number(prof.fwci_avg || 0).toFixed(2)}
+          subtitle="Citas Ponderadas"
+          icon={Zap}
+          badge={prof.fwci_avg >= 1.0 ? 'Superior al Mundo' : 'Regional'}
+        />
+        <KpiCard
+          title="Índice H"
+          value={prof.h_index || '—'}
+          subtitle="Consistencia Editorial"
+          icon={Award}
+        />
+        <KpiCard
+          title="% OA Diamante"
+          value={`${Number(prof.pct_oa_diamond || 0).toFixed(1)}%`}
+          subtitle="Sin Cobro por APC"
+          icon={Sparkles}
+          badge="Diamante"
+        />
       </div>
 
-      {/* KPIs Fila 3: Ciencia Abierta & Indexación */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-        <KpiCard title="% OA Diamante" value={`${Number(profile.pct_oa_diamond || 0).toFixed(1)}%`} badge="Diamante" />
-        <KpiCard title="% OA Dorado" value={`${Number(profile.pct_oa_gold || 0).toFixed(1)}%`} />
-        <KpiCard title="En DOAJ" value={profile.is_in_doaj ? '✅ Sí' : '❌ No'} />
-        <KpiCard title="En Scopus" value={profile.is_scopus ? '✅ Sí' : '❌ No'} />
-      </div>
-
-      {/* Radar de Desempeño Reciente & Trayectoria UMAP */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
-        {/* Radar */}
-        <div className="card">
-          <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '8px' }}>
-            🕸️ Radar de Desempeño Multidimensional
+      {/* DUAL-AXIS CHART: Artículos vs FWCI */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <TrendingUp size={18} color="var(--accent-primary)" />
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+            Gráfico de Eje Dual (Dual-Axis Chart) — Producción Anual vs FWCI
           </h3>
+        </div>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+          Evolución histórica de artículos publicados (barras) y FWCI alcanzado en cada año (línea verde).
+        </p>
+
+        <PlotlyChart
+          data={dualAxisTraces}
+          layout={{
+            height: 360,
+            margin: { l: 60, r: 60, t: 20, b: 40 },
+            xaxis: { title: 'Año de Publicación' },
+            yaxis: { title: 'Artículos Publicados', side: 'left', showgrid: true },
+            yaxis2: {
+              title: 'FWCI Promedio',
+              side: 'right',
+              overlaying: 'y',
+              showgrid: false,
+              rangemode: 'tozero'
+            },
+            legend: { orientation: 'h', y: 1.1, x: 0.1 }
+          }}
+        />
+      </div>
+
+      {/* RADAR DE MADUREZ EDITORIAL & BOXPLOT DE CITAS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+        {/* Radar Chart */}
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <Radar size={18} color="var(--accent-primary)" />
+            <h3 style={{ fontSize: '15px', fontWeight: '700' }}>
+              Perfil Hexagonal de Madurez Editorial (Radar Chart)
+            </h3>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+            Evaluación multidimensional de la revista frente al promedio nacional y la referencia regional.
+          </p>
+
           <PlotlyChart
-            data={[{
-              type: 'scatterpolar',
-              r: radarValues,
-              theta: radarCategories,
-              fill: 'toself',
-              fillcolor: 'rgba(2, 132, 199, 0.2)',
-              line: { color: '#0284c7' },
-              name: profile.display_name || selectedJournalName
-            }]}
+            data={radarTraces}
             layout={{
               polar: {
-                radialaxis: { visible: true, range: [0, 100] }
+                radialaxis: { visible: true, range: [0, 1] }
               },
               height: 380,
-              margin: { t: 30, b: 30, l: 30, r: 30 }
+              margin: { l: 40, r: 40, t: 20, b: 30 },
+              legend: { orientation: 'h', y: -0.15 }
             }}
           />
         </div>
 
-        {/* Trajectory */}
+        {/* Box Plot / Violin Plot */}
         <div className="card">
-          <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '8px' }}>
-            📈 Trayectoria UMAP: Revista vs País
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <BoxSelect size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '15px', fontWeight: '700' }}>
+                Distribución Real de Citas por Artículo (Box / Violin Plot)
+              </h3>
+            </div>
+            <div className="segmented-pills">
+              <button
+                className={`segmented-pill-btn ${distPlotType === 'box' ? 'active' : ''}`}
+                onClick={() => setDistPlotType('box')}
+              >
+                Box Plot
+              </button>
+              <button
+                className={`segmented-pill-btn ${distPlotType === 'violin' ? 'active' : ''}`}
+                onClick={() => setDistPlotType('violin')}
+              >
+                Violin Plot
+              </button>
+            </div>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+            Evidencia la asimetría de la Ley de Lotka (mediana, percentiles 25/75 y artículos altamente citados).
+          </p>
+
           <PlotlyChart
-            data={trajTraces}
-            layout={{ height: 380, xaxis: { title: 'UMAP 1' }, yaxis: { title: 'UMAP 2' }, margin: { t: 30, b: 30, l: 30, r: 30 } }}
+            data={distTraces}
+            layout={{
+              height: 380,
+              margin: { l: 60, r: 20, t: 20, b: 30 },
+              yaxis: { title: 'Número de Citas Recibidas' }
+            }}
           />
         </div>
       </div>
 
-      {/* Foco Temático y Deriva Longitudinal */}
+      {/* CONNECTED SCATTER PLOT: Trayectoria Volumen vs Impacto */}
       <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+          <GitCommit size={18} color="var(--accent-primary)" />
           <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-            🌌 Foco Temático y Deriva Temporal en el Paisaje Regional
+            Gráfico de Dispersión Conectado (Connected Scatter Plot) — Trayectoria de Fase
           </h3>
-          <span className="badge" style={{ fontSize: '12px' }}>
-            Dispersión Semántica: {landscapeData.dispersion}
-          </span>
         </div>
-        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Proyección cronológica de los artículos de la revista sobre el espacio UMAP regional. Una menor dispersión indica alta especialización temática; la superposición de colores antiguos (azules) y recientes (amarillos/rojos) indica estabilidad editorial frente a deriva temática.
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+          Muestra la evolución conjunta de volumen de producción (Eje X) e impacto FWCI (Eje Y) a lo largo de los años.
         </p>
-        <PlotlyChart data={landscapeTraces} layout={{ height: 480 }} />
+
+        <PlotlyChart
+          data={connectedTraces}
+          layout={{
+            height: 380,
+            margin: { l: 60, r: 20, t: 20, b: 40 },
+            xaxis: { title: 'Volumen de Artículos Publicados' },
+            yaxis: { title: 'FWCI Promedio' }
+          }}
+        />
       </div>
 
-      {/* Sunburst of Journal */}
-      {sunburstData && sunburstData.nodes.length > 0 && (
-        <div className="card">
-          <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '12px' }}>
-            🏵️ Temáticas de Investigación de la Revista (Sunburst 4 Niveles)
-          </h3>
-          <PlotlyChart
-            data={[{
-              type: 'sunburst',
-              ids: sunburstData.nodes.map(n => n.id),
-              labels: sunburstData.nodes.map(n => n.label),
-              parents: sunburstData.nodes.map(n => n.parent),
-              values: sunburstData.nodes.map(n => n.value),
-              marker: {
-                colors: sunburstData.nodes.map(n => n.color_val),
-                colorscale: 'Viridis',
-                showscale: true
-              },
-              branchvalues: 'total'
-            }]}
-            layout={{ height: 480 }}
-          />
-        </div>
-      )}
-
-      {/* Annual Trends of Journal */}
+      {/* Sunburst de la Revista */}
       <div className="card">
-        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>
-          ⏳ Tendencias Anuales de la Revista
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '16px' }}>
-          <PlotlyChart
-            data={[{ x: annualTrends.map(d => d.year), y: annualTrends.map(d => d.num_documents), type: 'scatter', mode: 'lines+markers', name: 'Documentos' }]}
-            layout={{ title: 'Evolución de Documentos', height: 280 }}
-          />
-          <PlotlyChart
-            data={[
-              { x: annualTrends.map(d => d.year), y: annualTrends.map(d => d.fwci_avg), type: 'scatter', mode: 'lines+markers', name: 'FWCI Promedio', line: { color: '#10b981' } },
-              { x: annualTrends.map(d => d.year), y: annualTrends.map(() => 1.0), type: 'scatter', mode: 'lines', name: 'Media Mundial (1.0)', line: { color: '#ef4444', dash: 'dash' } }
-            ]}
-            layout={{ title: 'Evolución FWCI', height: 280 }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+            🏵️ Composición Temática de la Revista
+          </h3>
+          <select
+            value={sunburstInd}
+            onChange={(e) => setSunburstInd(e.target.value)}
+            style={{ fontWeight: '600' }}
+          >
+            <option value="fwci_avg_recent">FWCI (2021-2025)</option>
+            <option value="avg_percentile_recent">Percentil (2021-2025)</option>
+            <option value="pct_top_10_recent">% Top 10% (2021-2025)</option>
+            <option value="pct_oa_gold_recent">% OA Gold (2021-2025)</option>
+          </select>
         </div>
+
+        <PlotlyChart data={sunburstTrace} layout={{ height: 480, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
       </div>
 
-      {/* Detailed Articles Table directly from DuckDB */}
+      {/* Top Articles Table */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              📄 Listado de Artículos de la Revista (Motor DuckDB OLAP)
-            </h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Consultas directas a los 3.63M trabajos con latencia &lt; 15 ms.
-            </span>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>📄 Artículos de la Revista ({articles.length})</h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Muestra de artículos ordenados por impacto o citación.</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <select
               value={articleSort}
               onChange={(e) => setArticleSort(e.target.value)}
+              style={{ fontSize: '12.5px', fontWeight: '600' }}
             >
               <option value="cited_by_count">Más Citados</option>
-              <option value="publication_year">Más Recientes</option>
               <option value="fwci">Mayor FWCI</option>
+              <option value="publication_year">Más Recientes</option>
             </select>
           </div>
         </div>
@@ -540,31 +633,28 @@ export default function JournalPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Título del Artículo</th>
+                <th>Título</th>
                 <th>Año</th>
                 <th>Citas</th>
                 <th>FWCI</th>
-                <th>DOI</th>
+                <th>Acceso Abierto</th>
+                <th>Autores</th>
+                <th>Enlace</th>
               </tr>
             </thead>
             <tbody>
-              {articles.map((art) => (
-                <tr key={art.id}>
-                  <td style={{ maxWidth: '420px', whiteSpace: 'normal' }}>
-                    <strong>{art.title || 'Sin título'}</strong>
-                  </td>
-                  <td>{art.publication_year || '—'}</td>
-                  <td><strong>{art.cited_by_count?.toLocaleString()}</strong></td>
+              {articles.map((art, idx) => (
+                <tr key={idx}>
+                  <td><strong>{art.title}</strong></td>
+                  <td>{art.publication_year}</td>
+                  <td>{art.cited_by_count?.toLocaleString()}</td>
                   <td>{Number(art.fwci || 0).toFixed(2)}</td>
+                  <td><span className="badge">{art.oa_status || 'closed'}</span></td>
+                  <td><span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{art.authors || '—'}</span></td>
                   <td>
                     {art.doi ? (
-                      <a
-                        href={art.doi.startsWith('http') ? art.doi : `https://doi.org/${art.doi}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: 'var(--accent-primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}
-                      >
-                        DOI <ExternalLink size={11} />
+                      <a href={art.doi} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline', fontSize: '11px' }}>
+                        DOI
                       </a>
                     ) : '—'}
                   </td>

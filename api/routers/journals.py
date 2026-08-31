@@ -213,7 +213,7 @@ def get_journal_trajectory(journal_id: str):
     df_j = query_df("SELECT country_code FROM journals WHERE id = ?", [jid])
     c_code = df_j['country_code'].iloc[0] if not df_j.empty else ''
     
-    traj_file = CACHE_DIR / 'map_journals.parquet'
+    traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
     if not traj_file.exists():
         return {}
         
@@ -223,9 +223,133 @@ def get_journal_trajectory(journal_id: str):
     result = {}
     for entity_id in df['id'].unique():
         sub = df[df['id'] == entity_id].sort_values('year')
-        result[entity_id] = {
+        result[str(entity_id)] = {
             "name": f"País: {c_code}" if entity_id == c_code else "Revista",
             "is_country": entity_id == c_code,
             "points": sanitize_records(sub[['year', 'x', 'y']])
         }
     return result
+
+
+@router.get("/{journal_id:path}/radar-profile")
+def get_journal_radar_profile(journal_id: str):
+    """Returns normalized [0, 1] 6-dimension editorial maturity profile for radar chart."""
+    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    
+    df_j = query_df("SELECT * FROM journals WHERE id = ?", [jid])
+    if df_j.empty:
+        raise HTTPException(status_code=404, detail="Revista no encontrada")
+        
+    row = df_j.iloc[0].to_dict()
+    c_code = row.get('country_code', '')
+    
+    # Regional baseline
+    df_latam = query_df("SELECT * FROM metrics_latam_period LIMIT 1")
+    latam_row = df_latam.iloc[0].to_dict() if not df_latam.empty else {}
+    
+    # Country baseline
+    df_c = query_df("SELECT * FROM metrics_country_period WHERE country_code = ?", [c_code])
+    c_row = df_c.iloc[0].to_dict() if not df_c.empty else {}
+    
+    # 6 dimensions:
+    # 1. FWCI (rel to 2.0 max)
+    fwci_val = float(row.get('fwci_avg', 0) or 0)
+    fwci_norm = min(1.0, fwci_val / 2.0)
+    
+    # 2. % Top 10% (rel to 20% max)
+    top10_val = float(row.get('pct_top_10', 0) or 0)
+    top10_norm = min(1.0, top10_val / 20.0)
+    
+    # 3. % OA Diamante
+    diamond_val = float(row.get('pct_oa_diamond', 0) or 0)
+    diamond_norm = min(1.0, diamond_val / 100.0)
+    
+    # 4. Multilingualism (Shannon entropy of ES, EN, PT normalized to 1)
+    pes = float(row.get('pct_lang_es', 0) or 0) / 100.0
+    pen = float(row.get('pct_lang_en', 0) or 0) / 100.0
+    ppt = float(row.get('pct_lang_pt', 0) or 0) / 100.0
+    p_sum = pes + pen + ppt
+    if p_sum > 0:
+        pes, pen, ppt = pes/p_sum, pen/p_sum, ppt/p_sum
+        entropy = -sum(p * np.log(p + 1e-12) for p in [pes, pen, ppt] if p > 0)
+        multi_norm = min(1.0, entropy / np.log(3))
+    else:
+        multi_norm = 0.2
+        
+    # 5. Internationality (100 - domestic author %)
+    dom_val = float(row.get('pct_authors_domestic', 50) or 50)
+    intl_norm = min(1.0, max(0.0, (100.0 - dom_val) / 100.0))
+    
+    # 6. Indexation Score (DOAJ, SciELO, Scopus, CORE)
+    idx_score = 0.0
+    if row.get('is_in_doaj') or row.get('is_doaj'): idx_score += 0.3
+    if row.get('is_in_scielo'): idx_score += 0.3
+    if row.get('is_scopus'): idx_score += 0.25
+    if row.get('is_core_x') or row.get('is_core_y'): idx_score += 0.15
+    idx_norm = min(1.0, idx_score)
+    
+    # Baselines
+    def get_baseline_profile(b_row):
+        b_fwci = min(1.0, float(b_row.get('fwci_avg', 0.5) or 0.5) / 2.0)
+        b_top10 = min(1.0, float(b_row.get('pct_top_10', 5.0) or 5.0) / 20.0)
+        b_diam = min(1.0, float(b_row.get('pct_oa_diamond', 60.0) or 60.0) / 100.0)
+        b_dom = float(b_row.get('pct_authors_domestic', 65.0) or 65.0)
+        b_intl = min(1.0, max(0.0, (100.0 - b_dom) / 100.0))
+        return {
+            "FWCI": round(b_fwci, 2),
+            "Top 10%": round(b_top10, 2),
+            "OA Diamante": round(b_diam, 2),
+            "Multilingüismo": 0.5,
+            "Internacionalización": round(b_intl, 2),
+            "Indexación": 0.6
+        }
+
+    return {
+        "axes": ["FWCI", "Top 10%", "OA Diamante", "Multilingüismo", "Internacionalización", "Indexación"],
+        "journal": {
+            "FWCI": round(fwci_norm, 2),
+            "Top 10%": round(top10_norm, 2),
+            "OA Diamante": round(diamond_norm, 2),
+            "Multilingüismo": round(multi_norm, 2),
+            "Internacionalización": round(intl_norm, 2),
+            "Indexación": round(idx_norm, 2)
+        },
+        "country": get_baseline_profile(c_row),
+        "latam": get_baseline_profile(latam_row)
+    }
+
+@router.get("/{journal_id:path}/citations-distribution")
+def get_journal_citations_distribution(journal_id: str):
+    """Returns article citation counts and FWCI from works table for Box Plot and Violin Plot."""
+    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    
+    df = query_df("""
+        SELECT cited_by_count, fwci, percentile, publication_year, oa_status
+        FROM works 
+        WHERE journal_id = ? 
+        ORDER BY cited_by_count DESC
+        LIMIT 2500
+    """, [jid])
+    
+    if df.empty:
+        return {"citations": [], "fwci": [], "percentiles": []}
+        
+    return {
+        "citations": [int(x) for x in df['cited_by_count'].dropna().tolist()],
+        "fwci": [round(float(x), 3) for x in df['fwci'].dropna().tolist() if x >= 0],
+        "percentiles": [round(float(x), 1) for x in df['percentile'].dropna().tolist() if x >= 0],
+        "years": [int(x) for x in df['publication_year'].dropna().tolist()]
+    }
+
+@router.get("/{journal_id:path}/connected-trajectory")
+def get_journal_connected_trajectory(journal_id: str):
+    """Returns longitudinal time series (works vs FWCI) for Connected Scatter Plot."""
+    jid = journal_id if journal_id.startswith("http") else f"https://openalex.org/{journal_id}"
+    df = query_df("""
+        SELECT year, num_documents, fwci_avg, avg_percentile, pct_top_10, pct_oa_diamond
+        FROM metrics_journal_annual 
+        WHERE journal_id = ? 
+        ORDER BY year ASC
+    """, [jid])
+    return sanitize_records(df)
+

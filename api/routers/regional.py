@@ -238,9 +238,9 @@ def get_country_rankings(period: str = Query("full", pattern="^(full|recent)$"))
 @router.get("/trajectories")
 def get_global_trajectories():
     """Returns UMAP trajectory coordinates (2000-2025) for LATAM and all countries."""
-    traj_file = CACHE_DIR / 'map_countries.parquet'
+    traj_file = CACHE_DIR / 'trajectory_coordinates.parquet'
     if not traj_file.exists():
-        return {"entities": {}}
+        return {}
         
     df = pd.read_parquet(traj_file)
     df = df[(df['year'] >= 2000) & (df['year'] <= 2025)]
@@ -248,12 +248,13 @@ def get_global_trajectories():
     entities = {}
     for entity_id in df['id'].unique():
         sub = df[df['id'] == entity_id].sort_values('year')
-        entities[entity_id] = {
-            "name": "Iberoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(entity_id, entity_id),
+        entities[str(entity_id)] = {
+            "name": "Iberoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(str(entity_id), str(entity_id)),
             "is_ref": entity_id == "LATAM",
             "points": sanitize_records(sub[['year', 'x', 'y']])
         }
     return entities
+
 
 @router.get("/radar-profiles")
 def get_country_radar_profiles():
@@ -324,3 +325,164 @@ def get_journals_scatter_explorer(
     
     plot_df = merged[cols].dropna().head(1500)
     return sanitize_records(plot_df)
+
+@router.get("/period-gaps")
+def get_period_gaps():
+    """Returns comparative gap data (Full vs Recent 2021-2025) per country for Dumbbell and Slope charts."""
+    df_full = query_df("SELECT * FROM metrics_country_period")
+    rec_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet'
+    if rec_file.exists():
+        df_rec = pd.read_parquet(rec_file)
+    else:
+        df_rec = df_full.copy()
+        
+    if df_full.empty:
+        return []
+        
+    merged = pd.merge(df_full, df_rec, on='country_code', suffixes=('_full', '_recent'))
+    merged['country_name'] = merged['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x))
+    
+    # Calculate deltas
+    merged['delta_fwci'] = merged['fwci_avg_recent'] - merged['fwci_avg_full']
+    merged['delta_oa_diamond'] = merged['pct_oa_diamond_recent'] - merged['pct_oa_diamond_full']
+    merged['delta_top_10'] = merged['pct_top_10_recent'] - merged['pct_top_10_full']
+    merged['delta_lang_en'] = merged['pct_lang_en_recent'] - merged['pct_lang_en_full']
+    
+    merged = merged.sort_values('num_documents_recent', ascending=False)
+    return sanitize_records(merged)
+
+@router.get("/stacked-oa-languages")
+def get_stacked_oa_languages():
+    """Returns normalized 100% breakdown of OA modes and languages per country."""
+    df_c = query_df("SELECT * FROM metrics_country_period")
+    if df_c.empty:
+        return []
+        
+    df_c['country_name'] = df_c['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x))
+    df_c = df_c.sort_values('num_documents', ascending=False)
+    
+    records = []
+    for _, row in df_c.iterrows():
+        c_code = row['country_code']
+        # Normalize OA to 100%
+        oa_diamond = float(row.get('pct_oa_diamond', 0) or 0)
+        oa_gold = float(row.get('pct_oa_gold', 0) or 0)
+        oa_green = float(row.get('pct_oa_green', 0) or 0)
+        oa_hybrid = float(row.get('pct_oa_hybrid', 0) or 0)
+        oa_bronze = float(row.get('pct_oa_bronze', 0) or 0)
+        oa_closed = float(row.get('pct_oa_closed', 0) or 0)
+        
+        # Normalize Languages
+        l_es = float(row.get('pct_lang_es', 0) or 0)
+        l_en = float(row.get('pct_lang_en', 0) or 0)
+        l_pt = float(row.get('pct_lang_pt', 0) or 0)
+        l_other = max(0, 100 - (l_es + l_en + l_pt))
+        
+        records.append({
+            "country_code": c_code,
+            "country_name": row['country_name'],
+            "num_documents": int(row.get('num_documents', 0) or 0),
+            "oa_diamond": round(oa_diamond, 1),
+            "oa_gold": round(oa_gold, 1),
+            "oa_green": round(oa_green, 1),
+            "oa_hybrid": round(oa_hybrid, 1),
+            "oa_bronze": round(oa_bronze, 1),
+            "oa_closed": round(oa_closed, 1),
+            "lang_es": round(l_es, 1),
+            "lang_en": round(l_en, 1),
+            "lang_pt": round(l_pt, 1),
+            "lang_other": round(l_other, 1)
+        })
+        
+    return records
+
+@router.get("/thematic-stream")
+def get_thematic_stream():
+    """Returns annual volume of articles per Domain for Stream Graph / Stacked Area (1985-2025)."""
+    evo_file = CACHE_DIR / 'thematic_evolution_latam.parquet'
+    if not evo_file.exists():
+        return []
+        
+    df = pd.read_parquet(evo_file)
+    df = df[(df['year'] >= 1985) & (df['year'] <= 2025)]
+    df = df[df['domain'].notna() & (df['domain'] != 'Sin Clasificación') & (df['domain'] != 'Unknown')]
+    
+    grouped = df.groupby(['year', 'domain'])['num_documents'].sum().reset_index()
+    pivot = grouped.pivot(index='year', columns='domain', values='num_documents').fillna(0).reset_index()
+    
+    return sanitize_records(pivot)
+
+@router.get("/treemap")
+def get_thematic_treemap(
+    indicator: str = Query("fwci_avg_recent", description="Color metric"),
+    include_unclassified: bool = Query(False)
+):
+    """Returns nested Treemap format data for Domain -> Field -> Subfield."""
+    sunburst_file = CACHE_DIR / 'sunburst_metrics_latam.parquet'
+    if not sunburst_file.exists():
+        return {"nodes": []}
+        
+    df = pd.read_parquet(sunburst_file)
+    if not include_unclassified:
+        df = df[(df['domain'] != 'Sin Clasificación') & (df['domain'] != 'Unknown')]
+        
+    size_col = 'count_recent' if '_recent' in indicator else 'count_full'
+    df = df[df[size_col] > 0].copy()
+    
+    nodes = []
+    # Add root
+    nodes.append({
+        "id": "LATAM_ROOT",
+        "label": "Iberoamérica",
+        "parent": "",
+        "value": float(df[df['level'] == 'domain'][size_col].sum()),
+        "color_val": 1.0,
+        "level": "root"
+    })
+    
+    for _, row in df.iterrows():
+        lvl = row['level']
+        if lvl == 'domain':
+            curr_id = row['domain']
+            parent = "LATAM_ROOT"
+        elif lvl == 'field':
+            curr_id = f"{row['domain']}||{row['field']}"
+            parent = row['domain']
+        elif lvl == 'subfield':
+            curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}"
+            parent = f"{row['domain']}||{row['field']}"
+        else:
+            curr_id = f"{row['domain']}||{row['field']}||{row['subfield']}||{row['topic']}"
+            parent = f"{row['domain']}||{row['field']}||{row['subfield']}"
+            
+        nodes.append({
+            "id": curr_id,
+            "label": row[lvl],
+            "parent": parent,
+            "value": float(row[size_col]),
+            "color_val": float(row[indicator]) if pd.notna(row.get(indicator)) else None,
+            "level": lvl
+        })
+        
+    return {"nodes": nodes, "indicator": indicator}
+
+@router.get("/diverging-bars")
+def get_diverging_bars(indicator: str = Query("fwci_avg", description="Indicator to compute deviation")):
+    """Returns country deviations relative to the LATAM regional average or world baseline."""
+    df_c = query_df("SELECT * FROM metrics_country_period")
+    df_latam = query_df("SELECT * FROM metrics_latam_period LIMIT 1")
+    
+    if df_c.empty:
+        return []
+        
+    baseline = 1.0 if indicator == "fwci_avg" else (float(df_latam[indicator].iloc[0]) if not df_latam.empty and indicator in df_latam else df_c[indicator].mean())
+    
+    df_c['country_name'] = df_c['country_code'].map(lambda x: COUNTRY_NAMES.get(x, x))
+    df_c['actual_value'] = df_c[indicator].fillna(0)
+    df_c['baseline'] = baseline
+    df_c['deviation'] = df_c['actual_value'] - baseline
+    df_c['pct_deviation'] = ((df_c['actual_value'] - baseline) / baseline * 100) if baseline != 0 else 0
+    
+    df_c = df_c.sort_values('deviation', ascending=True)
+    return sanitize_records(df_c[['country_code', 'country_name', 'actual_value', 'baseline', 'deviation', 'pct_deviation']])
+

@@ -3,6 +3,7 @@ import { useAppStore } from './store';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import DossierDrawer from './components/DossierDrawer';
+import ErrorBoundary from './components/ErrorBoundary';
 
 import RegionalPage from './pages/RegionalPage';
 import CountryPage from './pages/CountryPage';
@@ -43,10 +44,13 @@ export default function App() {
       <div className="main-content">
         <Navbar />
         <main className="page-body">
-          {renderSection()}
+          <ErrorBoundary>
+            {renderSection()}
+          </ErrorBoundary>
         </main>
       </div>
       <DossierDrawer />
     </div>
   );
 }
+

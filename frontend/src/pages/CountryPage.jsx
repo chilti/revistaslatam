@@ -13,7 +13,10 @@ import {
   ShieldCheck, 
   Compass,
   PlusCircle,
-  ExternalLink
+  ExternalLink,
+  Grid,
+  TrendingDown,
+  Layers
 } from 'lucide-react';
 
 export default function CountryPage() {
@@ -29,6 +32,17 @@ export default function CountryPage() {
   const [journals, setJournals] = useState([]);
   const [trajectory, setTrajectory] = useState({});
   const [landscapeArticles, setLandscapeArticles] = useState([]);
+
+  // Specialization Matrix (RCA)
+  const [rcaData, setRcaData] = useState(null);
+  const [rcaLevel, setRcaLevel] = useState('domain'); // 'domain' | 'field'
+
+  // Slope Data
+  const [slopeData, setSlopeData] = useState([]);
+
+  // Beeswarm / Strip plot
+  const [journalsDist, setJournalsDist] = useState([]);
+  const [beeswarmMetric, setBeeswarmMetric] = useState('fwci_avg');
   
   const [scatterX, setScatterX] = useState('works_count');
   const [scatterY, setScatterY] = useState('fwci_avg');
@@ -48,6 +62,13 @@ export default function CountryPage() {
     api.get('/countries').then(res => setCountriesList(res.data)).catch(console.error);
   }, []);
 
+  // Load RCA Matrix
+  useEffect(() => {
+    api.get(`/countries/specialization-matrix?level=${rcaLevel}`)
+      .then(res => setRcaData(res.data))
+      .catch(console.error);
+  }, [rcaLevel]);
+
   // Load country details on selectedCountry change
   useEffect(() => {
     if (!selectedCountry) return;
@@ -58,13 +79,17 @@ export default function CountryPage() {
       api.get(`/countries/${selectedCountry}/annual?window=${annualWindow}`),
       api.get(`/countries/${selectedCountry}/journals`),
       api.get(`/countries/${selectedCountry}/trajectory`),
-      api.get(`/countries/${selectedCountry}/landscape?limit=2500`)
-    ]).then(([sumRes, annRes, jRes, trajRes, landRes]) => {
+      api.get(`/countries/${selectedCountry}/landscape?limit=2500`),
+      api.get(`/countries/${selectedCountry}/slope-data`),
+      api.get(`/countries/${selectedCountry}/journals-distribution`)
+    ]).then(([sumRes, annRes, jRes, trajRes, landRes, slopeRes, distRes]) => {
       setSummary(sumRes.data);
       setAnnualTrends(annRes.data);
       setJournals(jRes.data);
       setTrajectory(trajRes.data);
       setLandscapeArticles(landRes.data);
+      setSlopeData(slopeRes.data);
+      setJournalsDist(distRes.data);
     }).catch(console.error).finally(() => setLoading(false));
   }, [selectedCountry]);
 
@@ -118,6 +143,82 @@ export default function CountryPage() {
     });
   });
 
+  // Dual-Axis Chart Trace: Volume (Bar) + FWCI (Line)
+  const dualAxisTraces = [
+    {
+      x: annualTrends.map(d => d.year),
+      y: annualTrends.map(d => d.num_documents),
+      name: 'Artículos Publicados',
+      type: 'bar',
+      marker: { color: 'rgba(2, 132, 199, 0.65)' },
+      yaxis: 'y'
+    },
+    {
+      x: annualTrends.map(d => d.year),
+      y: annualTrends.map(d => d.fwci_avg),
+      name: 'FWCI Promedio',
+      type: 'scatter',
+      mode: 'lines+markers',
+      line: { color: '#10b981', width: 3 },
+      marker: { size: 6, color: '#10b981' },
+      yaxis: 'y2'
+    },
+    {
+      x: annualTrends.map(d => d.year),
+      y: annualTrends.map(() => 1.0),
+      name: 'Media Mundial (1.0)',
+      type: 'scatter',
+      mode: 'lines',
+      line: { color: '#ef4444', dash: 'dash', width: 1.5 },
+      yaxis: 'y2'
+    }
+  ];
+
+  // Beeswarm / Strip Plot Traces
+  const beeswarmTraces = [{
+    type: 'box',
+    y: journalsDist.map(d => d[beeswarmMetric]),
+    boxpoints: 'all',
+    jitter: 0.45,
+    pointpos: 0,
+    marker: {
+      color: '#0284c7',
+      size: 7,
+      opacity: 0.75
+    },
+    fillcolor: 'rgba(2, 132, 199, 0.1)',
+    line: { color: '#0284c7' },
+    text: journalsDist.map(d => `${d.display_name}<br>Valor: ${d[beeswarmMetric]}<br>Artículos: ${d.works_count}`),
+    hoverinfo: 'text+y',
+    name: summary?.country_name || selectedCountry
+  }];
+
+  // Slope Chart Traces
+  const slopeTraces = [];
+  slopeData.forEach((s, idx) => {
+    const isClimbed = s.rank_change > 0;
+    const color = isClimbed ? '#10b981' : (s.rank_change < 0 ? '#ef4444' : '#94a3b8');
+    const labelMap = {
+      'fwci_avg': 'FWCI Ponderado',
+      'pct_oa_diamond': '% OA Diamante',
+      'pct_top_10': '% Top 10%',
+      'num_documents': 'Volumen de Artículos'
+    };
+    
+    slopeTraces.push({
+      x: ['Periodo Histórico', 'Reciente (2021–2025)'],
+      y: [s.rank_full, s.rank_recent],
+      type: 'scatter',
+      mode: 'lines+markers+text',
+      name: labelMap[s.indicator] || s.indicator,
+      line: { color: color, width: 3 },
+      marker: { size: 10, color: color },
+      text: [`Puesto #${s.rank_full}`, `Puesto #${s.rank_recent}`],
+      textposition: ['top left', 'top right'],
+      hovertemplate: `<b>${labelMap[s.indicator] || s.indicator}</b><br>Histórico: #${s.rank_full} (${s.val_full})<br>Reciente: #${s.rank_recent} (${s.val_recent})<extra></extra>`
+    });
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       {/* Country Selector Header */}
@@ -149,263 +250,248 @@ export default function CountryPage() {
         </div>
       </div>
 
-      {/* KPI Cards Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-        <KpiCard title="Revistas" value={summary?.num_journals?.toLocaleString()} icon={BookOpen} />
-        <KpiCard title="Artículos" value={summary?.total_works?.toLocaleString()} icon={FileText} />
-        <KpiCard title="FWCI Promedio" value={Number(pData.fwci_avg || 0).toFixed(2)} icon={Zap} />
-        <KpiCard title="% Top 10%" value={`${Number(pData.pct_top_10 || 0).toFixed(3)}%`} icon={TrendingUp} />
-        <KpiCard title="% OA Diamante" value={`${Number(pData.pct_oa_diamond || 0).toFixed(1)}%`} icon={Sparkles} />
-      </div>
-
-      {/* Multi-tier Indicator Breakdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
-        {/* Impact & Citation */}
-        <div className="card">
-          <h3 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--accent-primary)', marginBottom: '10px' }}>
-            📊 Impacto y Citación
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Documentos:</span>
-              <strong>{Number(pData.num_documents || 0).toLocaleString()}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>FWCI Promedio:</span>
-              <strong>{Number(pData.fwci_avg || 0).toFixed(2)}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% Artículos Top 10%:</span>
-              <strong>{Number(pData.pct_top_10 || 0).toFixed(3)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% Artículos Top 1%:</span>
-              <strong>{Number(pData.pct_top_1 || 0).toFixed(3)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Percentil Promedio Norm.:</span>
-              <strong>{Number(pData.avg_percentile || 0).toFixed(2)}</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Open Access & Indexing */}
-        <div className="card">
-          <h3 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--accent-success)', marginBottom: '10px' }}>
-            🔓 Ciencia Abierta e Indexación
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% OA Diamante:</span>
-              <strong>{Number(pData.pct_oa_diamond || 0).toFixed(1)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% OA Gold:</span>
-              <strong>{Number(pData.pct_oa_gold || 0).toFixed(1)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% OA Verde:</span>
-              <strong>{Number(pData.pct_oa_green || 0).toFixed(1)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% en Scopus:</span>
-              <strong>{Number(pData.pct_scopus || 0).toFixed(1)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% en DOAJ:</span>
-              <strong>{Number(pData.pct_doaj || 0).toFixed(1)}%</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Languages & Domestic Authorship */}
-        <div className="card">
-          <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#f59e0b', marginBottom: '10px' }}>
-            🌐 Multilingüismo y Autoría
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% Idioma Español:</span>
-              <strong>{Number(pData.pct_lang_es || 0).toFixed(1)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% Idioma Inglés:</span>
-              <strong>{Number(pData.pct_lang_en || 0).toFixed(1)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% Idioma Portugués:</span>
-              <strong>{Number(pData.pct_lang_pt || 0).toFixed(1)}%</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>% Autoría Doméstica:</span>
-              <strong>{Number(pData.pct_authors_domestic || 0).toFixed(1)}%</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Trajectory in UMAP */}
-      <div className="card">
-        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
-          📈 Trayectoria de Desempeño Multidimensional (UMAP 2000–2025)
-        </h3>
-        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Evolución del país en el espacio latente compuesto por producción, impacto (FWCI, Top 10%), ciencia abierta e idioma inglés frente al promedio de Iberoamérica.
-        </p>
-        <PlotlyChart
-          data={trajTraces}
-          layout={{ height: 480, xaxis: { title: 'UMAP Dimensión 1' }, yaxis: { title: 'UMAP Dimensión 2' } }}
+      {/* KPI Cards Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
+        <KpiCard
+          title="Revistas Activas"
+          value={summary?.num_journals?.toLocaleString()}
+          subtitle="En OpenAlex Snapshot"
+          icon={BookOpen}
+        />
+        <KpiCard
+          title="Total Artículos"
+          value={summary?.total_works?.toLocaleString()}
+          subtitle="Producción Histórica"
+          icon={FileText}
+        />
+        <KpiCard
+          title="FWCI Promedio"
+          value={pData?.fwci_avg}
+          subtitle="Citas Ponderadas"
+          icon={Zap}
+          badge={pData?.fwci_avg >= 1.0 ? 'Superior al Mundo' : 'Nivel País'}
+        />
+        <KpiCard
+          title="% OA Diamante"
+          value={`${pData?.pct_oa_diamond || 0}%`}
+          subtitle="Sin Cobro por APC"
+          icon={Sparkles}
+          badge="Diamante"
+        />
+        <KpiCard
+          title="Revistas DOAJ"
+          value={`${pData?.pct_doaj || 0}%`}
+          subtitle="Con Sello Abierto"
+          icon={ShieldCheck}
         />
       </div>
 
-      {/* Huella Semántica y Evolución Temporal de Artículos */}
-      {landscapeArticles.length > 0 && (
-        <div className="card">
-          <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
-            🌌 Huella Semántica y Evolución Temporal de Artículos de {summary?.country_name}
+      {/* DUAL-AXIS CHART: Producción Anual vs FWCI */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <TrendingUp size={18} color="var(--accent-primary)" />
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+            Gráfico de Eje Dual (Dual-Axis Chart) — Producción Anual vs FWCI Ponderado
           </h3>
-          <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            Muestra de {landscapeArticles.length.toLocaleString()} artículos del país sobre el paisaje regional UMAP (Coloreado por año en escala Turbo).
-          </p>
+        </div>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+          Correlación temporal entre el volumen de artículos publicados (barras azules) y el impacto de citación normalizado (línea verde).
+        </p>
+
+        <PlotlyChart
+          data={dualAxisTraces}
+          layout={{
+            height: 380,
+            margin: { l: 60, r: 60, t: 20, b: 40 },
+            xaxis: { title: 'Año de Publicación' },
+            yaxis: { title: 'Artículos Publicados', side: 'left', showgrid: true },
+            yaxis2: {
+              title: 'FWCI Promedio',
+              side: 'right',
+              overlaying: 'y',
+              showgrid: false,
+              rangemode: 'tozero'
+            },
+            legend: { orientation: 'h', y: 1.1, x: 0.1 }
+          }}
+        />
+      </div>
+
+      {/* HEATMAP DE ESPECIALIZACIÓN TEMÁTICA (RCA) */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Grid size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+                Mapa de Calor (Heat Map) — Índice de Especialización Científica (RCA)
+              </h3>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Ventaja Comparativa Revelada (RCA &gt; 1.0 en verde indica especialización relativa respecto a toda Latinoamérica).
+            </span>
+          </div>
+
+          <div className="segmented-pills">
+            <button
+              className={`segmented-pill-btn ${rcaLevel === 'domain' ? 'active' : ''}`}
+              onClick={() => setRcaLevel('domain')}
+            >
+              Grandes Dominios (6)
+            </button>
+            <button
+              className={`segmented-pill-btn ${rcaLevel === 'field' ? 'active' : ''}`}
+              onClick={() => setRcaLevel('field')}
+            >
+              Campos Disciplinares (28)
+            </button>
+          </div>
+        </div>
+
+        {rcaData && rcaData.countries && (
           <PlotlyChart
             data={[{
-              x: landscapeArticles.map(a => a.umap_x),
-              y: landscapeArticles.map(a => a.umap_y),
-              mode: 'markers',
-              marker: {
-                size: 6,
-                color: landscapeArticles.map(a => a.publication_year || 2020),
-                colorscale: 'Turbo',
-                showscale: true,
-                colorbar: { title: 'Año' },
-                opacity: 0.75
-              },
-              text: landscapeArticles.map(a => `${a.title}<br>Año: ${a.publication_year} | Revista: ${a.journal_name}`),
-              type: 'scatter'
+              type: 'heatmap',
+              z: rcaData.matrix,
+              x: rcaData.disciplines,
+              y: rcaData.countries.map(c => c.name),
+              colorscale: 'YlGnBu',
+              colorbar: { title: 'Índice RCA' },
+              hovertemplate: '<b>País:</b> %{y}<br><b>Disciplina:</b> %{x}<br><b>RCA:</b> %{z:.2f}<extra></extra>'
             }]}
-            layout={{ height: 500, xaxis: { title: 'UMAP 1' }, yaxis: { title: 'UMAP 2' } }}
+            layout={{
+              height: rcaLevel === 'domain' ? 440 : 540,
+              margin: { l: 140, r: 20, t: 20, b: 90 },
+              xaxis: { tickangle: -40 }
+            }}
+          />
+        )}
+      </div>
+
+      {/* BEESWARM / STRIP PLOT & SLOPE CHART */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+        {/* Beeswarm Plot */}
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '700' }}>
+              🔬 Dispersión de Revistas (Beeswarm / Strip Plot)
+            </h3>
+            <select
+              value={beeswarmMetric}
+              onChange={(e) => setBeeswarmMetric(e.target.value)}
+              style={{ fontSize: '12px', fontWeight: '600' }}
+            >
+              <option value="fwci_avg">FWCI Promedio</option>
+              <option value="pct_oa_diamond">% OA Diamante</option>
+              <option value="h_index">Índice H</option>
+              <option value="works_count">Artículos Publicados</option>
+            </select>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+            Cada punto representa una revista individual del país distribuida según su desempeño cienciométrico.
+          </p>
+          <PlotlyChart
+            data={beeswarmTraces}
+            layout={{
+              height: 340,
+              margin: { l: 50, r: 20, t: 10, b: 30 },
+              yaxis: { title: beeswarmMetric }
+            }}
           />
         </div>
-      )}
 
-      {/* Sunburst of Country */}
+        {/* Slope Chart */}
+        <div className="card">
+          <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '4px' }}>
+            📈 Gráfico de Pendientes (Slope Chart) — Movimiento de Rankings
+          </h3>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+            Ascenso o descenso en la posición relativa dentro de LATAM (Histórico vs 2021–2025).
+          </p>
+          <PlotlyChart
+            data={slopeTraces}
+            layout={{
+              height: 340,
+              margin: { l: 80, r: 80, t: 20, b: 30 },
+              yaxis: { autorange: 'reversed', title: 'Puesto en el Ranking LATAM' },
+              legend: { orientation: 'h', y: -0.15 }
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Sunburst Section */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-            🏵️ Temáticas de Investigación en {summary?.country_name} (Sunburst 4 Niveles)
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              🏵️ Jerarquía Temática Nacional: Dominio → Campo → Subcampo
+            </h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Especialización temática y masa crítica de artículos del país.
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <select
               value={sunburstIndicator}
               onChange={(e) => setSunburstIndicator(e.target.value)}
+              style={{ fontWeight: '600' }}
             >
               <option value="fwci_avg_recent">FWCI (2021-2025)</option>
               <option value="avg_percentile_recent">Percentil (2021-2025)</option>
               <option value="pct_top_10_recent">% Top 10% (2021-2025)</option>
-              <option value="fwci_avg_full">FWCI (Todo)</option>
+              <option value="pct_oa_gold_recent">% OA Gold (2021-2025)</option>
             </select>
           </div>
         </div>
-        <PlotlyChart data={sunburstTrace} layout={{ height: 500 }} />
+
+        <PlotlyChart data={sunburstTrace} layout={{ height: 520, margin: { t: 10, l: 10, r: 10, b: 10 } }} />
       </div>
 
-      {/* Annual Trends */}
+      {/* Journals Catalog Table */}
       <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>⏳ Tendencias Anuales de {summary?.country_name}</h3>
-          <div className="segmented-pills">
-            <button className={`segmented-pill-btn ${annualWindow === 0 ? 'active' : ''}`} onClick={() => setAnnualWindow(0)}>Crudos</button>
-            <button className={`segmented-pill-btn ${annualWindow === 3 ? 'active' : ''}`} onClick={() => setAnnualWindow(3)}>w=3</button>
-            <button className={`segmented-pill-btn ${annualWindow === 5 ? 'active' : ''}`} onClick={() => setAnnualWindow(5)}>w=5</button>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '16px' }}>
-          <PlotlyChart
-            data={[{ x: annualTrends.map(d => d.year), y: annualTrends.map(d => d.num_documents), type: 'scatter', mode: 'lines+markers', name: 'Documentos' }]}
-            layout={{ title: 'Evolución de Documentos', height: 300 }}
-          />
-          <PlotlyChart
-            data={[
-              { x: annualTrends.map(d => d.year), y: annualTrends.map(d => d.fwci_avg), type: 'scatter', mode: 'lines+markers', name: 'FWCI Promedio', line: { color: '#10b981' } },
-              { x: annualTrends.map(d => d.year), y: annualTrends.map(() => 1.0), type: 'scatter', mode: 'lines', name: 'Media Mundial (1.0)', line: { color: '#ef4444', dash: 'dash' } }
-            ]}
-            layout={{ title: 'Evolución FWCI', height: 300 }}
-          />
-        </div>
-      </div>
-
-      {/* Scatter Explorer of Country Journals */}
-      <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-            🎯 Explorador Scatter de Revistas de {summary?.country_name}
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <select value={scatterX} onChange={(e) => setScatterX(e.target.value)}>
-              {SCATTER_OPTIONS.map(s => <option key={s.id} value={s.id}>Eje X: {s.label}</option>)}
-            </select>
-            <select value={scatterY} onChange={(e) => setScatterY(e.target.value)}>
-              {SCATTER_OPTIONS.map(s => <option key={s.id} value={s.id}>Eje Y: {s.label}</option>)}
-            </select>
-          </div>
-        </div>
-        <PlotlyChart
-          data={[{
-            x: journals.map(j => j[scatterX] || 0),
-            y: journals.map(j => j[scatterY] || 0),
-            mode: 'markers',
-            marker: { size: 8, color: '#0284c7', opacity: 0.7 },
-            text: journals.map(j => `${j.display_name}<br>${scatterX}: ${j[scatterX]}<br>${scatterY}: ${j[scatterY]}`),
-            type: 'scatter'
-          }]}
-          layout={{ height: 400, xaxis: { title: SCATTER_OPTIONS.find(s => s.id === scatterX)?.label }, yaxis: { title: SCATTER_OPTIONS.find(s => s.id === scatterY)?.label } }}
-        />
-      </div>
-
-      {/* Journals in Country Table */}
-      <div className="card">
-        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>
-          📖 Revistas Publicadas en {summary?.country_name} ({journals.length} revistas)
+        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '12px' }}>
+          📚 Catálogo de Revistas de {summary?.country_name || selectedCountry} ({journals.length})
         </h3>
         <div className="data-table-container" style={{ maxHeight: '420px' }}>
           <table className="data-table">
             <thead>
               <tr>
                 <th>Revista</th>
-                <th>Editorial</th>
+                <th>ISSN-L</th>
+                <th>Editorial / Institución</th>
                 <th>Artículos</th>
                 <th>Citas</th>
                 <th>FWCI</th>
-                <th>Índice H</th>
+                <th>H-Index</th>
+                <th>% Diamante</th>
                 <th>DOAJ</th>
-                <th>SciELO</th>
-                <th>Scopus</th>
                 <th>Acción</th>
               </tr>
             </thead>
             <tbody>
-              {journals.map((j) => (
-                <tr key={j.id}>
+              {journals.map((j, idx) => (
+                <tr key={idx}>
                   <td><strong>{j.display_name}</strong></td>
-                  <td>{j.publisher || 'N/A'}</td>
+                  <td><code>{j.issn_l || '—'}</code></td>
+                  <td>{j.publisher || '—'}</td>
                   <td>{j.works_count?.toLocaleString()}</td>
                   <td>{j.cited_by_count?.toLocaleString()}</td>
-                  <td>{Number(j.fwci_avg || j['2yr_mean_citedness'] || 0).toFixed(2)}</td>
+                  <td>{Number(j.fwci_avg || 0).toFixed(2)}</td>
                   <td>{j.h_index || '—'}</td>
-                  <td>{j.is_in_doaj ? '✅' : '❌'}</td>
-                  <td>{j.is_in_scielo ? '✅' : '❌'}</td>
-                  <td>{j.is_scopus ? '✅' : '❌'}</td>
+                  <td>{Number(j.pct_oa_diamond || 0).toFixed(1)}%</td>
+                  <td>{j.is_in_doaj ? '✅' : '—'}</td>
                   <td>
                     <button
+                      className="btn-primary"
+                      style={{ fontSize: '11px', padding: '4px 8px' }}
                       onClick={() => {
                         setSelectedJournal(j.id, j.display_name);
                         setActiveSection('journal');
                       }}
-                      className="segmented-pill-btn"
-                      style={{ fontSize: '11px', padding: '4px 8px', background: 'var(--accent-primary)', color: '#ffffff' }}
                     >
-                      Ver Ficha
+                      Ver Detalle
                     </button>
                   </td>
                 </tr>
