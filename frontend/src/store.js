@@ -16,8 +16,8 @@ export const useAppStore = create((set, get) => ({
   selectedCountry: 'MX',
   setSelectedCountry: (country) => set({ selectedCountry: country }),
 
-  // Journal Selection
-  selectedJournalId: 'https://openalex.org/S2737637841',
+  // Journal Selection (Default: Estudios Demográficos y Urbanos, México)
+  selectedJournalId: 'https://openalex.org/S2737081250',
   selectedJournalName: 'Estudios Demográficos y Urbanos',
   setSelectedJournal: (id, name) => set({ selectedJournalId: id, selectedJournalName: name }),
 
