@@ -162,23 +162,26 @@ export default function JournalPage() {
     
     setExportingFormat(format);
     try {
+      const yearVal = (articleYearFilter && !isNaN(parseInt(articleYearFilter))) ? parseInt(articleYearFilter) : null;
       const payload = {
         journal_id: cleanJid,
         format: format,
-        year_min: articleYearFilter ? parseInt(articleYearFilter) : null,
-        year_max: articleYearFilter ? parseInt(articleYearFilter) : null,
+        year_min: yearVal,
+        year_max: yearVal,
         title: `${journalTitle} (${format.toUpperCase()})`
       };
       
       const res = await api.post('/exports/start', payload);
       if (res.data && res.data.job) {
         addExportJob(res.data.job);
-        setToastMessage(`Exportación en segundo plano iniciada para "${journalTitle}".`);
+        setDownloadsOpen(true);
+        setToastMessage(`Exportación iniciada para "${journalTitle}". Revisa el panel de descargas.`);
         setTimeout(() => setToastMessage(null), 6000);
       }
     } catch (err) {
       console.error('Export start error:', err);
-      alert('Error al iniciar la exportación en segundo plano. Por favor intente nuevamente.');
+      const detail = err.response?.data?.detail || err.message || 'Error desconocido';
+      alert(`Error al iniciar la exportación en segundo plano: ${detail}`);
     } finally {
       setExportingFormat(null);
     }
