@@ -36,3 +36,5 @@ models/
 
 exports/
 *.zip
+*.db
+*.sqlite

@@ -9,7 +9,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.routers import regional, countries, journals, maps, networks, reports, exports
+from api.routers import regional, countries, journals, maps, networks, reports, exports, auth
 from api.db import get_con
 
 app = FastAPI(
@@ -45,6 +45,7 @@ app.include_router(maps.router)
 app.include_router(networks.router)
 app.include_router(reports.router)
 app.include_router(exports.router)
+app.include_router(auth.router)
 
 @app.on_event("startup")
 def startup_event():

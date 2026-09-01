@@ -142,7 +142,44 @@ export const useAppStore = create((set, get) => ({
     const updated = current.filter(j => j.status !== 'completed' && j.status !== 'failed');
     set({ exportJobs: updated });
     try { localStorage.setItem('rl_export_jobs', JSON.stringify(updated)); } catch (e) {}
+  },
+
+  // ORCID Authentication
+  user: typeof window !== 'undefined' && localStorage.getItem('rl_orcid_user')
+    ? JSON.parse(localStorage.getItem('rl_orcid_user'))
+    : null,
+  isLoginModalOpen: false,
+  loginModalReason: 'general', // 'general' | 'ai_context' | 'download_articles'
+  setLoginModalOpen: (open, reason = 'general') => set({ isLoginModalOpen: open, loginModalReason: reason }),
+  setUser: (user) => {
+    set({ user });
+    if (typeof window !== 'undefined') {
+      try {
+        if (user) {
+          localStorage.setItem('rl_orcid_user', JSON.stringify(user));
+        } else {
+          localStorage.removeItem('rl_orcid_user');
+        }
+      } catch (e) {}
+    }
+  },
+  logout: () => {
+    set({ user: null });
+    if (typeof window !== 'undefined') {
+      try { localStorage.removeItem('rl_orcid_user'); } catch (e) {}
+    }
+  },
+  requireAuth: (actionCallback, reason = 'general') => {
+    const { user } = get();
+    if (user && user.orcid) {
+      if (typeof actionCallback === 'function') actionCallback();
+      return true;
+    } else {
+      set({ isLoginModalOpen: true, loginModalReason: reason });
+      return false;
+    }
   }
 }));
+
 
 

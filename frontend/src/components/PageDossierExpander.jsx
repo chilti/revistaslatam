@@ -27,7 +27,7 @@ export default function PageDossierExpander({
   pageDescription = 'Selecciona los bloques de datos e indicadores de esta página para compilar el Contexto para IA o enviarlos a ChatGPT.',
   sections = [] // Array of { id, title, category, defaultChecked, buildDataText, rawData }
 }) {
-  const { addDossierItem, dossierItems, setDossierOpen } = useAppStore();
+  const { addDossierItem, dossierItems, setDossierOpen, requireAuth } = useAppStore();
   
   // Open / Close Expander State (open by default so users see it, or toggleable)
   const [isOpen, setIsOpen] = useState(true);
@@ -115,6 +115,8 @@ export default function PageDossierExpander({
       ``,
       `=== DATOS DEL ESTUDIO ===`,
       ``,
+      `Compiled Markdown`,
+      ``,
       compiledMarkdown
     ].join('\n');
 
@@ -129,6 +131,7 @@ export default function PageDossierExpander({
 
   // Copy to clipboard
   const handleCopy = () => {
+    if (!requireAuth(() => handleCopy(), 'ai_context')) return;
     if (!fullChatGptPrompt) return;
     navigator.clipboard.writeText(fullChatGptPrompt).then(() => {
       setCopied(true);
@@ -138,6 +141,7 @@ export default function PageDossierExpander({
 
   // Open direct ChatGPT URL (if under limit)
   const handleOpenChatGPT = () => {
+    if (!requireAuth(() => handleOpenChatGPT(), 'ai_context')) return;
     if (exceedsUrlLimit || !fullChatGptPrompt) return;
     const url = `https://chatgpt.com/?q=${encodeURIComponent(fullChatGptPrompt)}`;
     window.open(url, '_blank');
@@ -145,6 +149,7 @@ export default function PageDossierExpander({
 
   // Add all selected items to study dossier
   const handleSaveToDossier = () => {
+    if (!requireAuth(() => handleSaveToDossier(), 'ai_context')) return;
     if (selectedIds.size === 0) return;
     
     sections.forEach(s => {
@@ -165,6 +170,7 @@ export default function PageDossierExpander({
 
   // Download Markdown file
   const handleDownloadMarkdown = () => {
+    if (!requireAuth(() => handleDownloadMarkdown(), 'ai_context')) return;
     if (!compiledMarkdown) return;
     const blob = new Blob([compiledMarkdown], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

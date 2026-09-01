@@ -7,7 +7,8 @@ import {
   Map, 
   Share2, 
   Info,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck
 } from 'lucide-react';
 
 const MENU_ITEMS = [
@@ -20,7 +21,7 @@ const MENU_ITEMS = [
 ];
 
 export default function Sidebar() {
-  const { activeSection, setActiveSection } = useAppStore();
+  const { activeSection, setActiveSection, user } = useAppStore();
 
   return (
     <aside style={{
@@ -94,6 +95,56 @@ export default function Sidebar() {
         );
       })}
 
+      {/* Administration Item (Only visible for Admins) */}
+      {user && user.is_admin && (
+        <div style={{ marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
+          <div style={{
+            padding: '0 8px 8px 8px',
+            fontSize: '10.5px',
+            fontWeight: '700',
+            color: '#6366f1',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px'
+          }}>
+            <ShieldCheck size={13} />
+            <span>Gestión & Auditoría</span>
+          </div>
+
+          <button
+            onClick={() => setActiveSection('admin')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              border: activeSection === 'admin' ? '1px solid #6366f1' : '1px solid rgba(99, 102, 241, 0.25)',
+              background: activeSection === 'admin' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.05)',
+              color: activeSection === 'admin' ? '#6366f1' : 'var(--text-main)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'all 0.18s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <ShieldCheck size={19} color="#6366f1" />
+              <div>
+                <div style={{ fontSize: '13.5px', fontWeight: activeSection === 'admin' ? '700' : '600' }}>
+                  Administración
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Registro de investigadores
+                </div>
+              </div>
+            </div>
+            {activeSection === 'admin' && <ChevronRight size={16} color="#6366f1" />}
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

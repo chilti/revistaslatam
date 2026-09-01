@@ -38,7 +38,7 @@ function buildMarkdownText(title, items) {
 }
 
 export default function DossierDrawer() {
-  const { dossierItems, isDossierOpen, setDossierOpen, removeDossierItem, clearDossier } = useAppStore();
+  const { dossierItems, isDossierOpen, setDossierOpen, removeDossierItem, clearDossier, requireAuth } = useAppStore();
   const [reportTitle, setReportTitle]   = useState('Contexto para IA - Revistas LATAM');
   const [downloading, setDownloading]   = useState(false);
   const [copied, setCopied]             = useState(false);
@@ -48,6 +48,7 @@ export default function DossierDrawer() {
 
   // ── Copiar al portapapeles para ChatGPT ─────────────────────────────────
   const handleCopyForChatGPT = () => {
+    if (!requireAuth(() => handleCopyForChatGPT(), 'ai_context')) return;
     if (dossierItems.length === 0) return;
     const prefix = [
       'Analiza el siguiente paquete de contexto cienciométrico compilado desde Revistas LATAM.',
@@ -67,6 +68,7 @@ export default function DossierDrawer() {
 
   // ── Exportar Markdown / JSON ─────────────────────────────────────────────
   const handleDownload = async (format = 'markdown') => {
+    if (!requireAuth(() => handleDownload(format), 'ai_context')) return;
     if (dossierItems.length === 0) return;
     setDownloading(true);
     try {

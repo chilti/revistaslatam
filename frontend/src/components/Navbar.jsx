@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../store';
-import { Sun, Moon, Sparkles, FileText, Download, Clock, Bot } from 'lucide-react';
+import { Sun, Moon, Sparkles, FileText, Download, Clock, Bot, LogOut, User, ExternalLink } from 'lucide-react';
 
 export default function Navbar() {
   const {
@@ -9,7 +9,10 @@ export default function Navbar() {
     dossierItems,
     setDossierOpen,
     exportJobs,
-    setDownloadsOpen
+    setDownloadsOpen,
+    user,
+    setLoginModalOpen,
+    logout
   } = useAppStore();
 
   const activeJobs = exportJobs.filter(j => j.status === 'processing' || j.status === 'pending');
@@ -58,7 +61,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Actions / Theme switcher / Dossier & Downloads buttons */}
+      {/* Actions / Theme switcher / Dossier & Downloads & ORCID Auth buttons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {/* Theme Segmented Switcher */}
         <div className="segmented-pills">
@@ -169,7 +172,99 @@ export default function Navbar() {
             </span>
           )}
         </button>
+
+        {/* ORCID Authentication Capsule / Login Button */}
+        {user && user.orcid ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '5px 12px 5px 8px',
+            borderRadius: '20px',
+            background: 'rgba(166, 206, 57, 0.12)',
+            border: '1px solid rgba(166, 206, 57, 0.35)',
+            fontSize: '12.5px'
+          }}>
+            <a
+              href={`https://orcid.org/${user.orcid}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                color: 'var(--text-main)',
+                textDecoration: 'none',
+                fontWeight: '600'
+              }}
+              title={`Ver perfil de ORCID: ${user.orcid}`}
+            >
+              <span style={{
+                background: '#a6ce39',
+                color: '#fff',
+                fontSize: '10.5px',
+                fontWeight: '900',
+                padding: '2px 5px',
+                borderRadius: '4px'
+              }}>
+                iD
+              </span>
+              <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.name || user.orcid}
+              </span>
+            </a>
+            <button
+              onClick={logout}
+              title="Cerrar sesión de ORCID"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#f43f5e'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+            >
+              <LogOut size={13} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setLoginModalOpen(true, 'general')}
+            title="Iniciar sesión con ORCID iD"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 12px',
+              borderRadius: '8px',
+              background: 'rgba(166, 206, 57, 0.15)',
+              color: '#a6ce39',
+              border: '1px solid rgba(166, 206, 57, 0.4)',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <span style={{
+              background: '#a6ce39',
+              color: '#ffffff',
+              fontSize: '11px',
+              fontWeight: '900',
+              padding: '1px 5px',
+              borderRadius: '4px'
+            }}>
+              iD
+            </span>
+            <span>Conectar ORCID</span>
+          </button>
+        )}
       </div>
     </header>
   );
 }
+

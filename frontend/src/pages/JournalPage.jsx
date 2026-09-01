@@ -79,7 +79,8 @@ export default function JournalPage() {
     setSelectedJournal,
     addDossierItem,
     addExportJob,
-    setDownloadsOpen
+    setDownloadsOpen,
+    requireAuth
   } = useAppStore();
   
   // Share link state
@@ -152,6 +153,9 @@ export default function JournalPage() {
   const [exportingFormat, setExportingFormat] = useState(null);
 
   const handleExportArticles = async (format) => {
+    if (!requireAuth(() => handleExportArticles(format), 'download_articles')) {
+      return;
+    }
     if (!selectedJournalId || exportingFormat) return;
     const cleanJid = selectedJournalId.includes('/') ? selectedJournalId.split('/').pop() : selectedJournalId;
     const journalTitle = (details && details.profile && details.profile.display_name) || selectedJournalName || 'Revista';
