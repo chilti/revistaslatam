@@ -4,7 +4,6 @@ import { useAppStore } from '../store';
 import KpiCard from '../components/KpiCard';
 import PlotlyChart from '../components/PlotlyChart';
 import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
-import DossierButton from '../components/DossierButton';
 import PageDossierExpander from '../components/PageDossierExpander';
 import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
 import CountryThematicProfilesTable from '../components/CountryThematicProfilesTable';
@@ -519,16 +518,6 @@ export default function CountryPage() {
               </option>
             ))}
           </select>
-          <DossierButton
-            item={{
-              key: `country_summary_${selectedCountry}`,
-              title: `Perfil: ${summary?.country_name || selectedCountry}`,
-              context: `${summary?.num_journals?.toLocaleString()} revistas · ${summary?.total_works?.toLocaleString()} artículos · FWCI ${pData?.fwci_avg ?? '—'} · OA Diamante ${pData?.pct_oa_diamond ?? '—'}%`,
-              category: 'Perfil País',
-              data: pData ? [pData] : []
-            }}
-            label="Guardar en Contexto IA"
-          />
           <button
             onClick={handleShareCountry}
             title="Copiar enlace directo para compartir este país"
@@ -830,15 +819,6 @@ export default function CountryPage() {
               Gráfico de Eje Dual (Dual-Axis Chart) — Producción Anual vs FWCI Ponderado
             </h3>
           </div>
-          <DossierButton
-            item={{
-              key: `country_annual_${selectedCountry}`,
-              title: `Tendencia Anual: ${summary?.country_name || selectedCountry}`,
-              context: 'Evolución anual de producción y FWCI ponderado.',
-              category: 'Tendencias Anuales',
-              data: annualTrends.slice(0, 30)
-            }}
-          />
         </div>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
           Correlación temporal entre el volumen de artículos publicados (barras azules) y el impacto de citación normalizado (línea verde).

@@ -6,7 +6,6 @@ import PlotlyChart from '../components/PlotlyChart';
 import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
 import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
 import AnnualDataTable from '../components/AnnualDataTable';
-import DossierButton from '../components/DossierButton';
 import PageDossierExpander from '../components/PageDossierExpander';
 import { 
   Search, 
@@ -791,16 +790,6 @@ export default function JournalPage() {
                 OpenAlex <ExternalLink size={12} />
               </a>
             )}
-            <DossierButton
-              item={{
-                key: `journal_profile_${selectedJournalId}`,
-                title: `Revista: ${prof.display_name || selectedJournalName}`,
-                context: `${prof.publisher ? prof.publisher + ' · ' : ''}${prof.country_name || ''} · ISSN-L: ${prof.issn_l || '—'} · ${prof.works_count?.toLocaleString()} artículos · FWCI ${prof.fwci_avg ?? '—'}`,
-                category: 'Perfil Revista',
-                data: [prof]
-              }}
-              label="Guardar en Contexto IA"
-            />
             <button
               onClick={handleShareJournal}
               title="Copiar enlace directo para compartir esta revista"
