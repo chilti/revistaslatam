@@ -241,7 +241,7 @@ export default function DownloadsDrawer() {
                             color: job.format === 'csv' ? '#0284c7' : '#10b981'
                           }}
                         >
-                          {job.format === 'csv' ? 'CSV (88 cols)' : job.format.toUpperCase()}
+                          {job.format === 'csv' ? 'CSV (88 cols)' : 'JSON (.gz)'}
                         </span>
                       </div>
 

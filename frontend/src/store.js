@@ -101,19 +101,26 @@ export const useAppStore = create((set, get) => ({
   },
 
   // Study Dossier (Exportable items)
-  dossierItems: [],
+  dossierItems: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('rl_dossier_items') || '[]') : [],
   isDossierOpen: false,
   setDossierOpen: (open) => set({ isDossierOpen: open }),
   addDossierItem: (item) => {
     const current = get().dossierItems;
     if (!current.some((i) => i.key === item.key)) {
-      set({ dossierItems: [...current, item] });
+      const updated = [...current, item];
+      set({ dossierItems: updated });
+      try { localStorage.setItem('rl_dossier_items', JSON.stringify(updated)); } catch (e) {}
     }
   },
   removeDossierItem: (key) => {
-    set({ dossierItems: get().dossierItems.filter((i) => i.key !== key) });
+    const updated = get().dossierItems.filter((i) => i.key !== key);
+    set({ dossierItems: updated });
+    try { localStorage.setItem('rl_dossier_items', JSON.stringify(updated)); } catch (e) {}
   },
-  clearDossier: () => set({ dossierItems: [] }),
+  clearDossier: () => {
+    set({ dossierItems: [] });
+    try { localStorage.removeItem('rl_dossier_items'); } catch (e) {}
+  },
 
   // Background Export Downloads
   exportJobs: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('rl_export_jobs') || '[]') : [],
@@ -169,13 +176,13 @@ export const useAppStore = create((set, get) => ({
       try { localStorage.removeItem('rl_orcid_user'); } catch (e) {}
     }
   },
-  requireAuth: (actionCallback, reason = 'general') => {
+  requireAuth: (reason = 'general') => {
     const { user } = get();
     if (user && user.orcid) {
-      if (typeof actionCallback === 'function') actionCallback();
       return true;
     } else {
-      set({ isLoginModalOpen: true, loginModalReason: reason });
+      const actualReason = typeof reason === 'string' ? reason : 'general';
+      set({ isLoginModalOpen: true, loginModalReason: actualReason });
       return false;
     }
   }

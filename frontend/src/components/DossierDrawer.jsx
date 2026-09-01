@@ -48,7 +48,7 @@ export default function DossierDrawer() {
 
   // ── Copiar al portapapeles para ChatGPT ─────────────────────────────────
   const handleCopyForChatGPT = () => {
-    if (!requireAuth(() => handleCopyForChatGPT(), 'ai_context')) return;
+    if (!requireAuth('ai_context')) return;
     if (dossierItems.length === 0) return;
     const prefix = [
       'Analiza el siguiente paquete de contexto cienciométrico compilado desde Revistas LATAM.',
@@ -60,15 +60,23 @@ export default function DossierDrawer() {
     ].join('\n');
 
     const text = prefix + buildMarkdownText(reportTitle, dossierItems);
-    navigator.clipboard.writeText(text).then(() => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }).catch(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      });
+    } else {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
-    });
+    }
   };
 
   // ── Exportar Markdown / JSON ─────────────────────────────────────────────
   const handleDownload = async (format = 'markdown') => {
-    if (!requireAuth(() => handleDownload(format), 'ai_context')) return;
+    if (!requireAuth('ai_context')) return;
     if (dossierItems.length === 0) return;
     setDownloading(true);
     try {

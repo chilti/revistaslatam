@@ -153,7 +153,7 @@ export default function JournalPage() {
   const [exportingFormat, setExportingFormat] = useState(null);
 
   const handleExportArticles = async (format) => {
-    if (!requireAuth(() => handleExportArticles(format), 'download_articles')) {
+    if (!requireAuth('download_articles')) {
       return;
     }
     if (!selectedJournalId || exportingFormat) return;
@@ -1503,9 +1503,9 @@ export default function JournalPage() {
               disabled={exportingFormat !== null}
               onClick={() => handleExportArticles('json')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px', opacity: exportingFormat ? 0.7 : 1 }}
-              title="Descargar registros completos de OpenAlex (referencias, autores, filiaciones, resumen, tópicos) en JSON"
+              title="Descargar registros completos de OpenAlex en formato JSON comprimido (.json.gz)"
             >
-              <Download size={14} /> {exportingFormat === 'json' ? 'Generando JSON...' : 'Exportar JSON (Full)'}
+              <Download size={14} /> {exportingFormat === 'json' ? 'Generando JSON (.gz)...' : 'Exportar JSON (.gz)'}
             </button>
 
             <button

@@ -141,7 +141,7 @@ export default function PageDossierExpander({
 
   // Open direct ChatGPT URL (if under limit)
   const handleOpenChatGPT = () => {
-    if (!requireAuth(() => handleOpenChatGPT(), 'ai_context')) return;
+    if (!requireAuth('ai_context')) return;
     if (exceedsUrlLimit || !fullChatGptPrompt) return;
     const url = `https://chatgpt.com/?q=${encodeURIComponent(fullChatGptPrompt)}`;
     window.open(url, '_blank');
@@ -149,7 +149,7 @@ export default function PageDossierExpander({
 
   // Add all selected items to study dossier
   const handleSaveToDossier = () => {
-    if (!requireAuth(() => handleSaveToDossier(), 'ai_context')) return;
+    if (!requireAuth('ai_context')) return;
     if (selectedIds.size === 0) return;
     
     sections.forEach(s => {
@@ -170,7 +170,7 @@ export default function PageDossierExpander({
 
   // Download Markdown file
   const handleDownloadMarkdown = () => {
-    if (!requireAuth(() => handleDownloadMarkdown(), 'ai_context')) return;
+    if (!requireAuth('ai_context')) return;
     if (!compiledMarkdown) return;
     const blob = new Blob([compiledMarkdown], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
