@@ -131,7 +131,7 @@ export default function PageDossierExpander({
 
   // Copy to clipboard
   const handleCopy = () => {
-    if (!requireAuth(() => handleCopy(), 'ai_context')) return;
+    if (!requireAuth('ai_context')) return;
     if (!fullChatGptPrompt) return;
     navigator.clipboard.writeText(fullChatGptPrompt).then(() => {
       setCopied(true);
