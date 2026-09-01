@@ -24,7 +24,7 @@ const MAX_CHATGPT_URL_CHARS = 2000;
 
 export default function PageDossierExpander({
   pageTitle = 'Análisis Cienciométrico',
-  pageDescription = 'Selecciona los bloques de datos e indicadores de esta página para enviarlos al Dossier de Estudio o ChatGPT.',
+  pageDescription = 'Selecciona los bloques de datos e indicadores de esta página para compilar el Contexto para IA o enviarlos a ChatGPT.',
   sections = [] // Array of { id, title, category, defaultChecked, buildDataText, rawData }
 }) {
   const { addDossierItem, dossierItems, setDossierOpen } = useAppStore();
@@ -104,7 +104,7 @@ export default function PageDossierExpander({
   const fullChatGptPrompt = useMemo(() => {
     if (!compiledMarkdown) return '';
     const systemInstructions = [
-      `Eres un experto cienciométrico y analista de políticas científicas de la UNAM y de Iberoamérica.`,
+      `Eres un experto cienciométrico y analista de políticas científicas de la UNAM y de América Latina.`,
       `Analiza en profundidad el siguiente conjunto de datos empíricos de "${pageTitle}".`,
       `Los datos han sido calculados a partir de OpenAlex 2025 y procesados con motores OLAP (DuckDB).`,
       ``,
@@ -219,7 +219,7 @@ export default function PageDossierExpander({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: 'var(--text-main)' }}>
-                Exportador & Dossier de Estudio (Envío a ChatGPT)
+                Compilador de Contexto para IA (Envío a ChatGPT / LLMs)
               </h3>
               <span className="badge" style={{
                 background: 'rgba(2, 132, 199, 0.15)',
@@ -483,7 +483,7 @@ export default function PageDossierExpander({
               }}
             >
               {addedToDossier ? <CheckCircle2 size={16} /> : <BookmarkPlus size={16} color="var(--accent-primary)" />}
-              {addedToDossier ? '¡Guardado en Dossier!' : '📌 Enviar Selección al Dossier'}
+              {addedToDossier ? '¡Guardado en Contexto IA!' : '📌 Guardar Selección en Contexto IA'}
             </button>
 
             {/* Right: ChatGPT & Export Action Buttons */}

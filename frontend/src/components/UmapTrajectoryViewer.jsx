@@ -456,7 +456,7 @@ export default function UmapTrajectoryViewer({
             }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-                Iberoamérica (Ref.)
+                Región LATAM (Ref.)
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#38bdf8' }} />

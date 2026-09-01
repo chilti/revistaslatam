@@ -1,9 +1,20 @@
 import React from 'react';
 import { useAppStore } from '../store';
-import { Sun, Moon, Sparkles, FileText, Database, ShieldCheck } from 'lucide-react';
+import { Sun, Moon, Sparkles, FileText, Download, Clock, Bot } from 'lucide-react';
 
 export default function Navbar() {
-  const { theme, setTheme, dossierItems, setDossierOpen } = useAppStore();
+  const {
+    theme,
+    setTheme,
+    dossierItems,
+    setDossierOpen,
+    exportJobs,
+    setDownloadsOpen
+  } = useAppStore();
+
+  const activeJobs = exportJobs.filter(j => j.status === 'processing' || j.status === 'pending');
+  const completedJobs = exportJobs.filter(j => j.status === 'completed');
+  const latestActiveJob = activeJobs[0];
 
   return (
     <header style={{
@@ -42,12 +53,12 @@ export default function Navbar() {
             Revistas LATAM
           </h1>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
-            Inteligencia Científica y Cartografía Topológica
+            Con datos de OpenAlex
           </span>
         </div>
       </div>
 
-      {/* Actions / Theme switcher / Dossier button */}
+      {/* Actions / Theme switcher / Dossier & Downloads buttons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {/* Theme Segmented Switcher */}
         <div className="segmented-pills">
@@ -80,9 +91,10 @@ export default function Navbar() {
           </button>
         </div>
 
-        {/* Study Dossier Button */}
+        {/* Context for AI Button */}
         <button
           onClick={() => setDossierOpen(true)}
+          title="Abrir panel de Contexto compilado para ChatGPT y agentes de IA"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -99,8 +111,8 @@ export default function Navbar() {
             transition: 'all 0.2s ease'
           }}
         >
-          <FileText size={15} />
-          <span>Dossier de Estudio</span>
+          <Bot size={15} />
+          <span>Contexto para IA</span>
           {dossierItems.length > 0 && (
             <span style={{
               background: '#ffffff',
@@ -111,6 +123,49 @@ export default function Navbar() {
               fontWeight: '800'
             }}>
               {dossierItems.length}
+            </span>
+          )}
+        </button>
+
+        {/* Background Downloads Button */}
+        <button
+          onClick={() => setDownloadsOpen(true)}
+          title="Ver panel de exportaciones y descargas en segundo plano"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 14px',
+            borderRadius: '8px',
+            background: activeJobs.length > 0
+              ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.2), rgba(16, 185, 129, 0.2))'
+              : (completedJobs.length > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-input)'),
+            color: activeJobs.length > 0
+              ? '#0284c7'
+              : (completedJobs.length > 0 ? '#10b981' : 'var(--text-main)'),
+            border: `1px solid ${activeJobs.length > 0 ? '#0284c7' : (completedJobs.length > 0 ? '#10b981' : 'var(--border-color)')}`,
+            fontSize: '13px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Download size={15} />
+          <span>
+            {activeJobs.length > 0
+              ? `Descargas (${latestActiveJob?.pct || 0}%)`
+              : 'Descargas'}
+          </span>
+          {completedJobs.length > 0 && activeJobs.length === 0 && (
+            <span style={{
+              background: '#10b981',
+              color: '#ffffff',
+              borderRadius: '10px',
+              padding: '1px 6px',
+              fontSize: '11px',
+              fontWeight: '800'
+            }}>
+              {completedJobs.length}
             </span>
           )}
         </button>

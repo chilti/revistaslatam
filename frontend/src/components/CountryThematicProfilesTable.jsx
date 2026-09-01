@@ -157,18 +157,18 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
           No se encontraron datos temáticos para esta selección.
         </div>
       ) : (
-        <div style={{ overflowX: 'auto', maxHeight: '520px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', borderRadius: '8px' }}>
+        <div style={{ overflowX: 'auto', maxHeight: '520px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
           <table className="table-custom" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 3, backgroundColor: 'var(--card-bg, #1e222d)' }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 3, backgroundColor: 'var(--bg-card)' }}>
               <tr>
-                <th style={{ position: 'sticky', left: 0, zIndex: 4, backgroundColor: 'var(--card-bg, #1e222d)', minWidth: '240px', textAlign: 'left', padding: '10px 14px', borderBottom: '2px solid var(--border-color, #333)' }}>
+                <th style={{ position: 'sticky', left: 0, zIndex: 4, backgroundColor: 'var(--bg-card)', minWidth: '240px', textAlign: 'left', padding: '10px 14px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
                   Revista
                 </th>
-                <th style={{ textAlign: 'right', padding: '10px 12px', minWidth: '90px', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', fontWeight: 'bold', borderBottom: '2px solid var(--border-color, #333)' }}>
+                <th style={{ textAlign: 'right', padding: '10px 12px', minWidth: '90px', backgroundColor: 'var(--accent-primary-light)', color: 'var(--accent-primary)', fontWeight: 'bold', borderBottom: '2px solid var(--border-color)' }}>
                   Total
                 </th>
                 {thematicCols.map(col => (
-                  <th key={col} style={{ textAlign: 'right', padding: '10px 10px', minWidth: '95px', borderBottom: '2px solid var(--border-color, #333)' }}>
+                  <th key={col} style={{ textAlign: 'right', padding: '10px 10px', minWidth: '95px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
                     {col}
                   </th>
                 ))}
@@ -176,11 +176,11 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
             </thead>
             <tbody>
               {filteredData.map((row, idx) => (
-                <tr key={row.Revista || idx} style={{ borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.05))', backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
-                  <td style={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'var(--card-bg, #1e222d)', fontWeight: '600', padding: '8px 14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '280px' }} title={row.Revista}>
+                <tr key={row.Revista || idx} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(2, 132, 199, 0.02)' }}>
+                  <td style={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'var(--bg-card)', fontWeight: '600', padding: '8px 14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '280px', color: 'var(--text-main)' }} title={row.Revista}>
                     {row.Revista}
                   </td>
-                  <td style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'bold', color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.05)' }}>
+                  <td style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'bold', color: 'var(--accent-primary)', backgroundColor: 'var(--accent-primary-light)' }}>
                     {Number(row.Total || 0).toLocaleString()}
                   </td>
                   {thematicCols.map(col => {
@@ -191,7 +191,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
                         style={{
                           textAlign: 'right',
                           padding: '8px 10px',
-                          color: val > 0 ? 'inherit' : 'var(--text-muted)',
+                          color: val > 0 ? 'var(--text-main)' : 'var(--text-muted)',
                           fontVariantNumeric: 'tabular-nums'
                         }}
                       >

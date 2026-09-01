@@ -209,7 +209,7 @@ export default function NetworksPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
             <CircleDot size={18} color="var(--accent-primary)" />
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              Matriz Circular de Coautoría Bilateral en Iberoamérica (Cooperación Sur-Sur)
+              Matriz Circular de Coautoría Bilateral en América Latina (Cooperación Sur-Sur)
             </h3>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>

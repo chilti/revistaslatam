@@ -15,28 +15,15 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 PARQUET_FILE = os.path.join(DATA_DIR, 'latin_american_journals.parquet')
 WORKS_PARQUET_FILE = os.path.join(DATA_DIR, 'latin_american_works.parquet')
 
-# List of Latin American country codes (ISO 2-letter codes)
+# List of Latin American and Caribbean country codes (ISO 2-letter codes)
 LATAM_COUNTRIES = [
-    'MX', # Mexico
-    'BR', # Brazil
-    'AR', # Argentina
-    'CL', # Chile
-    'CO', # Colombia
-    'PE', # Peru
-    'VE', # Venezuela
-    'EC', # Ecuador
-    'CU', # Cuba
-    'UY', # Uruguay
-    'CR', # Costa Rica
-    'BO', # Bolivia
-    'DO', # Dominican Republic
-    'GT', # Guatemala
-    'PY', # Paraguay
-    'SV', # El Salvador
-    'HN', # Honduras
-    'NI', # Nicaragua
-    'PA', # Panama
-    'PR', # Puerto Rico (often included in LATAM analysis)
+    # Sudamérica
+    'AR', 'BO', 'BR', 'CL', 'CO', 'EC', 'GY', 'PY', 'PE', 'SR', 'UY', 'VE', 'GF',
+    # México y Centroamérica
+    'MX', 'BZ', 'CR', 'SV', 'GT', 'HN', 'NI', 'PA',
+    # El Caribe y Antillas
+    'CU', 'DO', 'HT', 'PR', 'JM', 'TT', 'BS', 'BB', 'AG', 'DM', 'GD', 'KN', 'LC', 'VC',
+    'AW', 'CW', 'GP', 'MQ', 'SX', 'KY', 'BM', 'TC', 'VG', 'VI'
 ]
 
 def fetch_journals_by_country(country_code):

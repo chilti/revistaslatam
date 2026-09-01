@@ -23,8 +23,16 @@ CH_USER = os.environ.get('CH_USER', 'default')
 CH_PASSWORD = os.environ.get('CH_PASSWORD', '')
 CH_DATABASE = os.environ.get('CH_DATABASE', 'rag')
 
-# Lista de países LATAM para filtrado inicial
-LATAM_COUNTRIES = ["AR", "BO", "BR", "CL", "CO", "CR", "CU", "DO", "EC", "SV", "GT", "HN", "MX", "NI", "PA", "PY", "PE", "PR", "UY", "VE", "JM", "TT"]
+# Lista exhaustiva de países y territorios de América Latina y el Caribe (ALC) para extracción
+LATAM_COUNTRIES = [
+    # Sudamérica
+    "AR", "BO", "BR", "CL", "CO", "EC", "GY", "PY", "PE", "SR", "UY", "VE", "GF",
+    # México y Centroamérica
+    "MX", "BZ", "CR", "SV", "GT", "HN", "NI", "PA",
+    # El Caribe y Antillas
+    "CU", "DO", "HT", "PR", "JM", "TT", "BS", "BB", "AG", "DM", "GD", "KN", "LC", "VC",
+    "AW", "CW", "GP", "MQ", "SX", "KY", "BM", "TC", "VG", "VI"
+]
 
 # Directorios de datos
 DATA_DIR = Path(__file__).parent.parent / 'data'

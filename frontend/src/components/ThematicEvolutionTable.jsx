@@ -9,19 +9,30 @@ const LEVEL_CONFIG = [
   { id: 'topic', label: 'Tópico' },
 ];
 
-export default function ThematicEvolutionTable({ countryCode = null, countryName = null, title = null, subtitle = null }) {
+export default function ThematicEvolutionTable({ 
+  countryCode = null, 
+  countryName = null, 
+  journalId = null,
+  journalName = null,
+  title = null, 
+  subtitle = null 
+}) {
   const [level, setLevel] = useState('domain');
   const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [limit, setLimit] = useState(30);
 
-  // Fetch aggregated evolution data on level or countryCode change
+  // Fetch aggregated evolution data on level, countryCode or journalId change
   useEffect(() => {
     setLoading(true);
-    const endpoint = countryCode 
-      ? `/countries/${countryCode}/thematic-evolution?level=${level}`
-      : `/regional/thematic-evolution?level=${level}`;
+    let endpoint = `/regional/thematic-evolution?level=${level}`;
+    if (journalId) {
+      const cleanJid = journalId.includes('/') ? journalId.split('/').pop() : journalId;
+      endpoint = `/journals/${encodeURIComponent(cleanJid)}/thematic-evolution?level=${level}`;
+    } else if (countryCode) {
+      endpoint = `/countries/${countryCode}/thematic-evolution?level=${level}`;
+    }
 
     api.get(endpoint)
       .then(res => {
@@ -32,7 +43,7 @@ export default function ThematicEvolutionTable({ countryCode = null, countryName
         setRawData([]);
       })
       .finally(() => setLoading(false));
-  }, [level, countryCode]);
+  }, [level, countryCode, journalId]);
 
   // Pivot data: Years as columns, Categories as rows
   const { years, pivotedRows, maxCellVal } = useMemo(() => {
@@ -103,7 +114,8 @@ export default function ThematicEvolutionTable({ countryCode = null, countryName
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `evolucion_historica_perfiles_${countryCode || 'region'}_${level}.csv`);
+    const cleanId = journalId ? (journalId.includes('/') ? journalId.split('/').pop() : journalId) : (countryCode || 'region');
+    link.setAttribute('download', `evolucion_historica_perfiles_${cleanId}_${level}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -116,13 +128,17 @@ export default function ThematicEvolutionTable({ countryCode = null, countryName
     return `rgba(59, 130, 246, ${ratio.toFixed(3)})`;
   };
 
-  const defaultTitle = countryName 
-    ? `Evolución Histórica de Perfiles de Conocimiento: ${countryName}`
-    : (countryCode ? `Evolución Histórica de Perfiles de Conocimiento: ${countryCode}` : 'Evolución Histórica de Perfiles de Conocimiento: Región');
+  const defaultTitle = journalName
+    ? `Evolución Histórica de Perfiles de Conocimiento: ${journalName}`
+    : (countryName 
+      ? `Evolución Histórica de Perfiles de Conocimiento: ${countryName}`
+      : (countryCode ? `Evolución Histórica de Perfiles de Conocimiento: ${countryCode}` : 'Evolución Histórica de Perfiles de Conocimiento: Región'));
 
-  const defaultSubtitle = countryName
-    ? `Tendencia temporal de producción de artículos en revistas de ${countryName} por área temática (1985–2026).`
-    : 'Tendencia temporal de producción de artículos en revistas latinoamericanas por área temática (1985–2026).';
+  const defaultSubtitle = journalName
+    ? `Tendencia temporal de producción de artículos en ${journalName} por área temática (1985–2026).`
+    : (countryName
+      ? `Tendencia temporal de producción de artículos en revistas de ${countryName} por área temática (1985–2026).`
+      : 'Tendencia temporal de producción de artículos en revistas latinoamericanas por área temática (1985–2026).');
 
   return (
     <div className="card" style={{ marginTop: '24px' }}>
@@ -206,18 +222,18 @@ export default function ThematicEvolutionTable({ countryCode = null, countryName
           No se encontraron datos para los filtros seleccionados.
         </div>
       ) : (
-        <div style={{ overflowX: 'auto', maxHeight: '560px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', borderRadius: '8px' }}>
+        <div style={{ overflowX: 'auto', maxHeight: '560px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
           <table className="table-custom" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 3, backgroundColor: 'var(--card-bg, #1e222d)' }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 3, backgroundColor: 'var(--bg-card)' }}>
               <tr>
-                <th style={{ position: 'sticky', left: 0, zIndex: 4, backgroundColor: 'var(--card-bg, #1e222d)', minWidth: '220px', textAlign: 'left', padding: '10px 14px', borderBottom: '2px solid var(--border-color, #333)' }}>
+                <th style={{ position: 'sticky', left: 0, zIndex: 4, backgroundColor: 'var(--bg-card)', minWidth: '220px', textAlign: 'left', padding: '10px 14px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
                   {LEVEL_CONFIG.find(l => l.id === level)?.label || 'Área Temática'}
                 </th>
-                <th style={{ textAlign: 'right', padding: '10px 12px', minWidth: '100px', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', fontWeight: 'bold', borderBottom: '2px solid var(--border-color, #333)' }}>
+                <th style={{ textAlign: 'right', padding: '10px 12px', minWidth: '100px', backgroundColor: 'var(--accent-primary-light)', color: 'var(--accent-primary)', fontWeight: 'bold', borderBottom: '2px solid var(--border-color)' }}>
                   Total
                 </th>
                 {years.map(y => (
-                  <th key={y} style={{ textAlign: 'right', padding: '10px 8px', minWidth: '55px', borderBottom: '2px solid var(--border-color, #333)' }}>
+                  <th key={y} style={{ textAlign: 'right', padding: '10px 8px', minWidth: '55px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
                     {y}
                   </th>
                 ))}
@@ -225,15 +241,16 @@ export default function ThematicEvolutionTable({ countryCode = null, countryName
             </thead>
             <tbody>
               {filteredRows.map((row, idx) => (
-                <tr key={row.name} style={{ borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.05))', backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
-                  <td style={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'var(--card-bg, #1e222d)', fontWeight: '600', padding: '8px 14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '280px' }} title={row.name}>
+                <tr key={row.name} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(2, 132, 199, 0.02)' }}>
+                  <td style={{ position: 'sticky', left: 0, zIndex: 2, backgroundColor: 'var(--bg-card)', fontWeight: '600', padding: '8px 14px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '280px', color: 'var(--text-main)' }} title={row.name}>
                     {row.name}
                   </td>
-                  <td style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'bold', color: '#93c5fd', backgroundColor: 'rgba(59, 130, 246, 0.05)' }}>
+                  <td style={{ textAlign: 'right', padding: '8px 12px', fontWeight: 'bold', color: 'var(--accent-primary)', backgroundColor: 'var(--accent-primary-light)' }}>
                     {row.total.toLocaleString()}
                   </td>
                   {years.map(y => {
                     const val = row.years[y] || 0;
+                    const ratio = val / maxCellVal;
                     return (
                       <td
                         key={y}
@@ -241,7 +258,8 @@ export default function ThematicEvolutionTable({ countryCode = null, countryName
                           textAlign: 'right',
                           padding: '8px 6px',
                           backgroundColor: getCellBg(val),
-                          color: val > 0 ? (val / maxCellVal > 0.4 ? '#ffffff' : 'inherit') : 'var(--text-muted)',
+                          color: val > 0 ? (ratio > 0.65 ? '#ffffff' : 'var(--text-main)') : 'var(--text-muted)',
+                          fontWeight: val > 0 && ratio > 0.3 ? '600' : 'normal',
                           fontVariantNumeric: 'tabular-nums'
                         }}
                       >

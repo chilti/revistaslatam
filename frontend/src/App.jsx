@@ -3,6 +3,7 @@ import { useAppStore } from './store';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import DossierDrawer from './components/DossierDrawer';
+import DownloadsDrawer from './components/DownloadsDrawer';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import RegionalPage from './pages/RegionalPage';
@@ -13,11 +14,39 @@ import NetworksPage from './pages/NetworksPage';
 import AboutPage from './pages/AboutPage';
 
 export default function App() {
-  const { activeSection, theme } = useAppStore();
+  const { activeSection, theme, setActiveSection, setSelectedCountry, setSelectedJournal, selectedCountry, selectedJournalId } = useAppStore();
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Listen for browser back / forward events (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const section = params.get('section') || params.get('tab');
+        const country = params.get('country') || params.get('country_code');
+        const rawJournal = params.get('journal_id') || params.get('journal') || params.get('id');
+
+        if (country) {
+          setSelectedCountry(country.toUpperCase());
+        }
+        if (rawJournal) {
+          const jId = rawJournal.startsWith('http') ? rawJournal : `https://openalex.org/${rawJournal.trim()}`;
+          setSelectedJournal(jId);
+        }
+        if (section) {
+          setActiveSection(section);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const renderSection = () => {
     switch (activeSection) {
@@ -50,6 +79,7 @@ export default function App() {
         </main>
       </div>
       <DossierDrawer />
+      <DownloadsDrawer />
     </div>
   );
 }

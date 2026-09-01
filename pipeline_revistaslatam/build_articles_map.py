@@ -24,6 +24,23 @@ if sys.platform == 'win32':
 BASE_DIR = Path.cwd()
 sys.path.append(str(BASE_DIR / 'src'))
 
+# Load .env from project root (before any module imports that read env vars)
+_env_file = BASE_DIR / '.env'
+if _env_file.exists():
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(_env_file, override=False)
+        print(f'  -> ✅ Variables de entorno cargadas desde {_env_file}')
+    except ImportError:
+        # Manual fallback if python-dotenv not installed
+        with open(_env_file) as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith('#') and '=' in _line:
+                    _k, _, _v = _line.partition('=')
+                    os.environ.setdefault(_k.strip(), _v.strip())
+        print(f'  -> ✅ Variables de entorno cargadas (manual) desde {_env_file}')
+
 from article_manifold import (
     clean_pure_text,
     generate_article_embeddings,
@@ -145,17 +162,23 @@ def build_map(sample_limit=None, per_journal_max=None, batch_size=100000, use_gp
         if 'id_journal' in df_works.columns:
             df_works.drop(columns=['id_journal'], inplace=True, errors='ignore')
 
-    # 4. Clean Pure Text (Title + Abstract ONLY)
+    # 4. Clean Pure Text (Title + Abstract ONLY) — Vectorized for 3.5M scale
     print('\n[Paso 2] Limpiando texto puro (Título + Resumen invertido)...')
     t1 = time.time()
-    pure_texts = []
-    for _, r in df_works.iterrows():
-        t = r.get('title')
-        a = r.get('abstract_inverted_index')
-        cleaned = clean_pure_text(t, a)
-        pure_texts.append(cleaned)
+    from multiprocessing.pool import ThreadPool
+    titles = df_works['title'].tolist()
+    abstracts = df_works['abstract_inverted_index'].tolist() if 'abstract_inverted_index' in df_works.columns else [None] * len(df_works)
+
+    def _clean_row(args):
+        t, a = args
+        return clean_pure_text(t, a)
+
+    n_threads = min(32, (len(titles) // 50000) + 4)
+    with ThreadPool(n_threads) as pool:
+        pure_texts = pool.map(_clean_row, zip(titles, abstracts), chunksize=2000)
+
     df_works['clean_text'] = pure_texts
-    print(f'  ✅ Textos limpios procesados en {time.time() - t1:.1f}s')
+    print(f'  ✅ {len(pure_texts):,} textos limpios procesados en {time.time() - t1:.1f}s ({n_threads} hilos)')
 
     # 5. Generate Dense Embeddings (GPU cuML / Multicore CPU)
     print(f'\n[Paso 3] Generando embeddings densos ({dim}d)...')
@@ -180,11 +203,11 @@ def build_map(sample_limit=None, per_journal_max=None, batch_size=100000, use_gp
     df_works['umap_y'] = np.round(coords[:, 1], 4)
     print(f'  ✅ Coordenadas UMAP 2D generadas en {time.time() - t3:.1f}s')
 
-    # 7. Detect Communities & LLM Labeling (Sinapsis AI Methodology)
-    print('\n[Paso 5] Detectando macro-comunidades y etiquetando con Centroides + TF-IDF + LLM...')
+    # 7. Detect Communities in Intrinsic Dimension (HDBSCAN) & LLM Labeling (Sinapsis AI Methodology)
+    print('\n[Paso 5] Clustering en dimensión intrínseca (HDBSCAN) y etiquetado con Centroides + TF-IDF + LLM...')
     t4 = time.time()
-    n_comm = min(15, max(8, len(df_works) // 5000))
-    cluster_labels = detect_article_communities(coords, n_clusters=n_comm, min_cluster_size=100, use_gpu=use_gpu)
+    n_comm = min(25, max(10, len(df_works) // 4000))
+    cluster_labels = detect_article_communities(embeddings, n_clusters=n_comm, min_cluster_size=150, use_gpu=use_gpu)
     df_works['cluster_id'] = cluster_labels
     cluster_names = label_article_clusters(
         df_works,

@@ -33,3 +33,6 @@ scratch/
 .env
 nomic-embed/
 models/
+
+exports/
+*.zip

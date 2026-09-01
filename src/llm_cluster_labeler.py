@@ -38,15 +38,15 @@ ALL_STOPWORDS = list(set(list(ENGLISH_STOP_WORDS) + SPANISH_STOPWORDS + PORTUGUE
 class LLMConfig:
     @staticmethod
     def get_base_url():
-        return os.getenv("LLM_BASE_URL", "http://localhost:1234/v1/")
+        return os.getenv("LLM_BASE_URL", "http://127.0.0.1:1234/v1")
 
     @staticmethod
     def get_model_name():
-        return os.getenv("LLM_MODEL", "openai/gpt-oss-20b")
+        return os.getenv("LLM_MODEL", "default")
 
     @staticmethod
     def get_api_key():
-        return os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "lm-studio"
+        return os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "sk-lm-VAulEVEi:bZFVZZK3oGOxDI4gJcV1"
 
 def get_llm_client():
     if not HAS_OPENAI:
@@ -54,12 +54,15 @@ def get_llm_client():
     base_url = LLMConfig.get_base_url()
     api_key = LLMConfig.get_api_key()
     model_name = LLMConfig.get_model_name()
-    try:
-        client = OpenAI(base_url=base_url, api_key=api_key, timeout=12.0)
-        return client, model_name
-    except Exception as e:
-        print(f"  -> ⚠️ No se pudo inicializar OpenAI client: {e}")
-        return None, None
+    for candidate_url in [base_url, "http://127.0.0.1:1234/v1", "http://localhost:1234/v1", "http://172.17.0.1:1234/v1"]:
+        try:
+            client = OpenAI(base_url=candidate_url, api_key=api_key, timeout=12.0)
+            # Test ping
+            client.models.list()
+            return client, model_name
+        except Exception:
+            continue
+    return None, None
 
 def get_top_keywords_cluster(texts, n=5):
     if not texts or len(texts) == 0:
@@ -111,15 +114,22 @@ Etiqueta del grupo:"""
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            max_tokens=64,
-            timeout=10.0
+            max_tokens=128,
+            timeout=15.0
         )
-        llm_label = response.choices[0].message.content.strip()
-        llm_label = llm_label.replace('"', '').replace("'", "").replace("\n", " ").strip()
-        # Clean trailing dot
+        content = response.choices[0].message.content or ""
+        if "{" in content and "}" in content:
+            try:
+                import json
+                data = json.loads(content)
+                if isinstance(data, dict):
+                    content = data.get("response") or data.get("label") or list(data.values())[0] or content
+            except Exception:
+                pass
+        llm_label = str(content).strip().replace('"', '').replace("'", "").replace("\n", " ").strip()
         if llm_label.endswith('.'):
             llm_label = llm_label[:-1]
-        return llm_label
+        return llm_label if len(llm_label) >= 2 else None
     except Exception as e:
         return None
 

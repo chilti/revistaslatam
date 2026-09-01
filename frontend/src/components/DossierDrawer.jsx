@@ -39,7 +39,7 @@ function buildMarkdownText(title, items) {
 
 export default function DossierDrawer() {
   const { dossierItems, isDossierOpen, setDossierOpen, removeDossierItem, clearDossier } = useAppStore();
-  const [reportTitle, setReportTitle]   = useState('Dossier de Estudio - Revistas LATAM');
+  const [reportTitle, setReportTitle]   = useState('Contexto para IA - Revistas LATAM');
   const [downloading, setDownloading]   = useState(false);
   const [copied, setCopied]             = useState(false);
   const [expandedKey, setExpandedKey]   = useState(null);
@@ -50,8 +50,8 @@ export default function DossierDrawer() {
   const handleCopyForChatGPT = () => {
     if (dossierItems.length === 0) return;
     const prefix = [
-      'Analiza el siguiente dossier cienciométrico de revistas latinoamericanas.',
-      'Los datos provienen de OpenAlex 2025 procesados con DuckDB.',
+      'Analiza el siguiente paquete de contexto cienciométrico compilado desde Revistas LATAM.',
+      'Los datos provienen de OpenAlex procesados con DuckDB.',
       'Proporciona un análisis crítico de las tendencias, fortalezas, brechas y recomendaciones estratégicas.',
       '',
       '---',
@@ -71,28 +71,26 @@ export default function DossierDrawer() {
     setDownloading(true);
     try {
       if (format === 'markdown') {
-        // Client-side generation (no backend needed)
         const content = buildMarkdownText(reportTitle, dossierItems);
         const blob = new Blob([content], { type: 'text/markdown;charset=utf-8;' });
         const url  = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href  = url;
-        link.download = `dossier_latam_${new Date().toISOString().slice(0, 10)}.md`;
+        link.download = `contexto_ia_latam_${new Date().toISOString().slice(0, 10)}.md`;
         link.click();
         URL.revokeObjectURL(url);
       } else {
-        // JSON export
         const payload = { title: reportTitle, generated: new Date().toISOString(), items: dossierItems };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
         const url  = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href  = url;
-        link.download = `dossier_latam_${new Date().toISOString().slice(0, 10)}.json`;
+        link.download = `contexto_ia_latam_${new Date().toISOString().slice(0, 10)}.json`;
         link.click();
         URL.revokeObjectURL(url);
       }
     } catch (err) {
-      console.error('Error exporting dossier:', err);
+      console.error('Error exporting context:', err);
     } finally {
       setDownloading(false);
     }
@@ -122,8 +120,8 @@ export default function DossierDrawer() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileText size={18} color="var(--accent-primary)" />
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Dossier de Estudio</h3>
+            <Bot size={18} color="var(--accent-primary)" />
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Contexto para IA</h3>
             <span className="badge">{dossierItems.length}</span>
           </div>
           <button
@@ -140,7 +138,7 @@ export default function DossierDrawer() {
           {/* Report title */}
           <div>
             <label style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '5px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Título del Reporte:
+              Título del Paquete de Contexto:
             </label>
             <input
               type="text"
@@ -153,7 +151,7 @@ export default function DossierDrawer() {
           {/* Items header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
             <span style={{ fontSize: '13px', fontWeight: '700' }}>
-              Elementos Registrados ({dossierItems.length})
+              Bloques de Datos Compilados ({dossierItems.length})
             </span>
             {dossierItems.length > 0 && (
               <button
@@ -177,7 +175,7 @@ export default function DossierDrawer() {
               borderRadius: '10px', border: '1px dashed var(--border-color)',
               fontSize: '13px', lineHeight: 1.6
             }}>
-              📌 Usa los botones <strong>"Guardar en Dossier"</strong> en cada gráfico o tabla para añadir elementos aquí.
+              📌 Usa los botones <strong>"Guardar en Contexto IA"</strong> en cada gráfico o tabla para añadir indicadores y compilar el prompt aquí.
               <br /><br />
               Luego puedes exportarlo como Markdown o copiarlo directamente para analizar con ChatGPT.
             </div>

@@ -4140,11 +4140,11 @@ elif level == "Acerca de...":
     
     st.subheader("Grupo de trabajo")
     st.markdown("""
-    **Complejidad, Ciencienciometría y Ciencia de la Ciencia**
+    **Complejidad, Cienciometría y Ciencia de la Ciencia**
     
-    *   Dr. Humberto Andrés Carrillo Calvet
-    *   Dr. Ricardo Arencibia Jorge
-    *   Dr. José Luis Jiménez Andrade
+    *   **Dr. Humberto Andrés Carrillo Calvet** — Investigador Titular ([ORCID: 0000-0003-3659-6769](https://orcid.org/0000-0003-3659-6769))
+    *   **Dr. Ricardo Arencibia Jorge** — Especialista Cienciométrico ([ORCID: 0000-0001-8907-2454](https://orcid.org/0000-0001-8907-2454))
+    *   **Dr. José Luis Jiménez Andrade** — Arquitectura y Modelado Matemático ([ORCID: 0000-0003-3453-7159](https://orcid.org/0000-0003-3453-7159))
     """)
     
     st.divider()

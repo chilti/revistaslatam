@@ -8,6 +8,7 @@ import DossierButton from '../components/DossierButton';
 import PageDossierExpander from '../components/PageDossierExpander';
 import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
 import CountryThematicProfilesTable from '../components/CountryThematicProfilesTable';
+import AnnualDataTable from '../components/AnnualDataTable';
 import { 
   BookOpen, 
   FileText, 
@@ -30,13 +31,36 @@ import {
   Search,
   FileSpreadsheet,
   BarChart2,
-  PieChart
+  PieChart,
+  Share2,
+  Check
 } from 'lucide-react';
 
 export default function CountryPage() {
   const { selectedCountry, setSelectedCountry, setSelectedJournal, setActiveSection, addDossierItem } = useAppStore();
   
   const [countriesList, setCountriesList] = useState([]);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleShareCountry = () => {
+    const url = `${window.location.origin}${window.location.pathname}?section=country&country=${encodeURIComponent(selectedCountry)}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
+      });
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
+
   const [summary, setSummary] = useState(null);
   const [annualTrends, setAnnualTrends] = useState([]);
   const [annualWindow, setAnnualWindow] = useState(0);
@@ -49,6 +73,7 @@ export default function CountryPage() {
   const [trajectory, setTrajectory] = useState({});
   const [umapJournals, setUmapJournals] = useState([]);
   const [landscapeArticles, setLandscapeArticles] = useState({ country_articles: [], bg_articles: [] });
+  const [globalBgArts, setGlobalBgArts] = useState([]);
   const [umapTableOpen, setUmapTableOpen] = useState(false);
   const [umapTableSearch, setUmapTableSearch] = useState('');
   const [scatterPeriod, setScatterPeriod] = useState('recent'); // 'recent' | 'full'
@@ -81,7 +106,7 @@ export default function CountryPage() {
     { id: 'avg_percentile', label: 'Percentil Promedio' },
     { id: 'pct_oa_total', label: '% OA Total' },
     { id: 'pct_oa_diamond', label: '% OA Diamante' },
-    { id: 'pct_oa_gold', label: '% OA Gold' },
+    { id: 'pct_oa_gold', label: '% OA Dorado' },
     { id: 'pct_oa_green', label: '% OA Verde' },
     { id: 'pct_oa_hybrid', label: '% OA Híbrido' },
     { id: 'pct_oa_bronze', label: '% OA Bronce' },
@@ -89,7 +114,17 @@ export default function CountryPage() {
     { id: 'pct_authors_domestic', label: 'Autoría Doméstica (%)' },
     { id: 'pct_lang_es', label: '% Español' },
     { id: 'pct_lang_en', label: '% Inglés' },
-    { id: 'pct_lang_pt', label: '% Portugués' }
+    { id: 'pct_lang_pt', label: '% Portugués' },
+    { id: 'pct_lang_fr', label: '% Francés' },
+    { id: 'pct_lang_de', label: '% Alemán' },
+    { id: 'pct_lang_it', label: '% Italiano' },
+    { id: 'pct_lang_other', label: '% Otros Idiomas' },
+    { id: 'cited_by_count', label: 'Citas Totales' },
+    { id: 'h_index', label: 'Índice h' },
+    { id: 'i10_index', label: 'Índice i10' },
+    { id: 'citedness_2yr', label: 'Citas 2 Años (Mean Citedness)' },
+    { id: 'pagerank', label: 'PageRank Citas (‰)' },
+    { id: 'eigenfactor', label: 'Eigenfactor Score (%)' }
   ];
 
   const SCATTER_OPTIONS = [
@@ -133,6 +168,10 @@ export default function CountryPage() {
       setTrajectory(trajRes.data);
       setUmapJournals(umapJRes.data);
       setLandscapeArticles(landRes.data);
+      // If bg_articles is empty, load global background landscape
+      if (!landRes.data?.bg_articles?.length) {
+        api.get('/maps/articles?limit=5000').then(r => setGlobalBgArts(r.data || [])).catch(() => {});
+      }
       setSlopeData(slopeRes.data);
       setJournalsDist(distRes.data);
     }).catch(console.error).finally(() => setLoading(false));
@@ -305,10 +344,12 @@ export default function CountryPage() {
   const bgArts = landscapeArticles?.bg_articles || [];
   const landscapeTraces = [];
 
-  if (bgArts.length > 0) {
+  const effectiveBgArts = bgArts.length > 0 ? bgArts : globalBgArts;
+
+  if (effectiveBgArts.length > 0) {
     landscapeTraces.push({
-      x: bgArts.map(a => a.umap_x),
-      y: bgArts.map(a => a.umap_y),
+      x: effectiveBgArts.map(a => a.umap_x),
+      y: effectiveBgArts.map(a => a.umap_y),
       mode: 'markers',
       type: 'scatter',
       name: 'Otros Artículos LATAM',
@@ -486,8 +527,30 @@ export default function CountryPage() {
               category: 'Perfil País',
               data: pData ? [pData] : []
             }}
-            label="Guardar Perfil"
+            label="Guardar en Contexto IA"
           />
+          <button
+            onClick={handleShareCountry}
+            title="Copiar enlace directo para compartir este país"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              background: copiedLink ? '#10b981' : 'var(--bg-input)',
+              color: copiedLink ? '#ffffff' : 'var(--text-main)',
+              border: '1px solid var(--border-color)',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: copiedLink ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none'
+            }}
+          >
+            {copiedLink ? <Check size={15} /> : <Share2 size={15} />}
+            <span>{copiedLink ? '¡Enlace copiado!' : 'Compartir'}</span>
+          </button>
         </div>
       </div>
 
@@ -800,10 +863,17 @@ export default function CountryPage() {
         />
       </div>
 
+      {/* TABLA DE INDICADORES HISTÓRICOS DEL PAÍS (DATOS CRUDOS, W=3, W=5) */}
+      <AnnualDataTable 
+        data={annualTrends} 
+        countryCode={selectedCountry}
+        countryName={summary?.country_name || selectedCountry}
+      />
+
       {/* 1. TRAYECTORIA DE DESEMPEÑO (UMAP PAÍS VS LATAM) */}
       {trajectory && Object.keys(trajectory).length > 0 && (
         <UmapTrajectoryViewer
-          title={`📈 Trayectoria de Desempeño: ${summary?.country_name || selectedCountry} vs Iberoamérica (2000–2025)`}
+          title={`📈 Trayectoria de Desempeño: ${summary?.country_name || selectedCountry} vs Región LATAM (2000–2025)`}
           subtitle="Evolución multidimensional del país proyectada en el espacio UMAP con la referencia regional continua y mapas de calor gaussianos por indicador."
           trajectories={trajectory}
           allowTrajectoryFilter={true}
@@ -1464,26 +1534,62 @@ export default function CountryPage() {
                 '| Métrica Cienciométrica | Valor Actual | Contexto Nacional |',
                 '|---|---|---|',
                 `| Revistas Activas en OpenAlex | ${summary?.num_journals?.toLocaleString() || 0} | Publicaciones con sede en el país |`,
-                `| Producción Histórica de Artículos | ${summary?.total_works?.toLocaleString() || 0} | Volumen acumulado indexado |`,
-                `| FWCI Ponderado Promedio | ${pData?.fwci_avg ?? '—'} | Citas ponderadas por campo (Base mundial=1.0) |`,
-                `| % Acceso Abierto Diamante | ${pData?.pct_oa_diamond || 0}% | Revistas sin APC para autores |`,
-                `| % OA Gold | ${pData?.pct_oa_gold || 0}% | Publicación con cargo APC |`,
-                `| % OA Verde | ${pData?.pct_oa_green || 0}% | Autoarchivo en repositorios |`,
-                `| % en Scopus | ${pData?.pct_scopus || 0}% | Revistas indexadas en Scopus |`,
-                `| % Revistas con Sello DOAJ | ${pData?.pct_doaj || 0}% | Estándares de calidad y visibilidad abierta |`,
-                `| % Artículos en Top 10% de Citas | ${pData?.pct_top_10 || 0}% | Segmento de alto impacto |`,
-                `| % Artículos en Top 1% de Citas | ${pData?.pct_top_1 || 0}% | Segmento de máxima excelencia |`,
-                `| Percentil Promedio Normalizado | ${pData?.avg_percentile ?? '—'} | Impacto normalizado |`,
-                `| % Idioma Español | ${pData?.pct_lang_es || 0}% | Publicaciones en castellano |`,
-                `| % Idioma Inglés | ${pData?.pct_lang_en || 0}% | Lengua franca científica |`,
-                `| % Idioma Portugués | ${pData?.pct_lang_pt || 0}% | Publicaciones en portugués |`,
-                `| % Otros Idiomas | ${pData?.pct_lang_other || 0}% | Otras lenguas |`
+                `| Producción Histórica de Artículos | ${summary?.total_works?.toLocaleString() || summary?.full_period?.num_documents?.toLocaleString() || 0} | Volumen acumulado indexado |`,
+                `| FWCI Ponderado Promedio | ${pData?.fwci_avg != null ? Number(pData.fwci_avg).toFixed(2) : '—'} | Citas ponderadas por campo (Base mundial=1.0) |`,
+                `| % Acceso Abierto Diamante | ${pData?.pct_oa_diamond ?? summary?.full_period?.pct_oa_diamond ?? 0}% | Revistas sin APC para autores |`,
+                `| % Revistas con Sello DOAJ | ${pData?.pct_doaj ?? summary?.full_period?.pct_doaj ?? 0}% | Estándares de calidad y visibilidad abierta |`
+              ].join('\n');
+            }
+          },
+          {
+            id: 'country_performance_panel',
+            title: '2. Panel Consolidado de Desempeño, Impacto y Ciencia Abierta (Histórico vs 2021–2025)',
+            category: 'Indicadores de Desempeño',
+            defaultChecked: true,
+            rawData: { full_period: summary?.full_period, recent_period: summary?.recent_period },
+            buildDataText: () => {
+              const f = summary?.full_period || {};
+              const r = summary?.recent_period || {};
+              const fullDocs = f.num_documents ?? f.works_count ?? summary?.total_works ?? 0;
+              const recDocs  = r.num_documents ?? r.works_count ?? 0;
+              const fullFwci = f.fwci_avg != null ? Number(f.fwci_avg) : 0;
+              const recFwci  = r.fwci_avg != null ? Number(r.fwci_avg) : 0;
+              const fwciDelta = (recFwci - fullFwci).toFixed(2);
+              const fullTop10 = f.pct_top_10 != null ? Number(f.pct_top_10) : 0;
+              const recTop10  = r.pct_top_10 != null ? Number(r.pct_top_10) : 0;
+              const top10Delta = (recTop10 - fullTop10).toFixed(2);
+              const fullTop1 = f.pct_top_1 != null ? Number(f.pct_top_1) : 0;
+              const recTop1  = r.pct_top_1 != null ? Number(r.pct_top_1) : 0;
+              const fullPerc = f.avg_percentile != null ? (Number(f.avg_percentile) <= 1.0 ? Number(f.avg_percentile) * 100 : Number(f.avg_percentile)) : 0;
+              const recPerc  = r.avg_percentile != null ? (Number(r.avg_percentile) <= 1.0 ? Number(r.avg_percentile) * 100 : Number(r.avg_percentile)) : 0;
+              const percDelta = (recPerc - fullPerc).toFixed(1);
+
+              return [
+                '**Comparativa de Impacto y Citación:**\n',
+                '| Indicador | Histórico (0–2026) | Reciente (2021–2025) | Variación Neta / Lustro |',
+                '|---|---|---|---|',
+                `| Documentos Publicados | ${fullDocs.toLocaleString()} | ${recDocs.toLocaleString()} | ${recDocs && fullDocs ? ((recDocs / fullDocs) * 100).toFixed(1) + '% de la producción histórica' : '—'} |`,
+                `| FWCI Promedio | ${fullFwci.toFixed(2)} | ${recFwci.toFixed(2)} | ${Number(fwciDelta) >= 0 ? '+' : ''}${fwciDelta} |`,
+                `| % Artículos en Top 10% | ${fullTop10.toFixed(2)}% | ${recTop10.toFixed(2)}% | ${Number(top10Delta) >= 0 ? '+' : ''}${top10Delta}% |`,
+                `| % Artículos en Top 1% | ${fullTop1.toFixed(3)}% | ${recTop1.toFixed(3)}% | ${(recTop1 - fullTop1).toFixed(3)}% |`,
+                `| Percentil Promedio Normalizado | ${fullPerc.toFixed(1)} | ${recPerc.toFixed(1)} | ${Number(percDelta) >= 0 ? '+' : ''}${percDelta} |`,
+                '\n**Ciencia Abierta, Indexación e Idiomas (Histórico):**\n',
+                '| Métrica | Valor |',
+                '|---|---|',
+                `| % Acceso Abierto Diamante | ${Number(f.pct_oa_diamond || 0).toFixed(1)}% |`,
+                `| % Acceso Abierto Gold | ${Number(f.pct_oa_gold || 0).toFixed(1)}% |`,
+                `| % Acceso Abierto Verde (Repositorio) | ${Number(f.pct_oa_green || 0).toFixed(1)}% |`,
+                `| % Revistas en Scopus | ${Number(f.pct_scopus || 0).toFixed(1)}% |`,
+                `| % Revistas en DOAJ | ${Number(f.pct_doaj || 0).toFixed(1)}% |`,
+                `| % Artículos en Español | ${Number(f.pct_lang_es || 0).toFixed(1)}% |`,
+                `| % Artículos en Inglés | ${Number(f.pct_lang_en || 0).toFixed(1)}% |`,
+                `| % Artículos en Portugués | ${Number(f.pct_lang_pt || 0).toFixed(1)}% |`
               ].join('\n');
             }
           },
           {
             id: 'country_annual',
-            title: `2. Gráfico de Eje Dual — Producción Anual vs FWCI Ponderado (1970–2026)`,
+            title: `3. Gráfico de Eje Dual — Producción Anual vs FWCI Ponderado (1970–2026)`,
             category: 'Series de Tiempo',
             defaultChecked: true,
             rawData: annualTrends,
@@ -1501,7 +1607,7 @@ export default function CountryPage() {
           },
           {
             id: 'umap_trajectory_country',
-            title: `3. Trayectoria de Desempeño UMAP (${summary?.country_name || selectedCountry} vs Iberoamérica)`,
+            title: `4. Trayectoria de Desempeño UMAP (${summary?.country_name || selectedCountry} vs Región LATAM 2000–2025)`,
             category: 'Variedades Semánticas / UMAP',
             defaultChecked: false,
             rawData: trajectory,
@@ -1523,18 +1629,18 @@ export default function CountryPage() {
           },
           {
             id: 'umap_country_journals',
-            title: `4. Mapa UMAP de Similitud de Revistas (${umapJournals.length} revistas)`,
+            title: `5. Mapa UMAP y Tabla de Similitud de Revistas (${umapJournals.length} revistas)`,
             category: 'Variedades Semánticas / UMAP',
             defaultChecked: false,
             rawData: umapJournals,
             buildDataText: () => {
               if (!umapJournals || umapJournals.length === 0) return 'No hay datos de distribución UMAP disponibles.';
               const lines = [
-                '| Revista | UMAP-1 | UMAP-2 | FWCI | % OA Diamante | % Top 10% | Artículos |',
-                '|---|---|---|---|---|---|---|'
+                '| Revista | Documentos | % Inglés | % OA Diamante | FWCI Promedio | % Top 10% | % Top 1% | Percentil Prom. |',
+                '|---|---|---|---|---|---|---|---|'
               ];
               umapJournals.slice(0, 25).forEach(u => {
-                lines.push(`| ${u.display_name || u.name} | ${Number(u.umap_x || u.x || 0).toFixed(2)} | ${Number(u.umap_y || u.y || 0).toFixed(2)} | ${Number(u.fwci_avg || 0).toFixed(2)} | ${Number(u.pct_oa_diamond || 0).toFixed(1)}% | ${Number(u.pct_top_10 || 0).toFixed(1)}% | ${u.works_count?.toLocaleString() || 0} |`);
+                lines.push(`| ${u.display_name || u.name} | ${Number(u.num_documents || u.works_count || 0).toLocaleString()} | ${Number(u.pct_lang_en || 0).toFixed(1)}% | ${Number(u.pct_oa_diamond || 0).toFixed(1)}% | ${Number(u.fwci_avg || 0).toFixed(3)} | ${Number(u.pct_top_10 || 0).toFixed(3)}% | ${Number(u.pct_top_1 || 0).toFixed(3)}% | ${Number(u.avg_percentile || 0).toFixed(3)} |`);
               });
               if (umapJournals.length > 25) {
                 lines.push(`\n_... y ${umapJournals.length - 25} revistas más en el espacio UMAP._`);
@@ -1543,28 +1649,54 @@ export default function CountryPage() {
             }
           },
           {
+            id: 'country_landscape_evolution',
+            title: `6. Evolución en el Paisaje Científico LATAM (${countryArts.length} artículos del país)`,
+            category: 'Variedades Semánticas / UMAP',
+            defaultChecked: false,
+            rawData: landscapeArticles,
+            buildDataText: () => {
+              if (!countryArts || countryArts.length === 0) return 'No hay artículos proyectados en el mapa semántico regional.';
+              const lines = [
+                `*Muestra:* **${countryArts.length.toLocaleString()} artículos de ${summary?.country_name || selectedCountry}** proyectados sobre el espacio temático latinoamericano.\n`,
+                '| Título del Artículo | Revista | Año | FWCI | Comunidad Temática | Coordenadas (UMAP-1, UMAP-2) |',
+                '|---|---|---|---|---|---|'
+              ];
+              countryArts.slice(0, 20).forEach(a => {
+                const titleClean = (a.title || 'Sin título').replace(/\|/g, '-');
+                lines.push(`| ${titleClean.slice(0, 60)}... | ${a.journal_name || 'Desconocida'} | ${a.publication_year || '—'} | ${a.fwci != null ? Number(a.fwci).toFixed(2) : '—'} | ${a.community_name || 'General'} | (${Number(a.umap_x || 0).toFixed(2)}, ${Number(a.umap_y || 0).toFixed(2)}) |`);
+              });
+              if (countryArts.length > 20) {
+                lines.push(`\n_... y ${countryArts.length - 20} artículos más en la proyección._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
             id: 'thematic_specialization_rca',
-            title: '5. Heatmap de Especialización Temática (Ventajas Comparativas Reveladas - RCA)',
+            title: '7. Heatmap de Especialización Temática (Ventajas Comparativas Reveladas - RCA)',
             category: 'Especialización Temática',
             defaultChecked: false,
             rawData: rcaData,
             buildDataText: () => {
-              if (!rcaData || rcaData.length === 0) return 'No hay datos de especialización temática.';
+              if (!rcaData || !rcaData.countries || !rcaData.disciplines) return 'No hay datos de especialización temática.';
+              const myCountryIdx = rcaData.countries.findIndex(c => c.code === selectedCountry || c.name === (summary?.country_name || selectedCountry));
+              if (myCountryIdx === -1) return 'Datos RCA disponibles para la región.';
+              const row = rcaData.matrix[myCountryIdx] || [];
               const lines = [
-                '| Área Temática / Campo | Especialización RCA (>1.0 = Ventaja) | Artículos | FWCI |',
-                '|---|---|---|---|'
+                `*Nivel:* **${rcaLevel === 'domain' ? 'Grandes Dominios' : 'Campos Disciplinares'}** | *País:* **${summary?.country_name || selectedCountry}**\n`,
+                '| Disciplina / Área | Índice RCA | Estado de Especialización (RCA > 1.0) |',
+                '|---|---|---|'
               ];
-              rcaData.slice(0, 15).forEach(l => {
-                const rcaVal = l.rca ?? l.value ?? 0;
-                const advantage = rcaVal >= 1.0 ? '🌟 Ventaja Especializada' : 'Normal';
-                lines.push(`| ${l.domain || l.field || l.name || 'Área'} | ${Number(rcaVal).toFixed(2)} (${advantage}) | ${l.works_count?.toLocaleString() || l.count || 0} | ${l.fwci_avg != null ? Number(l.fwci_avg).toFixed(2) : '—'} |`);
+              rcaData.disciplines.forEach((disc, idx) => {
+                const val = row[idx] != null ? Number(row[idx]) : 0;
+                lines.push(`| ${disc} | ${val.toFixed(2)} | ${val >= 1.0 ? '🌟 Ventaja Comparativa Revelada' : 'No especializado'} |`);
               });
               return lines.join('\n');
             }
           },
           {
             id: 'slope_rankings',
-            title: '6. Gráfico de Pendiente (Slope Chart) — Cambios de Posición en Rankings',
+            title: '8. Gráfico de Pendiente (Slope Chart) — Cambios de Posición en Rankings LATAM',
             category: 'Evolución de Posicionamiento',
             defaultChecked: false,
             rawData: slopeData,
@@ -1583,8 +1715,62 @@ export default function CountryPage() {
             }
           },
           {
+            id: 'country_dynamic_scatter',
+            title: `9. Explorador de Revistas — Scatter Plot Dinámico y Correlación (${xLabel} vs ${yLabel})`,
+            category: 'Correlaciones Multivariadas',
+            defaultChecked: false,
+            rawData: { validScatterRows, statsX, statsY, pearsonR, scatterPeriod },
+            buildDataText: () => {
+              if (!validScatterRows || validScatterRows.length === 0) return 'No hay datos de scatter disponibles.';
+              const lines = [
+                `*Periodo:* **${scatterPeriod === 'recent' ? 'Reciente (2021–2025)' : 'Completo (0–2026)'}** | *Eje X:* **${xLabel}** | *Eje Y:* **${yLabel}**\n`,
+                `*Correlación Lineal de Pearson (r):* **${pearsonR != null ? pearsonR.toFixed(3) : '0.000'}** (${Math.abs(pearsonR) >= 0.7 ? 'Correlación Fuerte' : (Math.abs(pearsonR) >= 0.4 ? 'Correlación Moderada' : 'Correlación Débil o Nula')})\n`,
+                '**Estadísticas Descriptivas de los Ejes:**',
+                '| Eje / Variable | Media | Mediana | Desv. Estándar | Mínimo | Máximo |',
+                '|---|---|---|---|---|---|',
+                `| Eje X (${xLabel}) | ${statsX.mean.toFixed(2)} | ${statsX.median.toFixed(2)} | ${statsX.std.toFixed(2)} | ${statsX.min.toFixed(2)} | ${statsX.max.toFixed(2)} |`,
+                `| Eje Y (${yLabel}) | ${statsY.mean.toFixed(2)} | ${statsY.median.toFixed(2)} | ${statsY.std.toFixed(2)} | ${statsY.min.toFixed(2)} | ${statsY.max.toFixed(2)} |`,
+                '\n**Muestra de Revistas en el Gráfico:**',
+                `| Revista | ${xLabel} | ${yLabel} | Documentos | FWCI Promedio |`,
+                '|---|---|---|---|---|'
+              ];
+              validScatterRows.slice(0, 20).forEach(d => {
+                lines.push(`| ${d.display_name} | ${Number(d[dynScatterX] || 0).toFixed(2)} | ${Number(d[dynScatterY] || 0).toFixed(2)} | ${Number(d.num_documents || 0).toLocaleString()} | ${Number(d.fwci_avg || 0).toFixed(2)} |`);
+              });
+              if (validScatterRows.length > 20) {
+                lines.push(`\n_... y ${validScatterRows.length - 20} revistas más analizadas._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'country_oa_lang_pies',
+            title: `10. Distribución y Características de las Publicaciones (Pasteles OA e Idiomas - ${piePeriod === 'recent' ? '2021–2025' : '0–2026'})`,
+            category: 'Distribuciones',
+            defaultChecked: false,
+            rawData: { oaPieValues, langPieValues, piePeriod },
+            buildDataText: () => {
+              const lines = [
+                `*Periodo:* **${piePeriod === 'recent' ? 'Reciente (2021–2025)' : 'Completo (0–2026)'}**\n`,
+                '**Distribución por Vías de Acceso Abierto:**',
+                '| Vía de Acceso | Porcentaje (%) |',
+                '|---|---|'
+              ];
+              oaPieValues.forEach(o => {
+                lines.push(`| ${o.label} | ${o.value.toFixed(1)}% |`);
+              });
+              lines.push('\n**Distribución por Idiomas de Publicación:**');
+              lines.push('| Idioma | Porcentaje (%) |');
+              lines.push('|---|---|');
+              langPieValues.forEach(l => {
+                lines.push(`| ${l.label} | ${l.value.toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
             id: 'country_thematic_hierarchy',
-            title: `7. Estructura Temática Jerárquica del País (${thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap'})`,
+            title: `11. Estructura Temática Jerárquica del País (${thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap'})`,
             category: 'Taxonomía Científica',
             defaultChecked: false,
             rawData: thematicViewType === 'sunburst' ? countrySunburst : countryTreemap,
@@ -1608,7 +1794,7 @@ export default function CountryPage() {
           },
           {
             id: 'journals_distribution',
-            title: `8. Distribución de Revistas por Desempeño (Beeswarm / Jitter)`,
+            title: `12. Distribución de Revistas por Desempeño (Beeswarm / Jitter - ${beeswarmMetric})`,
             category: 'Distribuciones',
             defaultChecked: false,
             rawData: journalsDist,
@@ -1630,7 +1816,7 @@ export default function CountryPage() {
           },
           {
             id: 'journals_catalog',
-            title: `9. Catálogo Completo de Revistas (${journals.length} revistas)`,
+            title: `13. Catálogo Completo de Revistas (${journals.length} revistas)`,
             category: 'Catálogo de Publicaciones',
             defaultChecked: false,
             rawData: journals,

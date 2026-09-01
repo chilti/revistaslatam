@@ -11,7 +11,7 @@ import { useAppStore } from '../store';
  *   label – texto del botón (por defecto "Guardar")
  *   compact – si true, solo muestra el ícono
  */
-export default function DossierButton({ item, label = 'Guardar', compact = false }) {
+export default function DossierButton({ item, label = 'Guardar en Contexto IA', compact = false }) {
   const { addDossierItem, dossierItems } = useAppStore();
   const [saved, setSaved] = React.useState(false);
 
@@ -29,7 +29,7 @@ export default function DossierButton({ item, label = 'Guardar', compact = false
   return (
     <button
       onClick={handleClick}
-      title={isActive ? 'Ya en el Dossier' : `Guardar en Dossier: ${item?.title || ''}`}
+      title={isActive ? 'Ya en Contexto para IA' : `Guardar en Contexto para IA: ${item?.title || ''}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

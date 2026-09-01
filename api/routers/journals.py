@@ -5,6 +5,7 @@ import os
 import json
 import numpy as np
 import pandas as pd
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Query, HTTPException, Path
 
 from api.db import query_df, sanitize_records, DATA_DIR, CACHE_DIR, UMAP_DIR
@@ -76,6 +77,19 @@ def get_journal_details(journal_id: str):
     country_code = journal_data.get('country_code', '')
     journal_data['country_name'] = COUNTRY_NAMES.get(country_code, country_code)
     
+    # Enrich with multimodal metrics (pagerank, eigenfactor, avg_percentile, i10_index)
+    umap_file = UMAP_DIR / 'umap_journals_multimodal.parquet'
+    if umap_file.exists():
+        try:
+            df_u = pd.read_parquet(umap_file, filters=[('id', '==', jid)])
+            if not df_u.empty:
+                u_row = df_u.iloc[0].to_dict()
+                for field in ['pagerank', 'eigenfactor', 'avg_percentile', 'i10_index']:
+                    if field in u_row and pd.notna(u_row[field]) and (field not in journal_data or pd.isna(journal_data.get(field))):
+                        journal_data[field] = u_row[field]
+        except Exception:
+            pass
+    
     # Check period metrics
     df_p = query_df("SELECT * FROM metrics_journal_period WHERE journal_id = ?", [jid])
     period_data = df_p.iloc[0].to_dict() if not df_p.empty else {}
@@ -87,6 +101,30 @@ def get_journal_details(journal_id: str):
         recent_data = df_rec.iloc[0].to_dict() if not df_rec.empty else {}
     else:
         recent_data = {}
+
+    # Calculate recent period citations and h/i10 index for 2021-2025 from works
+    try:
+        res_cites = query_df("""
+            SELECT 
+                COALESCE(SUM(cited_by_count), 0) as cited_by_count,
+                LIST(cited_by_count ORDER BY cited_by_count DESC) as cites_list
+            FROM works 
+            WHERE journal_id = ? AND publication_year BETWEEN 2021 AND 2025
+        """, [jid])
+        if not res_cites.empty:
+            recent_data['cited_by_count'] = int(res_cites['cited_by_count'].iloc[0])
+            c_val = res_cites['cites_list'].iloc[0]
+            c_list = list(c_val) if c_val is not None else []
+            h_rec = 0
+            for i, c in enumerate(c_list, 1):
+                if c >= i:
+                    h_rec = i
+                else:
+                    break
+            recent_data['h_index'] = h_rec
+            recent_data['i10_index'] = sum(1 for c in c_list if c >= 10)
+    except Exception:
+        pass
         
     return {
         "profile": sanitize_records(pd.DataFrame([journal_data]))[0],
@@ -263,7 +301,9 @@ def get_journal_articles(
         limit_clause = f"LIMIT {int(limit)}"
         
     sql = f"""
-        SELECT id, doi, title, publication_year, cited_by_count, fwci, percentile, oa_status, language
+        SELECT id, doi, title, publication_year, cited_by_count, fwci, percentile,
+               is_in_top_10_percent, is_in_top_1_percent, is_domestic_author,
+               oa_status, language, is_retracted, is_paratext
         FROM works
         WHERE journal_id = ? {year_filter}
         ORDER BY {order_clause}
@@ -274,27 +314,50 @@ def get_journal_articles(
 
 
 @router.get("/{journal_id:path}/landscape")
-def get_journal_landscape(journal_id: str):
-    """Returns articles of this journal in the landscape + spatial dispersion metric."""
+def get_journal_landscape(journal_id: str, limit: int = Query(2500)):
+    """Returns articles of this journal in the landscape + spatial dispersion metric + regional background sample."""
     jid = normalize_journal_id(journal_id)
+    clean_code = jid.split('/')[-1]
     landscape_file = UMAP_DIR / 'umap_articles_landscape.parquet'
     if not landscape_file.exists():
-        return {"articles": [], "dispersion": 0.0}
+        return {"articles": [], "bg_articles": [], "dispersion": 0.0, "min_year": 1985, "max_year": 2026}
         
     df = pd.read_parquet(landscape_file)
-    sub = df[df['journal_id'] == jid]
+    sub = df[(df['journal_id'] == jid) | (df['journal_id'].astype(str).str.contains(clean_code, na=False))]
+    bg = df[~df['id'].isin(sub['id'])] if not sub.empty else df
+    
+    if len(bg) > 4000:
+        bg = bg.sample(4000, random_state=42)
+    if len(sub) > limit:
+        sub = sub.sample(limit, random_state=42)
+        
+    min_year = int(df['publication_year'].min()) if 'publication_year' in df.columns else 1985
+    max_year = int(df['publication_year'].max()) if 'publication_year' in df.columns else 2026
     
     if sub.empty:
-        return {"articles": [], "dispersion": 0.0}
+        return {
+            "articles": [], 
+            "bg_articles": sanitize_records(bg[['umap_x', 'umap_y']]), 
+            "dispersion": 0.0,
+            "count": 0,
+            "min_year": min_year,
+            "max_year": max_year
+        }
         
     std_x = float(sub['umap_x'].std()) if len(sub) > 1 else 0.0
     std_y = float(sub['umap_y'].std()) if len(sub) > 1 else 0.0
     dispersion = float(np.sqrt(std_x**2 + std_y**2)) if not np.isnan(std_x) else 0.0
     
+    cols = ['id', 'title', 'publication_year', 'journal_name', 'fwci', 'community_name', 'umap_x', 'umap_y']
+    cols = [c for c in cols if c in sub.columns]
+    
     return {
-        "articles": sanitize_records(sub),
+        "articles": sanitize_records(sub[cols]),
+        "bg_articles": sanitize_records(bg[['umap_x', 'umap_y']]),
         "dispersion": round(dispersion, 3),
-        "count": len(sub)
+        "count": len(sub),
+        "min_year": min_year,
+        "max_year": max_year
     }
 
 @router.get("/{journal_id:path}/trajectory")
@@ -302,9 +365,11 @@ def get_journal_trajectory(journal_id: str):
     """Returns UMAP trajectory for the journal vs its country enriched with performance metrics."""
     jid = normalize_journal_id(journal_id)
     
-    # Get country code
-    df_j = query_df("SELECT country_code FROM journals WHERE id = ?", [jid])
+    # Get journal name and country code
+    df_j = query_df("SELECT display_name, country_code FROM journals WHERE id = ?", [jid])
+    j_name = df_j['display_name'].iloc[0] if not df_j.empty else 'Revista'
     c_code = df_j['country_code'].iloc[0] if not df_j.empty else ''
+    c_name = COUNTRY_NAMES.get(c_code, c_code)
     
     traj_file = CACHE_DIR / 'trajectory_journals_coords.parquet'
     if not traj_file.exists():
@@ -341,9 +406,10 @@ def get_journal_trajectory(journal_id: str):
     result = {}
     for entity_id in df['id'].unique():
         sub = df[df['id'] == entity_id].sort_values('year')
+        is_country = entity_id == c_code
         result[str(entity_id)] = {
-            "name": f"País: {c_code}" if entity_id == c_code else "Revista",
-            "is_country": entity_id == c_code,
+            "name": f"País: {c_name}" if is_country else j_name,
+            "is_country": is_country,
             "points": sanitize_records(sub[cols_to_keep])
         }
     return result
@@ -469,6 +535,73 @@ def get_journal_connected_trajectory(journal_id: str):
         WHERE journal_id = ? AND year >= 1970 AND year <= 2026
         ORDER BY year ASC
     """, [jid])
-    return sanitize_records(df)
+@router.get("/{journal_id:path}/thematic-evolution")
+def get_journal_thematic_evolution(
+    journal_id: str,
+    level: str = Query("domain", pattern="^(domain|field|subfield|topic)$")
+):
+    """Returns aggregated yearly evolution matrix for knowledge fields of a journal."""
+    jid = normalize_journal_id(journal_id)
+    clean_code = jid.split('/')[-1]
+    
+    df_agg = query_df(f"""
+        SELECT CAST(e.year AS INT) AS year, e.{level} AS name, SUM(e.num_documents) AS num_documents
+        FROM thematic_evolution e
+        WHERE REGEXP_EXTRACT(e.journal_id, 'S[0-9]+') = ? AND e.year >= 1985 AND e.{level} IS NOT NULL AND e.{level} != '' AND e.{level} != 'Sin Clasificación' AND e.{level} != 'Unknown'
+        GROUP BY e.year, e.{level}
+        ORDER BY year ASC, num_documents DESC
+    """, [clean_code])
+    
+    return sanitize_records(df_agg)
+
+
+@router.get("/{journal_id:path}/export-openalex")
+def export_journal_articles_openalex(
+    journal_id: str,
+    format: str = Query("json", pattern="^(json|jsonl|csv)$"),
+    year_min: Optional[int] = Query(None),
+    year_max: Optional[int] = Query(None),
+    limit: Optional[int] = Query(None)
+):
+    """Exports complete OpenAlex work records (all 88 fields or full JSON/JSONL) for a journal."""
+    from pipeline_revistaslatam.export_articles_openalex import (
+        get_work_ids_from_db, fetch_works_batch, map_work_to_openalex_csv_row, OPENALEX_CSV_COLUMNS
+    )
+    import io
+    import csv
+    from fastapi.responses import Response
+
+    jid = normalize_journal_id(journal_id)
+    work_ids = get_work_ids_from_db(journal_id=jid, year_min=year_min, year_max=year_max, limit=limit)
+    if not work_ids:
+        raise HTTPException(status_code=404, detail="No se encontraron artículos para esta revista")
+
+    works = fetch_works_batch(work_ids, max_workers=16)
+    clean_jid = jid.split('/')[-1]
+
+    if format == 'jsonl':
+        content = "\n".join(json.dumps(w, ensure_ascii=False) for w in works)
+        media_type = "application/x-ndjson; charset=utf-8"
+        filename = f"openalex_{clean_jid}.jsonl"
+    elif format == 'csv':
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=OPENALEX_CSV_COLUMNS)
+        writer.writeheader()
+        for w in works:
+            writer.writerow(map_work_to_openalex_csv_row(w))
+        content = output.getvalue()
+        media_type = "text/csv; charset=utf-8"
+        filename = f"openalex_{clean_jid}.csv"
+    else:
+        content = json.dumps(works, ensure_ascii=False, indent=2)
+        media_type = "application/json; charset=utf-8"
+        filename = f"openalex_{clean_jid}.json"
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 
 

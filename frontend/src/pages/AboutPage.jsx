@@ -82,7 +82,7 @@ export default function AboutPage() {
 
         <div style={{ fontSize: '13px', color: 'var(--text-main)', lineHeight: 1.6, marginBottom: '16px' }}>
           <p>
-            El proyecto <strong>Revistas LATAM</strong> es un desarrollo de ciencia abierta enfocado en la evaluación cienciométrica de las revistas académicas de América Latina e Iberoamérica. Todos los scripts de recolección, pipelines de cálculo, modelos de reducción topológica (UMAP) y el código de la plataforma web están disponibles públicamente:
+            El proyecto <strong>Revistas LATAM</strong> es un desarrollo de ciencia abierta enfocado en la evaluación cienciométrica de las revistas académicas de América Latina y el Caribe. Todos los scripts de recolección, pipelines de cálculo, modelos de reducción topológica (UMAP) y el código de la plataforma web están disponibles públicamente:
           </p>
         </div>
 
@@ -163,14 +163,55 @@ export default function AboutPage() {
           <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Grupo de Trabajo</h3>
         </div>
         <div style={{ fontSize: '13.5px', color: 'var(--text-main)', lineHeight: 1.6 }}>
-          <p style={{ fontWeight: '700', color: 'var(--accent-primary)', marginBottom: '8px' }}>
+          <p style={{ fontWeight: '700', color: 'var(--accent-primary)', marginBottom: '12px' }}>
             Complejidad, Cienciometría y Ciencia de la Ciencia — Facultad de Ciencias, UNAM
           </p>
-          <ul style={{ marginLeft: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <li><strong>Dr. Humberto Andrés Carrillo Calvet</strong> — Investigador Titular</li>
-            <li><strong>Dr. Ricardo Arencibia Jorge</strong> — Especialista Cienciométrico</li>
-            <li><strong>Dr. José Luis Jiménez Andrade</strong> — Arquitectura y Modelado Matemático</li>
-          </ul>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div>
+                <strong>Dr. Humberto Andrés Carrillo Calvet</strong> — <span style={{ color: 'var(--text-muted)' }}>Investigador Titular</span>
+              </div>
+              <a
+                href="https://orcid.org/0000-0003-3659-6769"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#a6ce39', background: 'rgba(166, 206, 57, 0.12)', border: '1px solid rgba(166, 206, 57, 0.3)', padding: '3px 8px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600' }}
+              >
+                <span>🆔 ORCID: 0000-0003-3659-6769</span>
+                <ExternalLink size={12} />
+              </a>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div>
+                <strong>Dr. Ricardo Arencibia Jorge</strong> — <span style={{ color: 'var(--text-muted)' }}>Especialista Cienciométrico</span>
+              </div>
+              <a
+                href="https://orcid.org/0000-0001-8907-2454"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#a6ce39', background: 'rgba(166, 206, 57, 0.12)', border: '1px solid rgba(166, 206, 57, 0.3)', padding: '3px 8px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600' }}
+              >
+                <span>🆔 ORCID: 0000-0001-8907-2454</span>
+                <ExternalLink size={12} />
+              </a>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div>
+                <strong>Dr. José Luis Jiménez Andrade</strong> — <span style={{ color: 'var(--text-muted)' }}>Arquitectura y Modelado Matemático</span>
+              </div>
+              <a
+                href="https://orcid.org/0000-0003-3453-7159"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#a6ce39', background: 'rgba(166, 206, 57, 0.12)', border: '1px solid rgba(166, 206, 57, 0.3)', padding: '3px 8px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600' }}
+              >
+                <span>🆔 ORCID: 0000-0003-3453-7159</span>
+                <ExternalLink size={12} />
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -227,7 +268,7 @@ export default function AboutPage() {
             El sistema implementa un pipeline de inteligencia científica para cartografiar el ecosistema de revistas académicas en América Latina. A través de modelos neuronales de lenguaje y reducción topológica no lineal (UMAP), se proyecta la variedad semántica pura del conocimiento regional sin sesgos institucionales ni geopolíticos.
           </p>
           <p>
-            Las métricas de citación e impacto normalizado por campo (<strong>FWCI</strong>), la clasificación en percentiles mundiales (<strong>Top 1%</strong> y <strong>Top 10%</strong>) y el seguimiento exhaustivo de las vías de <strong>Acceso Abierto Diamante y Dorado</strong> permiten una evaluación integral, justa y transparente de las publicaciones académicas iberoamericanas.
+            Las métricas de citación e impacto normalizado por campo (<strong>FWCI</strong>), la clasificación en percentiles mundiales (<strong>Top 1%</strong> y <strong>Top 10%</strong>) y el seguimiento exhaustivo de las vías de <strong>Acceso Abierto Diamante y Dorado</strong> permiten una evaluación integral, justa y transparente de las publicaciones académicas latinoamericanas.
           </p>
         </div>
       </div>

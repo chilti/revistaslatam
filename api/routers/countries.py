@@ -328,7 +328,13 @@ def get_country_journals_scatter(
         return []
         
     df_metrics = pd.read_parquet(period_file)
-    df_journals = query_df("SELECT id, display_name, country_code FROM journals WHERE country_code = ?", [c_code])
+    df_journals = query_df("""
+        SELECT id, display_name, country_code, cited_by_count, h_index, 
+               i10_index, citedness_2yr, is_in_doaj, is_in_scielo, is_scopus,
+               pagerank, eigenfactor
+        FROM journals 
+        WHERE country_code = ?
+    """, [c_code])
     
     if df_journals.empty:
         return []
@@ -353,7 +359,9 @@ def get_country_journals_scatter(
         'id_x', 'display_name', 'num_documents', 'fwci_avg', 'pct_top_10', 'pct_top_1',
         'avg_percentile', 'pct_oa_total', 'pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green',
         'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed', 'pct_authors_domestic',
-        'pct_lang_es', 'pct_lang_en', 'pct_lang_pt'
+        'pct_lang_es', 'pct_lang_en', 'pct_lang_pt', 'pct_lang_fr', 'pct_lang_de',
+        'pct_lang_it', 'pct_lang_other', 'cited_by_count', 'h_index', 'i10_index',
+        'citedness_2yr', 'pagerank', 'eigenfactor'
     ]
     cols = [c for c in cols if c in df_merged.columns]
     res_df = df_merged[cols].rename(columns={'id_x': 'id'})
