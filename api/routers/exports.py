@@ -127,25 +127,29 @@ def run_export_job(job_id: str, req_data: Dict[str, Any]):
                 JOBS[job_id]["error"] = "No se pudieron descargar los registros desde OpenAlex local."
             return
 
-        # 3. Write file to disk
+        # 3. Write file to disk (Compressed JSON/JSONL with gzip)
         safe_title = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in title_hint)[:40]
         year_tag = f"_{year_min}_{year_max}" if (year_min or year_max) else "_todos"
-        ext = "csv" if fmt == "csv" else ("jsonl" if fmt == "jsonl" else "json")
-        filename = f"openalex_{safe_title}{year_tag}_{job_id[:8]}.{ext}"
-        filepath = EXPORTS_DIR / filename
 
+        import gzip
         if fmt == "csv":
+            filename = f"openalex_{safe_title}{year_tag}_{job_id[:8]}.csv"
+            filepath = EXPORTS_DIR / filename
             with open(filepath, "w", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=OPENALEX_CSV_COLUMNS)
                 writer.writeheader()
                 for w in works:
                     writer.writerow(map_work_to_openalex_csv_row(w))
         elif fmt == "jsonl":
-            with open(filepath, "w", encoding="utf-8") as f:
+            filename = f"openalex_{safe_title}{year_tag}_{job_id[:8]}.jsonl.gz"
+            filepath = EXPORTS_DIR / filename
+            with gzip.open(filepath, "wt", encoding="utf-8") as f:
                 for w in works:
                     f.write(json.dumps(w, ensure_ascii=False) + "\n")
-        else:  # json array
-            with open(filepath, "w", encoding="utf-8") as f:
+        else:  # json array compressed with gzip
+            filename = f"openalex_{safe_title}{year_tag}_{job_id[:8]}.json.gz"
+            filepath = EXPORTS_DIR / filename
+            with gzip.open(filepath, "wt", encoding="utf-8") as f:
                 json.dump(works, f, ensure_ascii=False, indent=2)
 
         file_size = filepath.stat().st_size
@@ -240,11 +244,17 @@ def download_export_file(job_id: str):
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="El archivo generado ya no existe en el servidor.")
 
-    media_type = "text/csv" if job["format"] == "csv" else ("application/x-ndjson" if job["format"] == "jsonl" else "application/json")
+    if job["filename"].endswith(".gz"):
+        media_type = "application/gzip"
+    elif job["format"] == "csv":
+        media_type = "text/csv; charset=utf-8"
+    else:
+        media_type = "application/json; charset=utf-8"
+
     return FileResponse(
         path=str(filepath),
         filename=job["filename"],
-        media_type=f"{media_type}; charset=utf-8"
+        media_type=media_type
     )
 
 
