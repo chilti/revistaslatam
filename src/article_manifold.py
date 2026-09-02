@@ -165,10 +165,10 @@ def clean_pure_text(title, abstract=None):
 # ============================================================================
 # Dense & Multilingual Vector Embeddings (GPU Accelerated / Multicore CPU)
 # ============================================================================
-def generate_article_embeddings(texts, model_path=None, dim=128, use_gpu=True, batch_size=64):
+def generate_article_embeddings(texts, model_path=None, dim=128, use_gpu=True, batch_size=128):
     """
     Generates dense embeddings for pure article texts.
-    1. Attempts to use Nomic MoE (text-embedding-nomic-ai-nomic-embed-text-v2-moe) via local/remote API.
+    1. Attempts to use Nomic MoE (text-embedding-nomic-ai-nomic-embed-text-v2-moe) via local LM Studio / OpenAI API.
     2. Supports local SentenceTransformers on GPU/CPU.
     3. Seamless fallback to GPU TruncatedSVD (cuML) / CPU Multicore TF-IDF SVD.
     """
@@ -179,35 +179,55 @@ def generate_article_embeddings(texts, model_path=None, dim=128, use_gpu=True, b
     loaded = False
     embeddings = None
     
-    # 1. Optional remote embedding endpoint (e.g. Nomic MoE in LM Studio / Ollama)
-    if os.getenv("USE_REMOTE_EMBEDDINGS", "0").lower() in ["1", "true", "yes"]:
+    # 1. Nomic MoE via LM Studio / OpenAI API endpoint
+    if os.getenv("USE_REMOTE_EMBEDDINGS", "1").lower() in ["1", "true", "yes"]:
         emb_model = os.getenv("EMBEDDING_MODEL", "text-embedding-nomic-ai-nomic-embed-text-v2-moe")
         base_url = os.getenv("LLM_BASE_URL", "http://127.0.0.1:1234/v1")
         api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "sk-lm-VAulEVEi:bZFVZZK3oGOxDI4gJcV1"
         try:
             from openai import OpenAI
-            print(f"Intentando generar embeddings con {emb_model} en {base_url} ({len(texts_clean):,} textos)...")
-            client = OpenAI(base_url=base_url, api_key=api_key, timeout=20.0)
+            from concurrent.futures import ThreadPoolExecutor
+            print(f"🚀 Generando embeddings con {emb_model} en {base_url} ({len(texts_clean):,} textos)...")
+            client = OpenAI(base_url=base_url, api_key=api_key, timeout=60.0)
             
-            # Test first batch
+            # Test first item
             test_resp = client.embeddings.create(model=emb_model, input=texts_clean[:min(2, len(texts_clean))])
             if test_resp and test_resp.data and len(test_resp.data) > 0:
                 actual_dim = len(test_resp.data[0].embedding)
-                print(f"  -> 🚀 Conexión exitosa a {emb_model} ({actual_dim}d). Procesando en lotes de {batch_size}...")
+                print(f"  -> ✅ Conexión exitosa a {emb_model} ({actual_dim}d). Procesando en streaming...")
                 
+                chunks = [texts_clean[i:i + batch_size] for i in range(0, len(texts_clean), batch_size)]
+                
+                def _fetch_batch(idx_and_chunk):
+                    idx, chunk = idx_and_chunk
+                    try:
+                        r = client.embeddings.create(model=emb_model, input=chunk)
+                        return idx, [item.embedding for item in r.data]
+                    except Exception as err:
+                        print(f"  ⚠️ Error en lote {idx}: {err}")
+                        return idx, []
+
+                all_vecs_indexed = []
+                max_workers = min(16, os.cpu_count() or 4)
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    for count, (idx, batch_vecs) in enumerate(executor.map(_fetch_batch, enumerate(chunks))):
+                        all_vecs_indexed.append((idx, batch_vecs))
+                        if (count + 1) % 25 == 0 or (count + 1) == len(chunks):
+                            processed = min((count + 1) * batch_size, len(texts_clean))
+                            print(f"     Progreso {emb_model}: {processed:,} / {len(texts_clean):,} textos ({processed*100/len(texts_clean):.1f}%)")
+                
+                # Reorder in original order
+                all_vecs_indexed.sort(key=lambda x: x[0])
                 all_vecs = []
-                for i in range(0, len(texts_clean), batch_size):
-                    chunk = texts_clean[i:i + batch_size]
-                    r = client.embeddings.create(model=emb_model, input=chunk)
-                    all_vecs.extend([item.embedding for item in r.data])
-                    if (i // batch_size) % 20 == 0 and i > 0:
-                        print(f"     Progreso Nomic MoE: {min(i + batch_size, len(texts_clean)):,} / {len(texts_clean):,} textos")
-                        
-                embeddings = np.asarray(all_vecs, dtype=np.float32)
-                loaded = True
-                print(f"  ✅ Embeddings Nomic MoE generados: {embeddings.shape}")
+                for _, b_vecs in all_vecs_indexed:
+                    all_vecs.extend(b_vecs)
+                
+                if len(all_vecs) == len(texts_clean):
+                    embeddings = np.asarray(all_vecs, dtype=np.float32)
+                    loaded = True
+                    print(f"  ✅ Embeddings {emb_model} generados: {embeddings.shape}")
         except Exception as e:
-            print(f"  -> ℹ️ Endpoint de {emb_model} no disponible ({e}). Usando motor de respaldo.")
+            print(f"  -> ℹ️ Endpoint de {emb_model} notice ({e}). Usando motor de respaldo.")
     
     # 2. Neural model on GPU via SentenceTransformers
     if not loaded and HAS_SENTENCE_TRANSFORMERS and model_path and os.path.exists(model_path):
@@ -238,7 +258,6 @@ def generate_article_embeddings(texts, model_path=None, dim=128, use_gpu=True, b
         if HAS_CUML and use_gpu:
             try:
                 print(f"  -> 🚀 [GPU cuML] Ejecutando TruncatedSVD ({n_comp}d) en {CUDA_DEVICE_NAME}...")
-                # cuML requires dense float32 matrix
                 X_dense = np.asarray(X_tfidf.toarray(), dtype=np.float32)
                 svd = GPU_TruncatedSVD(n_components=n_comp, random_state=42)
                 embeddings = svd.fit_transform(X_dense)
@@ -248,20 +267,15 @@ def generate_article_embeddings(texts, model_path=None, dim=128, use_gpu=True, b
                     embeddings = embeddings.values
             except Exception as e:
                 print(f"  -> ⚠️ GPU TruncatedSVD notice ({e}). Cayendo en CPU SVD...")
-                svd = TruncatedSVD(n_components=n_comp, algorithm='randomized', random_state=42, n_iter=5)
+                from sklearn.decomposition import TruncatedSVD
+                svd = TruncatedSVD(n_components=n_comp, random_state=42)
                 embeddings = svd.fit_transform(X_tfidf)
         else:
-            print(f"  -> 💻 [CPU] Ejecutando TruncatedSVD ({n_comp}d, multicore randomized)...")
-            svd = TruncatedSVD(n_components=n_comp, algorithm='randomized', random_state=42, n_iter=5)
+            from sklearn.decomposition import TruncatedSVD
+            svd = TruncatedSVD(n_components=n_comp, random_state=42)
             embeddings = svd.fit_transform(X_tfidf)
             
-        # Unit-norm normalization
-        embeddings = np.asarray(embeddings, dtype=np.float32)
-        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-        norms[norms == 0] = 1.0
-        embeddings = embeddings / norms
-        
-    return embeddings
+    return np.asarray(embeddings, dtype=np.float32)
 
 
 # ============================================================================
@@ -329,11 +343,11 @@ def project_articles_umap(
 
 
 # ============================================================================
-# Community Detection (GPU HDBSCAN/KMeans or CPU)
+# Community Detection (GPU HDBSCAN/KMeans or Parallel CPU HDBSCAN on 5D)
 # ============================================================================
 def detect_article_communities(embeddings_or_coords, n_clusters=12, min_cluster_size=100, use_gpu=True):
     """
-    Detects thematic macro-clusters using HDBSCAN / MiniBatchKMeans (GPU or CPU).
+    Detects thematic macro-clusters using HDBSCAN in 5D latent space (Sinapsis AI Methodology).
     """
     n_samples = len(embeddings_or_coords)
     if n_samples < 5:
@@ -341,12 +355,13 @@ def detect_article_communities(embeddings_or_coords, n_clusters=12, min_cluster_
         
     data = np.asarray(embeddings_or_coords, dtype=np.float32)
     
-    # 5D Latent Space Reduction for Intrinsic Density Clustering (Sinapsis AI Methodology)
+    # 1. 5D Latent Space Reduction for Intrinsic Density Clustering (Sinapsis AI Methodology)
     data_latent = data
     if data.shape[1] > 5:
+        print(f"  -> Reduciendo a espacio latente 5D (UMAP) para clustering de densidad...")
         if HAS_CUML and use_gpu:
             try:
-                print(f"  -> 🚀 [GPU cuML] Proyectando a espacio latente 5D para HDBSCAN...")
+                print(f"  -> 🚀 [GPU cuML] Proyectando a espacio latente 5D en {CUDA_DEVICE_NAME}...")
                 reducer_5d = GPU_UMAP(n_components=5, n_neighbors=15, min_dist=0.0, metric='cosine', random_state=42)
                 data_latent = reducer_5d.fit_transform(data)
                 if hasattr(data_latent, 'to_numpy'):
@@ -354,53 +369,71 @@ def detect_article_communities(embeddings_or_coords, n_clusters=12, min_cluster_
                 elif hasattr(data_latent, 'values'):
                     data_latent = data_latent.values
                 data_latent = np.asarray(data_latent, dtype=np.float32)
+                print(f"  ✅ Proyección latente 5D (GPU) completada: {data_latent.shape}")
             except Exception as e:
-                print(f"  -> ℹ️ GPU 5D latent notice ({e}). Usando datos originales.")
+                print(f"  -> ⚠️ GPU 5D notice ({e}). Cayendo en CPU UMAP 5D paralelizado...")
+                reducer_5d = UMAP(n_components=5, n_neighbors=15, min_dist=0.0, metric='cosine', random_state=42, n_jobs=-1)
+                data_latent = reducer_5d.fit_transform(data)
+                data_latent = np.asarray(data_latent, dtype=np.float32)
+                print(f"  ✅ Proyección latente 5D (CPU) completada: {data_latent.shape}")
         else:
             try:
                 reducer_5d = UMAP(n_components=5, n_neighbors=15, min_dist=0.0, metric='cosine', random_state=42, n_jobs=-1)
                 data_latent = reducer_5d.fit_transform(data)
                 data_latent = np.asarray(data_latent, dtype=np.float32)
-            except Exception:
-                pass
+                print(f"  ✅ Proyección latente 5D (CPU) completada: {data_latent.shape}")
+            except Exception as e:
+                print(f"  -> ⚠️ CPU UMAP 5D notice ({e}).")
 
-    # Try GPU HDBSCAN via cuML
+    effective_min_size = max(5, min(min_cluster_size, max(5, n_samples // 10)))
+    effective_min_samples = max(2, min(30, effective_min_size))
+
+    # 2. Try GPU HDBSCAN via cuML
     if HAS_CUML and use_gpu:
         try:
-            print(f"  -> 🚀 [GPU cuML] Ejecutando HDBSCAN en {CUDA_DEVICE_NAME}...")
-            clusterer = GPU_HDBSCAN(min_cluster_size=min_cluster_size)
+            print(f"  -> 🚀 [GPU cuML] Ejecutando HDBSCAN en {CUDA_DEVICE_NAME} sobre espacio 5D (min_size={effective_min_size})...")
+            clusterer = GPU_HDBSCAN(min_cluster_size=effective_min_size, min_samples=effective_min_samples)
             labels = clusterer.fit_predict(data_latent)
             if hasattr(labels, 'to_numpy'):
                 labels = labels.to_numpy()
             return np.asarray(labels, dtype=int)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  -> ⚠️ GPU HDBSCAN notice ({e}).")
 
-    # CPU HDBSCAN
+    # 3. CPU Parallel HDBSCAN on 5D latent space (Sinapsis AI Implementation)
     if HAS_HDBSCAN and n_samples > 200:
         try:
-            clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, metric='euclidean', cluster_selection_epsilon=0.3)
-            labels = clusterer.fit_predict(data)
+            print(f"  -> 💻 [CPU Multicore] Ejecutando HDBSCAN paralelizado sobre espacio 5D (core_dist_n_jobs=-1, min_size={effective_min_size})...")
+            clusterer = hdbscan.HDBSCAN(
+                min_cluster_size=effective_min_size,
+                min_samples=effective_min_samples,
+                metric='euclidean',
+                cluster_selection_epsilon=0.3,
+                core_dist_n_jobs=-1
+            )
+            labels = clusterer.fit_predict(data_latent)
+            
+            # Reasignar ruido a su vecino más cercano en 5D
             if (labels == -1).any() and (labels >= 0).any():
                 from sklearn.neighbors import NearestNeighbors
                 core_mask = labels >= 0
-                core_coords = data[core_mask]
+                core_coords = data_latent[core_mask]
                 core_labels = labels[core_mask]
                 nn = NearestNeighbors(n_neighbors=1, n_jobs=-1).fit(core_coords)
                 noise_indices = np.where(labels == -1)[0]
-                _, nearest = nn.kneighbors(data[noise_indices])
+                _, nearest = nn.kneighbors(data_latent[noise_indices])
                 labels[noise_indices] = core_labels[nearest.flatten()]
-            return labels
-        except Exception:
-            pass
+            return np.asarray(labels, dtype=int)
+        except Exception as e:
+            print(f"  -> ⚠️ CPU HDBSCAN notice ({e}). Cayendo en MiniBatchKMeans...")
             
-    # Scalable MiniBatchKMeans for massive datasets (millions of rows)
+    # 4. Scalable Fallback: MiniBatchKMeans for massive datasets
     if n_samples > 50000:
         mbk = MiniBatchKMeans(n_clusters=n_clusters, batch_size=4096, random_state=42, n_init='auto')
-        return mbk.fit_predict(data)
+        return mbk.fit_predict(data_latent)
         
     km = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
-    return km.fit_predict(data)
+    return km.fit_predict(data_latent)
 
 
 # ============================================================================
