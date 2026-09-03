@@ -54,7 +54,7 @@ def get_journals_map_data(
 def get_articles_landscape_data(
     country: str = Query(None),
     community: str = Query(None),
-    limit: int = Query(50000)
+    limit: int = Query(None)
 ):
     """Returns sample of articles in the 2D semantic landscape for WebGL/Plotly."""
     landscape_file = UMAP_DIR / 'umap_articles_landscape.parquet'
@@ -67,7 +67,7 @@ def get_articles_landscape_data(
     if community and community != "Todas":
         df = df[df['community_name'] == community]
         
-    if limit and limit > 0 and len(df) > limit:
+    if limit is not None and limit > 0 and len(df) > limit:
         df = df.sample(limit, random_state=42)
         
     cols = [
@@ -81,9 +81,10 @@ def get_articles_landscape_data(
 @router.get("/convex-hull")
 def get_convex_hull(
     country: str = Query(None),
+    community: str = Query(None),
     journal_id: str = Query(None)
 ):
-    """Computes the 2D convex hull polygon coordinates (scipy.spatial.ConvexHull) for country or journal."""
+    """Computes the 2D convex hull polygon coordinates (scipy.spatial.ConvexHull) for country, community, or journal."""
     from scipy.spatial import ConvexHull
     
     landscape_file = UMAP_DIR / 'umap_articles_landscape.parquet'
@@ -93,10 +94,12 @@ def get_convex_hull(
     df = pd.read_parquet(landscape_file)
     if journal_id:
         sub = df[df['journal_id'] == journal_id]
-    elif country and country != "Todos":
-        sub = df[df['country_code'] == country]
     else:
         sub = df
+        if country and country != "Todos":
+            sub = sub[sub['country_code'] == country]
+        if community and community != "Todas":
+            sub = sub[sub['community_name'] == community]
         
     points = sub[['umap_x', 'umap_y']].dropna().values
     if len(points) < 3:
@@ -114,4 +117,5 @@ def get_convex_hull(
     except Exception as e:
         print(f"[Convex Hull Error]: {e}")
         return {"hull": [], "count": len(points)}
+
 

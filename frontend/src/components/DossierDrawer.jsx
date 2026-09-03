@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import api from '../api';
 import { X, Download, Trash2, FileText, CheckCircle2, Copy, Bot, ClipboardCheck } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 // ─── Generador de texto Markdown para ChatGPT ──────────────────────────────
-function buildMarkdownText(title, items) {
+function buildMarkdownText(title, items, t) {
   const lines = [
     `# ${title}`,
-    `> Generado desde Revistas LATAM — ${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+    `> ${t('dossier.generated_from').replace('{date}', new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }))}`,
     '',
     '---',
     ''
@@ -15,7 +16,7 @@ function buildMarkdownText(title, items) {
 
   items.forEach((item, i) => {
     lines.push(`## ${i + 1}. ${item.title}`);
-    if (item.category) lines.push(`**Categoría:** ${item.category}`);
+    if (item.category) lines.push(`**${t('dossier.category_label')}** ${item.category}`);
     if (item.context)  lines.push(`\n${item.context}`);
     if (item.data) {
       if (Array.isArray(item.data) && item.data.length > 0) {
@@ -26,7 +27,7 @@ function buildMarkdownText(title, items) {
         item.data.slice(0, 10).forEach(row => {
           lines.push('| ' + keys.map(k => String(row[k] ?? '—')).join(' | ') + ' |');
         });
-        if (item.data.length > 10) lines.push(`\n_... y ${item.data.length - 10} registros más._`);
+        if (item.data.length > 10) lines.push(`\n_${t('dossier.more_records').replace('{n}', item.data.length - 10)}_`);
       }
     }
     lines.push('');
@@ -39,6 +40,7 @@ function buildMarkdownText(title, items) {
 
 export default function DossierDrawer() {
   const { dossierItems, isDossierOpen, setDossierOpen, removeDossierItem, clearDossier, requireAuth } = useAppStore();
+  const { t } = useTranslation();
   const [reportTitle, setReportTitle]   = useState('Contexto para IA - Revistas LATAM');
   const [downloading, setDownloading]   = useState(false);
   const [copied, setCopied]             = useState(false);
@@ -51,15 +53,15 @@ export default function DossierDrawer() {
     if (!requireAuth('ai_context')) return;
     if (dossierItems.length === 0) return;
     const prefix = [
-      'Analiza el siguiente paquete de contexto cienciométrico compilado desde Revistas LATAM.',
-      'Los datos provienen de OpenAlex procesados con DuckDB.',
-      'Proporciona un análisis crítico de las tendencias, fortalezas, brechas y recomendaciones estratégicas.',
+      t('dossier.chatgpt_prefix_1'),
+      t('dossier.chatgpt_prefix_2'),
+      t('dossier.chatgpt_prefix_3'),
       '',
       '---',
       ''
     ].join('\n');
 
-    const text = prefix + buildMarkdownText(reportTitle, dossierItems);
+    const text = prefix + buildMarkdownText(reportTitle, dossierItems, t);
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(() => {
         setCopied(true);
@@ -81,7 +83,7 @@ export default function DossierDrawer() {
     setDownloading(true);
     try {
       if (format === 'markdown') {
-        const content = buildMarkdownText(reportTitle, dossierItems);
+        const content = buildMarkdownText(reportTitle, dossierItems, t);
         const blob = new Blob([content], { type: 'text/markdown;charset=utf-8;' });
         const url  = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -131,7 +133,7 @@ export default function DossierDrawer() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Bot size={18} color="var(--accent-primary)" />
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Contexto para IA</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('header.context_ai')}</h3>
             <span className="badge">{dossierItems.length}</span>
           </div>
           <button
@@ -148,7 +150,7 @@ export default function DossierDrawer() {
           {/* Report title */}
           <div>
             <label style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '5px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Título del Paquete de Contexto:
+              {t('dossier.package_title_label')}
             </label>
             <input
               type="text"
@@ -161,7 +163,7 @@ export default function DossierDrawer() {
           {/* Items header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
             <span style={{ fontSize: '13px', fontWeight: '700' }}>
-              Bloques de Datos Compilados ({dossierItems.length})
+              {t('dossier.compiled_blocks').replace('{n}', dossierItems.length)}
             </span>
             {dossierItems.length > 0 && (
               <button
@@ -172,7 +174,7 @@ export default function DossierDrawer() {
                   display: 'flex', alignItems: 'center', gap: '4px'
                 }}
               >
-                <Trash2 size={13} /> Vaciar
+                <Trash2 size={13} /> {t('dossier.empty_btn')}
               </button>
             )}
           </div>
@@ -185,9 +187,7 @@ export default function DossierDrawer() {
               borderRadius: '10px', border: '1px dashed var(--border-color)',
               fontSize: '13px', lineHeight: 1.6
             }}>
-              📌 Usa los botones <strong>"Guardar en Contexto IA"</strong> en cada gráfico o tabla para añadir indicadores y compilar el prompt aquí.
-              <br /><br />
-              Luego puedes exportarlo como Markdown o copiarlo directamente para analizar con ChatGPT.
+              📌 {t('dossier.empty_desc')}
             </div>
           ) : (
             dossierItems.map(item => (
@@ -229,7 +229,7 @@ export default function DossierDrawer() {
                   <button
                     onClick={e => { e.stopPropagation(); removeDossierItem(item.key); }}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-subtle)', cursor: 'pointer', flexShrink: 0, marginTop: '2px' }}
-                    title="Eliminar del Dossier"
+                    title={t('dossier.remove_tooltip')}
                   >
                     <X size={14} />
                   </button>
@@ -239,7 +239,7 @@ export default function DossierDrawer() {
                 {expandedKey === item.key && item.data && Array.isArray(item.data) && item.data.length > 0 && (
                   <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border-color)', overflowX: 'auto' }}>
                     <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '10px 0 6px' }}>
-                      Vista previa de datos ({Math.min(item.data.length, 5)} de {item.data.length})
+                      {t('dossier.data_preview').replace('{shown}', Math.min(item.data.length, 5)).replace('{total}', item.data.length)}
                     </div>
                     <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
                       <thead>
@@ -305,7 +305,7 @@ export default function DossierDrawer() {
             }}
           >
             {copied ? <ClipboardCheck size={16} /> : <Bot size={16} />}
-            {copied ? '¡Copiado! Pega en ChatGPT' : '📋 Copiar para ChatGPT'}
+            {copied ? t('dossier.copied_chatgpt') : t('dossier.copy_chatgpt_btn')}
           </button>
 
           {/* Export row */}
@@ -323,7 +323,7 @@ export default function DossierDrawer() {
                 boxShadow: canExport ? '0 2px 8px rgba(2, 132, 199, 0.3)' : 'none'
               }}
             >
-              <Download size={14} /> Markdown
+              <Download size={14} /> {t('dossier.download_markdown')}
             </button>
             <button
               onClick={() => handleDownload('json')}

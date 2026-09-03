@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
+import { useTranslation } from '../i18n';
 import KpiCard from '../components/KpiCard';
 import PlotlyChart from '../components/PlotlyChart';
 import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
@@ -29,7 +30,8 @@ import {
   GitCommit,
   Download,
   PieChart,
-  Compass
+  Compass,
+  BarChart3
 } from 'lucide-react';
 
 const DEFAULT_COUNTRIES = [
@@ -79,8 +81,10 @@ export default function JournalPage() {
     addDossierItem,
     addExportJob,
     setDownloadsOpen,
-    requireAuth
+    requireAuth,
+    user
   } = useAppStore();
+  const { t } = useTranslation();
   
   // Share link state
   const [copiedLink, setCopiedLink] = useState(false);
@@ -656,13 +660,13 @@ export default function JournalPage() {
           {/* Quick Country + Journal Selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>País:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('journal.country_label')}</span>
               <select
                 value={filterCountry}
                 onChange={(e) => setFilterCountry(e.target.value)}
                 style={{ fontSize: '13px', fontWeight: '700', padding: '6px 12px' }}
               >
-                <option value="ALL">🌎 Todos los Países</option>
+                <option value="ALL">{t('journal.all_countries')}</option>
                 {countriesList.map(c => (
                   <option key={c.country_code} value={c.country_code}>
                     {c.country_name} ({c.country_code})
@@ -672,7 +676,7 @@ export default function JournalPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>Revista:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('journal.journal_label')}</span>
               <select
                 value={selectedJournalId}
                 onChange={(e) => {
@@ -827,78 +831,78 @@ export default function JournalPage() {
                 📊 Impacto, Citación y Red (Histórico)
               </span>
             </div>
-            <span className="badge" style={{ fontSize: '11px' }}>Periodo Completo</span>
+            <span className="badge" style={{ fontSize: '11px' }}>{t('journal.stat_period_full')}</span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_docs')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                 {fullDocs.toLocaleString()}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Total Citas</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_citations')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#0284c7', marginTop: '2px' }}>
                 {prof.cited_by_count?.toLocaleString() || '—'}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_fwci')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-primary)', marginTop: '2px' }}>
                 {fullFwci.toFixed(2)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Índice H</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_h_index')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#8b5cf6', marginTop: '2px' }}>
                 {prof.h_index || '—'}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Índice i10</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_i10')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#6366f1', marginTop: '2px' }}>
                 {prof.i10_index != null ? Number(prof.i10_index).toLocaleString() : '—'}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>PageRank (‰)</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_pagerank')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#06b6d4', marginTop: '2px' }}>
                 {prof.pagerank != null ? Number(prof.pagerank).toFixed(3) : '0.000'}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Eigenfactor (%)</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_eigenfactor')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#0ea5e9', marginTop: '2px' }}>
                 {prof.eigenfactor != null ? `${Number(prof.eigenfactor).toFixed(4)}%` : '0.0000%'}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_top10')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#f59e0b', marginTop: '2px' }}>
                 {fullTop10.toFixed(2)}%
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_top1')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#ec4899', marginTop: '2px' }}>
                 {fullTop1.toFixed(3)}%
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_percentile')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                 {fullPerc.toFixed(1)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Diamante</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_oa_diamond')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8', marginTop: '2px' }}>
                 {fullOaDiamond.toFixed(1)}%
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Dorado</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_oa_gold')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#fbbf24', marginTop: '2px' }}>
                 {fullOaGold.toFixed(1)}%
               </div>
@@ -922,7 +926,7 @@ export default function JournalPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_docs')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                 {recDocs.toLocaleString()}
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px', fontWeight: 'normal' }}>
@@ -931,7 +935,7 @@ export default function JournalPage() {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Total Citas (Lustro)</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_citations_recent')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#0284c7', marginTop: '2px' }}>
                 {recCites.toLocaleString()}
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px', fontWeight: 'normal' }}>
@@ -940,7 +944,7 @@ export default function JournalPage() {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_fwci')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 {recFwci.toFixed(2)}
                 <span style={{ fontSize: '11px', color: Number(fwciDelta) >= 0 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
@@ -949,31 +953,31 @@ export default function JournalPage() {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Índice H (Lustro)</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_h_index_recent')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#8b5cf6', marginTop: '2px' }}>
                 {recHIndex}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Índice i10 (Lustro)</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_i10_recent')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#6366f1', marginTop: '2px' }}>
                 {recI10}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>PageRank (‰)</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_pagerank')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#06b6d4', marginTop: '2px' }}>
                 {recPagerank}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Eigenfactor (%)</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_eigenfactor')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#0ea5e9', marginTop: '2px' }}>
                 {recEigenfactor}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_top10')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#f59e0b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 {recTop10.toFixed(2)}%
                 <span style={{ fontSize: '11px', color: Number(top10Delta) >= 0 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
@@ -982,7 +986,7 @@ export default function JournalPage() {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_top1')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#ec4899', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 {recTop1.toFixed(3)}%
                 <span style={{ fontSize: '11px', color: Number(top1Delta) >= 0 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
@@ -991,7 +995,7 @@ export default function JournalPage() {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_percentile')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 {recPerc.toFixed(1)}
                 <span style={{ fontSize: '11px', color: Number(percDelta) >= 0 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
@@ -1000,7 +1004,7 @@ export default function JournalPage() {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Diamante</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_oa_diamond')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 {recOaDiamond.toFixed(1)}%
                 <span style={{ fontSize: '11px', color: Number(oaDiamondDelta) >= 0 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
@@ -1009,7 +1013,7 @@ export default function JournalPage() {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Dorado</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('journal.stat_oa_gold')}</div>
               <div style={{ fontSize: '18px', fontWeight: '800', color: '#fbbf24', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 {recOaGold.toFixed(1)}%
                 <span style={{ fontSize: '11px', color: Number(oaGoldDelta) >= 0 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
@@ -1293,14 +1297,14 @@ export default function JournalPage() {
               onChange={(e) => setSunburstInd(e.target.value)}
               style={{ fontWeight: '600' }}
             >
-              <option value="fwci_avg_recent">FWCI (2021-2025)</option>
-              <option value="avg_percentile_recent">Percentil (2021-2025)</option>
-              <option value="pct_top_10_recent">% Top 10% (2021-2025)</option>
-              <option value="pct_oa_gold_recent">% OA Gold (2021-2025)</option>
-              <option value="fwci_avg_full">FWCI (Todo el Periodo)</option>
-              <option value="avg_percentile_full">Percentil (Todo el Periodo)</option>
-              <option value="pct_top_10_full">% Top 10% (Todo el Periodo)</option>
-              <option value="pct_oa_gold_full">% OA Gold (Todo el Periodo)</option>
+              <option value="fwci_avg_recent">{t('journal.scatter_fwci_recent')}</option>
+              <option value="avg_percentile_recent">{t('journal.scatter_percentile_recent')}</option>
+              <option value="pct_top_10_recent">{t('journal.scatter_top10_recent')}</option>
+              <option value="pct_oa_gold_recent">{t('journal.scatter_oa_gold_recent')}</option>
+              <option value="fwci_avg_full">{t('journal.scatter_fwci_full')}</option>
+              <option value="avg_percentile_full">{t('journal.scatter_percentile_full')}</option>
+              <option value="pct_top_10_full">{t('journal.scatter_top10_full')}</option>
+              <option value="pct_oa_gold_full">{t('journal.scatter_oa_gold_full')}</option>
             </select>
 
             {/* Include Unclassified Checkbox */}
@@ -1354,7 +1358,7 @@ export default function JournalPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '16px', flexWrap: 'wrap', background: 'var(--bg-input)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text-muted)' }}>Indicador Eje X:</span>
+              <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('journal.axis_x_label')}</span>
               <select
                 value={artScatterX}
                 onChange={(e) => setArtScatterX(e.target.value)}
@@ -1367,7 +1371,7 @@ export default function JournalPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text-muted)' }}>Indicador Eje Y:</span>
+              <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('journal.axis_y_label')}</span>
               <select
                 value={artScatterY}
                 onChange={(e) => setArtScatterY(e.target.value)}
@@ -1431,7 +1435,7 @@ export default function JournalPage() {
 
               {/* Pearson Correlation */}
               <div style={{ padding: '12px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12.5px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Correlación Lineal de Pearson</div>
+                <div style={{ color: 'var(--text-muted)' }}>{t('journal.pearson_label')}</div>
                 <div style={{ fontSize: '20px', fontWeight: '800', color: Math.abs(pearsonRArt) >= 0.5 ? '#10b981' : 'var(--text-main)', marginTop: '4px' }}>
                   r = {pearsonRArt.toFixed(3)}
                 </div>
@@ -1468,10 +1472,10 @@ export default function JournalPage() {
               style={{ fontSize: '12.5px', fontWeight: '600' }}
               title="Cantidad de artículos a mostrar"
             >
-              <option value={50}>50 artículos</option>
-              <option value={100}>100 artículos</option>
-              <option value={500}>500 artículos</option>
-              <option value={1000}>1,000 artículos</option>
+              <option value={50}>{t('journal.articles_limit_50')}</option>
+              <option value={100}>{t('journal.articles_limit_100')}</option>
+              <option value={500}>{t('journal.articles_limit_500')}</option>
+              <option value={1000}>{t('journal.articles_limit_1000')}</option>
               <option value={0}>Todos los artículos ({prof.works_count?.toLocaleString() || 'Total'})</option>
             </select>
 
@@ -1481,17 +1485,28 @@ export default function JournalPage() {
               onChange={(e) => setArticleSort(e.target.value)}
               style={{ fontSize: '12.5px', fontWeight: '600' }}
             >
-              <option value="cited_by_count">Más Citados</option>
-              <option value="fwci">Mayor FWCI</option>
-              <option value="publication_year">Más Recientes</option>
+              <option value="cited_by_count">{t('journal.sort_cited')}</option>
+              <option value="fwci">{t('journal.sort_fwci')}</option>
+              <option value="publication_year">{t('journal.sort_recent')}</option>
             </select>
 
             {/* Export Buttons */}
             <button
-              className="btn-primary"
+              className="btn-secondary"
               disabled={exportingFormat !== null}
               onClick={() => handleExportArticles('json')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px', opacity: exportingFormat ? 0.7 : 1 }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                padding: '6px 12px',
+                opacity: exportingFormat ? 0.7 : 1,
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.25))',
+                borderColor: 'rgba(16, 185, 129, 0.45)',
+                color: '#10b981',
+                fontWeight: '600'
+              }}
               title="Descargar registros completos de OpenAlex en formato JSON comprimido (.json.gz)"
             >
               <Download size={14} /> {exportingFormat === 'json' ? 'Generando JSON (.gz)...' : 'Exportar JSON (.gz)'}
@@ -1501,11 +1516,45 @@ export default function JournalPage() {
               className="btn-secondary"
               disabled={exportingFormat !== null}
               onClick={() => handleExportArticles('csv')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px', opacity: exportingFormat ? 0.7 : 1 }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                padding: '6px 12px',
+                opacity: exportingFormat ? 0.7 : 1,
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.25))',
+                borderColor: 'rgba(16, 185, 129, 0.45)',
+                color: '#10b981',
+                fontWeight: '600'
+              }}
               title="Descargar en formato OpenAlex CSV estándar de 88 columnas para knoMap"
             >
               <Download size={14} /> {exportingFormat === 'csv' ? 'Generando CSV...' : 'Exportar CSV (88 cols)'}
             </button>
+
+            {user && (
+              <button
+                className="btn-secondary"
+                disabled={exportingFormat !== null}
+                onClick={() => handleExportArticles('metrics')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  padding: '6px 12px',
+                  opacity: exportingFormat ? 0.7 : 1,
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.25))',
+                  borderColor: 'rgba(16, 185, 129, 0.45)',
+                  color: '#10b981',
+                  fontWeight: '600'
+                }}
+                title={t('journal.export_metrics_title') || "Calcular paquete completo de indicadores cienciométricos en segundo plano (.zip)"}
+              >
+                <BarChart3 size={14} /> {exportingFormat === 'metrics' ? t('journal.exporting_metrics') : t('journal.export_metrics')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1523,13 +1572,13 @@ export default function JournalPage() {
             </colgroup>
             <thead>
               <tr>
-                <th>Título</th>
-                <th>OpenAlex ID</th>
+                <th>{t('tables.title')}</th>
+                <th>{t('tables.openalex_id')}</th>
                 <th>Año</th>
-                <th>Citas</th>
-                <th>FWCI</th>
-                <th>Percentil</th>
-                <th>Acceso Abierto</th>
+                <th>{t('tables.citations')}</th>
+                <th>{t('tables.fwci')}</th>
+                <th>{t('tables.percentile')}</th>
+                <th>{t('tables.oa_type')}</th>
                 <th>DOI</th>
               </tr>
             </thead>

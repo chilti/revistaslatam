@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n';
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { Download, Search, Sparkles, Filter, Layers } from 'lucide-react';
@@ -17,6 +18,7 @@ export default function ThematicEvolutionTable({
   title = null, 
   subtitle = null 
 }) {
+  const { t } = useTranslation();
   const [level, setLevel] = useState('domain');
   const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -192,9 +194,9 @@ export default function ThematicEvolutionTable({
               onChange={e => setLimit(Number(e.target.value))}
               style={{ fontSize: '13px', padding: '6px 10px', borderRadius: '8px' }}
             >
-              <option value={30}>Top 30</option>
-              <option value={100}>Top 100</option>
-              <option value={500}>Top 500</option>
+              <option value={30}>{t('thematic_table.top_30')}</option>
+              <option value={100}>{t('thematic_table.top_100')}</option>
+              <option value={500}>{t('thematic_table.top_500')}</option>
               <option value={0}>Todos ({pivotedRows.length})</option>
             </select>
           </div>
@@ -207,7 +209,7 @@ export default function ThematicEvolutionTable({
           disabled={pivotedRows.length === 0}
         >
           <Download size={15} />
-          <span>Descargar CSV</span>
+          <span>{t('thematic_table.download_csv')}</span>
         </button>
       </div>
 
@@ -215,7 +217,7 @@ export default function ThematicEvolutionTable({
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
           <div className="spinner" style={{ margin: '0 auto 10px' }} />
-          <span>Cargando matriz de evolución temática...</span>
+          <span>{t('thematic_table.loading_evolution')}</span>
         </div>
       ) : filteredRows.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
@@ -275,8 +277,8 @@ export default function ThematicEvolutionTable({
       )}
 
       <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-        <span>Mostrando {filteredRows.length} de {pivotedRows.length} {LEVEL_CONFIG.find(l => l.id === level)?.label?.toLowerCase()}s ordenados por producción total.</span>
-        <span>Colores con mapa de calor proporcional al volumen anual.</span>
+        <span>{t('thematic_table.level_label')} {LEVEL_CONFIG.find(l => l.id === level)?.label} &bull; {filteredRows.length}/{pivotedRows.length}</span>
+        <span>{t('thematic_table.heatmap_note')}</span>
       </div>
     </div>
   );

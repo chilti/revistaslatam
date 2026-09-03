@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
+import { useTranslation } from '../i18n';
 import KpiCard from '../components/KpiCard';
 import PlotlyChart from '../components/PlotlyChart';
 import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
@@ -37,6 +38,7 @@ import {
 
 export default function CountryPage() {
   const { selectedCountry, setSelectedCountry, setSelectedJournal, setActiveSection, addDossierItem } = useAppStore();
+  const { t } = useTranslation();
   
   const [countriesList, setCountriesList] = useState([]);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -499,13 +501,13 @@ export default function CountryPage() {
             {summary?.country_name || selectedCountry} ({selectedCountry})
           </h2>
           <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-            Perfil cienciométrico institucional, producción, impacto y posicionamiento en OpenAlex.
+            {t('country.subtitle')}
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)' }}>
-            Seleccionar País:
+            {t('country.select_country')}:
           </label>
           <select
             value={selectedCountry}
@@ -514,13 +516,13 @@ export default function CountryPage() {
           >
             {countriesList.map(c => (
               <option key={c.country_code} value={c.country_code}>
-                {c.country_name} ({c.country_code}) — {c.num_journals} revistas
+                {c.country_name} ({c.country_code}) — {c.num_journals} {t('common.works')}
               </option>
             ))}
           </select>
           <button
             onClick={handleShareCountry}
-            title="Copiar enlace directo para compartir este país"
+            title={t('buttons.share')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -538,7 +540,7 @@ export default function CountryPage() {
             }}
           >
             {copiedLink ? <Check size={15} /> : <Share2 size={15} />}
-            <span>{copiedLink ? '¡Enlace copiado!' : 'Compartir'}</span>
+            <span>{copiedLink ? t('country.copied_link') : t('buttons.share')}</span>
           </button>
         </div>
       </div>
@@ -546,34 +548,34 @@ export default function CountryPage() {
       {/* Top Contextual KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
         <KpiCard
-          title="Revistas Activas"
+          title={t('kpi.journals')}
           value={summary?.num_journals?.toLocaleString()}
-          subtitle="En OpenAlex Snapshot"
+          subtitle={t('kpi.journals_sub')}
           icon={BookOpen}
         />
         <KpiCard
-          title="Total Artículos"
+          title={t('kpi.works')}
           value={summary?.total_works?.toLocaleString() || summary?.full_period?.num_documents?.toLocaleString()}
-          subtitle="Producción Histórica"
+          subtitle={t('kpi.works_sub')}
           icon={FileText}
         />
         <KpiCard
-          title="FWCI Promedio"
+          title={t('kpi.fwci')}
           value={pData?.fwci_avg != null ? Number(pData.fwci_avg).toFixed(2) : '0.00'}
-          subtitle="Impacto Normalizado"
+          subtitle={t('kpi.fwci_sub')}
           icon={Zap}
         />
         <KpiCard
-          title="% OA Diamante"
+          title={t('kpi.diamond')}
           value={`${pData?.pct_oa_diamond ?? summary?.full_period?.pct_oa_diamond ?? 0}%`}
-          subtitle="Sin Cobro por APC"
+          subtitle={t('kpi.diamond_sub')}
           icon={Sparkles}
           badge="Diamante"
         />
         <KpiCard
           title="Revistas DOAJ"
           value={`${pData?.pct_doaj ?? summary?.full_period?.pct_doaj ?? 0}%`}
-          subtitle="Con Sello Abierto"
+          subtitle={t('regional.kpi_doaj_sub')}
           icon={ShieldCheck}
           badge="DOAJ"
         />
@@ -628,31 +630,31 @@ export default function CountryPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.table_docs')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {fullDocs.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_fwci_avg')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--primary-color, #3b82f6)', marginTop: '2px' }}>
                       {fullFwci.toFixed(2)}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_top10')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#f59e0b', marginTop: '2px' }}>
                       {fullTop10.toFixed(2)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_top1')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#ec4899', marginTop: '2px' }}>
                       {fullTop1.toFixed(3)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_percentile')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {fullPerc.toFixed(1)}
                     </div>
@@ -676,13 +678,13 @@ export default function CountryPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.table_docs')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {recDocs.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_fwci_avg')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {recFwci.toFixed(2)}
                       <span style={{ fontSize: '11px', color: '#10b981', fontWeight: '700' }}>
@@ -691,7 +693,7 @@ export default function CountryPage() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_top10')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#f59e0b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {recTop10.toFixed(2)}%
                       <span style={{ fontSize: '11px', color: Number(top10Delta) >= 0 ? '#10b981' : '#ef4444', fontWeight: '700' }}>
@@ -700,13 +702,13 @@ export default function CountryPage() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_top1')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#ec4899', marginTop: '2px' }}>
                       {recTop1.toFixed(3)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_percentile')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {recPerc.toFixed(1)}
                       <span style={{ fontSize: '11px', color: '#10b981', fontWeight: '700' }}>
@@ -729,36 +731,36 @@ export default function CountryPage() {
                       🔓 Ciencia Abierta y Visibilidad
                     </span>
                   </div>
-                  <span className="badge" style={{ fontSize: '11px' }}>Acceso e Indexación</span>
+                  <span className="badge" style={{ fontSize: '11px' }}>{t('country.stat_access_index')}</span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Diamante</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_oa_diamond')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8', marginTop: '2px' }}>
                       {Number(fullP.pct_oa_diamond || 0).toFixed(1)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Gold</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_oa_gold')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {Number(fullP.pct_oa_gold || 0).toFixed(1)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% OA Verde</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_oa_green')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#34d399', marginTop: '2px' }}>
                       {Number(fullP.pct_oa_green || 0).toFixed(1)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% en Scopus</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_scopus')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {Number(fullP.pct_scopus || 0).toFixed(1)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% en DOAJ</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_doaj')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px' }}>
                       {Number(fullP.pct_doaj || 0).toFixed(1)}%
                     </div>
@@ -775,30 +777,30 @@ export default function CountryPage() {
                       🌐 Distribución Lingüística de Publicación
                     </span>
                   </div>
-                  <span className="badge" style={{ fontSize: '11px' }}>Idiomas</span>
+                  <span className="badge" style={{ fontSize: '11px' }}>{t('country.stat_languages')}</span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Español</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_lang_es')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#a855f7', marginTop: '2px' }}>
                       {langEs.toFixed(1)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Inglés</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_lang_en')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8', marginTop: '2px' }}>
                       {langEn.toFixed(1)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Portugués</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_lang_pt')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#f59e0b', marginTop: '2px' }}>
                       {langPt.toFixed(1)}%
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>% Otros Idiomas</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_lang_other')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-muted)', marginTop: '2px' }}>
                       {langOther.toFixed(1)}%
                     </div>
@@ -939,14 +941,14 @@ export default function CountryPage() {
                   <table className="data-table" style={{ fontSize: '12px' }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: 'left' }}>Revista</th>
-                        <th style={{ textAlign: 'right' }}>Documentos</th>
-                        <th style={{ textAlign: 'right' }}>% Inglés</th>
-                        <th style={{ textAlign: 'right' }}>% OA Diamante</th>
-                        <th style={{ textAlign: 'right' }}>FWCI Promedio</th>
-                        <th style={{ textAlign: 'right' }}>% Top 10%</th>
-                        <th style={{ textAlign: 'right' }}>% Top 1%</th>
-                        <th style={{ textAlign: 'right' }}>Percentil Promedio</th>
+                        {t('country.table_journal')}
+                        <th style={{ textAlign: 'right' }}>{t('country.table_docs')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('country.stat_lang_en')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('country.stat_oa_diamond')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('country.stat_fwci_avg')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('country.stat_top10')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('country.stat_top1')}</th>
+                        <th style={{ textAlign: 'right' }}>{t('country.table_percentile')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1082,10 +1084,10 @@ export default function CountryPage() {
               onChange={(e) => setBeeswarmMetric(e.target.value)}
               style={{ fontSize: '12px', fontWeight: '600' }}
             >
-              <option value="fwci_avg">FWCI Promedio</option>
-              <option value="pct_oa_diamond">% OA Diamante</option>
-              <option value="h_index">Índice H</option>
-              <option value="works_count">Artículos Publicados</option>
+              <option value="fwci_avg">{t('country.stat_fwci_avg')}</option>
+              <option value="pct_oa_diamond">{t('country.stat_oa_diamond')}</option>
+              <option value="h_index">{t('tables.h_index')}</option>
+              <option value="works_count">{t('tables.articles')}</option>
             </select>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
@@ -1240,7 +1242,7 @@ export default function CountryPage() {
             </div>
 
             <div style={{ padding: '12px 14px', background: 'rgba(2, 132, 199, 0.1)', borderRadius: '8px', border: '1px solid rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Correlación Lineal (Pearson)</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('country.pearson_label')}</span>
               <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-primary)', marginTop: '2px' }}>
                 r = {pearsonR != null ? pearsonR.toFixed(3) : '0.000'}
               </div>
@@ -1363,14 +1365,14 @@ export default function CountryPage() {
               onChange={(e) => setSunburstIndicator(e.target.value)}
               style={{ fontWeight: '600' }}
             >
-              <option value="fwci_avg_recent">FWCI (2021-2025)</option>
-              <option value="avg_percentile_recent">Percentil (2021-2025)</option>
-              <option value="pct_top_10_recent">% Top 10% (2021-2025)</option>
-              <option value="pct_oa_gold_recent">% OA Gold (2021-2025)</option>
-              <option value="fwci_avg_full">FWCI (Todo el Periodo)</option>
-              <option value="avg_percentile_full">Percentil (Todo el Periodo)</option>
-              <option value="pct_top_10_full">% Top 10% (Todo el Periodo)</option>
-              <option value="pct_oa_gold_full">% OA Gold (Todo el Periodo)</option>
+              <option value="fwci_avg_recent">{t('country.scatter_fwci_recent')}</option>
+              <option value="avg_percentile_recent">{t('country.scatter_percentile_recent')}</option>
+              <option value="pct_top_10_recent">{t('country.scatter_top10_recent')}</option>
+              <option value="pct_oa_gold_recent">{t('country.scatter_oa_gold_recent')}</option>
+              <option value="fwci_avg_full">{t('country.scatter_fwci_full')}</option>
+              <option value="avg_percentile_full">{t('country.scatter_percentile_full')}</option>
+              <option value="pct_top_10_full">{t('country.scatter_top10_full')}</option>
+              <option value="pct_oa_gold_full">{t('country.scatter_oa_gold_full')}</option>
             </select>
 
             {/* Include Unclassified Checkbox */}
@@ -1453,16 +1455,16 @@ export default function CountryPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Revista</th>
-                <th>ISSN-L</th>
-                <th>Editorial / Institución</th>
-                <th>Artículos</th>
-                <th>Citas</th>
-                <th>FWCI</th>
-                <th>H-Index</th>
-                <th>% Diamante</th>
+                <th>{t('country.table_journal')}</th>
+                <th>{t('tables.issn')}</th>
+                <th>{t('tables.publisher')}</th>
+                <th>{t('tables.articles')}</th>
+                <th>{t('tables.citations')}</th>
+                <th>{t('tables.fwci')}</th>
+                <th>{t('tables.h_index')}</th>
+                <th>{t('tables.pct_diamond')}</th>
                 <th>DOAJ</th>
-                <th>Acción</th>
+                <th>{t('tables.action')}</th>
               </tr>
             </thead>
             <tbody>

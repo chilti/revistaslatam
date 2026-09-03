@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '../store';
 import api from '../api';
+import { useTranslation } from '../i18n';
 import { 
   ShieldCheck, 
   Users, 
@@ -18,6 +19,7 @@ import {
 
 export default function AdminPage() {
   const { user } = useAppStore();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
     total_users: 0,
@@ -152,7 +154,7 @@ export default function AdminPage() {
             title="Recargar lista de usuarios"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            <span>Actualizar</span>
+            <span>{t('tables.update_btn')}</span>
           </button>
 
           <button
@@ -175,7 +177,7 @@ export default function AdminPage() {
             }}
           >
             <Download size={14} />
-            <span>Exportar CSV</span>
+            <span>{t('tables.export_csv_btn')}</span>
           </button>
         </div>
       </div>
@@ -196,7 +198,7 @@ export default function AdminPage() {
           <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-main)' }}>
             {data.total_users.toLocaleString()}
           </div>
-          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Registrados con ORCID</span>
+          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{t('admin.stat_orcid')}</span>
         </div>
 
         <div className="card" style={{ padding: '18px 20px' }}>
@@ -209,7 +211,7 @@ export default function AdminPage() {
           <div style={{ fontSize: '28px', fontWeight: '800', color: '#8b5cf6' }}>
             {data.total_admins.toLocaleString()}
           </div>
-          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Configurados en .env</span>
+          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{t('admin.stat_env')}</span>
         </div>
 
         <div className="card" style={{ padding: '18px 20px' }}>
@@ -222,7 +224,7 @@ export default function AdminPage() {
           <div style={{ fontSize: '28px', fontWeight: '800', color: '#10b981' }}>
             {data.distinct_countries}
           </div>
-          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Orígenes institucionales</span>
+          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{t('admin.stat_origins')}</span>
         </div>
 
         <div className="card" style={{ padding: '18px 20px' }}>
@@ -235,7 +237,7 @@ export default function AdminPage() {
           <div style={{ fontSize: '28px', fontWeight: '800', color: '#f59e0b' }}>
             {data.total_logins.toLocaleString()}
           </div>
-          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Sesiones registradas</span>
+          <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{t('admin.stat_sessions')}</span>
         </div>
       </div>
 
@@ -282,13 +284,13 @@ export default function AdminPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: 'var(--bg-input)', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
-                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>Investigador</th>
-                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>Institución</th>
-                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>País</th>
+                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('admin.col_researcher')}</th>
+                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('admin.col_institution')}</th>
+                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('admin.col_country')}</th>
                 <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>Rol</th>
-                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)', textAlign: 'center' }}>Inicios de Sesión</th>
-                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>Primer Acceso</th>
-                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>Último Acceso</th>
+                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)', textAlign: 'center' }}>{t('admin.col_logins')}</th>
+                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('admin.col_first_access')}</th>
+                <th style={{ padding: '12px 18px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('admin.col_last_access')}</th>
               </tr>
             </thead>
             <tbody>

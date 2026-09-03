@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../store';
-import { Sun, Moon, Sparkles, FileText, Download, Clock, Bot, LogOut, User, ExternalLink } from 'lucide-react';
+import { useTranslation } from '../i18n';
+import { Sun, Moon, Sparkles, FileText, Download, Clock, Bot, LogOut, User, ExternalLink, Menu, Globe } from 'lucide-react';
 
 export default function Navbar() {
   const {
@@ -12,8 +13,12 @@ export default function Navbar() {
     setDownloadsOpen,
     user,
     setLoginModalOpen,
-    logout
+    logout,
+    sidebarCollapsed,
+    toggleSidebar,
+    toggleMobileMenu
   } = useAppStore();
+  const { t, language, setLanguage, languages } = useTranslation();
 
   const activeJobs = exportJobs.filter(j => j.status === 'processing' || j.status === 'pending');
   const completedJobs = exportJobs.filter(j => j.status === 'completed');
@@ -28,14 +33,40 @@ export default function Navbar() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '0 32px',
+      padding: '0 24px',
       position: 'sticky',
       top: 0,
       zIndex: 40,
       transition: 'all 0.2s ease'
     }}>
-      {/* Brand / Logo */}
+      {/* Brand / Logo + Mobile Menu Toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button
+          onClick={() => {
+            if (window.innerWidth <= 768) {
+              toggleMobileMenu();
+            } else {
+              toggleSidebar();
+            }
+          }}
+          style={{
+            background: 'var(--bg-input)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            width: '34px',
+            height: '34px',
+            cursor: 'pointer',
+            color: 'var(--text-main)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s ease'
+          }}
+          title={sidebarCollapsed ? t('nav.expand_btn') : t('nav.collapse_btn')}
+        >
+          <Menu size={18} />
+        </button>
+
         <div style={{
           width: '36px',
           height: '36px',
@@ -53,51 +84,67 @@ export default function Navbar() {
         </div>
         <div>
           <h1 style={{ fontSize: '17px', fontWeight: '800', lineHeight: 1.1 }}>
-            Revistas LATAM
+            {t('brand.title')}
           </h1>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
-            Con datos de OpenAlex
+            {t('brand.subtitle')}
           </span>
         </div>
       </div>
 
-      {/* Actions / Theme switcher / Dossier & Downloads & ORCID Auth buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {/* Actions / Language & Theme switcher / Dossier & Downloads & ORCID Auth buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Language Switcher */}
+        <div className="segmented-pills" style={{ padding: '2px' }}>
+          {languages.map((lang) => (
+            <button
+              key={lang.code}
+              className={`segmented-pill-btn ${language === lang.code ? 'active' : ''}`}
+              onClick={() => setLanguage(lang.code)}
+              title={lang.label}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}
+            >
+              <span>{lang.flag}</span>
+              <span>{lang.code.toUpperCase()}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Theme Segmented Switcher */}
-        <div className="segmented-pills">
+        <div className="segmented-pills" style={{ padding: '2px' }}>
           <button
             className={`segmented-pill-btn ${theme === 'claro' ? 'active' : ''}`}
             onClick={() => setTheme('claro')}
-            title="Tema Claro (Blanco)"
-            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+            title="Tema Claro (Light)"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '11px' }}
           >
-            <Sun size={14} />
-            <span>Claro</span>
+            <Sun size={13} />
+            <span>{t('theme.light')}</span>
           </button>
           <button
             className={`segmented-pill-btn ${theme === 'oscuro' ? 'active' : ''}`}
             onClick={() => setTheme('oscuro')}
             title="Tema Oscuro (Dark)"
-            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '11px' }}
           >
-            <Moon size={14} />
-            <span>Oscuro</span>
+            <Moon size={13} />
+            <span>{t('theme.dark')}</span>
           </button>
           <button
             className={`segmented-pill-btn ${theme === 'navy' ? 'active' : ''}`}
             onClick={() => setTheme('navy')}
             title="Tema Azul Noche (Navy)"
-            style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '11px' }}
           >
-            <Sparkles size={14} />
-            <span>Navy</span>
+            <Sparkles size={13} />
+            <span>{t('theme.navy')}</span>
           </button>
         </div>
 
         {/* Context for AI Button */}
         <button
           onClick={() => setDossierOpen(true)}
-          title="Abrir panel de Contexto compilado para ChatGPT y agentes de IA"
+          title="Dossier / Context"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -115,7 +162,7 @@ export default function Navbar() {
           }}
         >
           <Bot size={15} />
-          <span>Contexto para IA</span>
+          <span>{t('navbar.ai_context_btn')}</span>
           {dossierItems.length > 0 && (
             <span style={{
               background: '#ffffff',
@@ -156,8 +203,8 @@ export default function Navbar() {
           <Download size={15} />
           <span>
             {activeJobs.length > 0
-              ? `Descargas (${latestActiveJob?.pct || 0}%)`
-              : 'Descargas'}
+              ? t('navbar.downloads_active').replace('{pct}', latestActiveJob?.pct || 0)
+              : t('navbar.downloads_idle')}
           </span>
           {completedJobs.length > 0 && activeJobs.length === 0 && (
             <span style={{
@@ -260,7 +307,7 @@ export default function Navbar() {
             }}>
               iD
             </span>
-            <span>Conectar ORCID</span>
+            <span>{t('navbar.connect_orcid')}</span>
           </button>
         )}
       </div>

@@ -1,9 +1,11 @@
+import { useTranslation } from '../i18n';
 import React, { useEffect } from 'react';
 import { useAppStore } from '../store';
 import api from '../api';
-import { X, Download, Trash2, CheckCircle2, Clock, AlertCircle, FileSpreadsheet, FileCode, Sparkles } from 'lucide-react';
+import { X, Download, Trash2, CheckCircle2, Clock, AlertCircle, FileSpreadsheet, FileCode, Sparkles, BarChart3 } from 'lucide-react';
 
 export default function DownloadsDrawer() {
+  const { t } = useTranslation();
   const {
     exportJobs,
     isDownloadsOpen,
@@ -227,6 +229,8 @@ export default function DownloadsDrawer() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {job.format === 'csv' ? (
                           <FileSpreadsheet size={18} color="#0284c7" />
+                        ) : (job.format === 'metrics' || job.format === 'zip') ? (
+                          <BarChart3 size={18} color="#8b5cf6" />
                         ) : (
                           <FileCode size={18} color="#10b981" />
                         )}
@@ -237,11 +241,19 @@ export default function DownloadsDrawer() {
                             textTransform: 'uppercase',
                             padding: '2px 8px',
                             borderRadius: '6px',
-                            background: job.format === 'csv' ? 'rgba(2, 132, 199, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                            color: job.format === 'csv' ? '#0284c7' : '#10b981'
+                            background: job.format === 'csv'
+                              ? 'rgba(2, 132, 199, 0.15)'
+                              : (job.format === 'metrics' || job.format === 'zip')
+                              ? 'rgba(139, 92, 246, 0.15)'
+                              : 'rgba(16, 185, 129, 0.15)',
+                            color: job.format === 'csv'
+                              ? '#0284c7'
+                              : (job.format === 'metrics' || job.format === 'zip')
+                              ? '#8b5cf6'
+                              : '#10b981'
                           }}
                         >
-                          {job.format === 'csv' ? 'CSV (88 cols)' : 'JSON (.gz)'}
+                          {job.format === 'csv' ? 'CSV (88 cols)' : (job.format === 'metrics' || job.format === 'zip') ? 'Métricas (.zip)' : 'JSON (.gz)'}
                         </span>
                       </div>
 
@@ -277,7 +289,7 @@ export default function DownloadsDrawer() {
                     {isProcessing && (
                       <div style={{ marginTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                          <span>⏳ Descargando registros...</span>
+                          <span>{t('downloads.processing')}</span>
                           <strong style={{ color: 'var(--accent-primary)' }}>{job.pct ?? 0}%</strong>
                         </div>
                         <div

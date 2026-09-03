@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
+import { useTranslation } from '../i18n';
 import PlotlyChart from '../components/PlotlyChart';
 import { Share2, GitFork, Globe2, CircleDot, Network } from 'lucide-react';
 
 export default function NetworksPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('collab'); // 'collab' | 'chord' | 'alluvial' | 'sankey'
   const [collabData, setCollabData] = useState({ nodes: [], edges: [] });
   const [sankeyData, setSankeyData] = useState(null);
@@ -37,7 +39,7 @@ export default function NetworksPage() {
       mode: 'markers+text',
       marker: { size: 9, color: '#0284c7' },
       textposition: 'top center',
-      name: 'Países'
+      name: t('kpi.countries')
     });
 
     // Edges
@@ -55,7 +57,7 @@ export default function NetworksPage() {
             color: 'rgba(2, 132, 199, 0.55)'
           },
           hoverinfo: 'text',
-          text: `${e.source} - ${e.target}: ${e.weight?.toLocaleString()} colaboraciones`,
+          text: `${e.source} - ${e.target}: ${e.weight?.toLocaleString()}`,
           showlegend: false
         });
       }
@@ -113,10 +115,10 @@ export default function NetworksPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
         <h2 style={{ fontSize: '24px', fontWeight: '800' }}>
-          🌐 Redes de Colaboración Internacional y Flujos Disciplinares
+          🌐 {t('networks.title')}
         </h2>
         <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-          Análisis de coautoría intrarregional, flujos de conocimiento interdisciplinares y cartografía de redes para Latinoamérica.
+          {t('networks.subtitle')}
         </p>
 
         {/* Tabs */}
@@ -126,28 +128,28 @@ export default function NetworksPage() {
             onClick={() => setActiveTab('collab')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <Globe2 size={16} /> Red de Coautoría Global (Mapa)
+            <Globe2 size={16} /> {t('networks.tab_coauthorship')}
           </button>
           <button
             className={`tab-btn ${activeTab === 'chord' ? 'active' : ''}`}
             onClick={() => setActiveTab('chord')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <CircleDot size={16} /> Matriz de Cooperación Sur-Sur
+            <CircleDot size={16} /> {t('networks.tab_matrix')}
           </button>
           <button
             className={`tab-btn ${activeTab === 'alluvial' ? 'active' : ''}`}
             onClick={() => setActiveTab('alluvial')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <GitFork size={16} /> Diagrama Alluvial: Dominio → Vía OA
+            <GitFork size={16} /> {t('networks.sankey_title')}
           </button>
           <button
             className={`tab-btn ${activeTab === 'sankey' ? 'active' : ''}`}
             onClick={() => setActiveTab('sankey')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <Network size={16} /> Flujo Disciplinar Sankey
+            <Network size={16} /> {t('networks.tab_sankey')}
           </button>
         </div>
       </div>
@@ -184,9 +186,9 @@ export default function NetworksPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>País Origen</th>
-                    <th>País Socio</th>
-                    <th>Artículos en Coautoría</th>
+                    <th>{t('tables.origin_country')}</th>
+                    <th>{t('tables.partner_country')}</th>
+                    <th>{t('tables.coauthorship_articles')}</th>
                   </tr>
                 </thead>
                 <tbody>

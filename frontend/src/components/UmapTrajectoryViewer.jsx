@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n';
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { UmapHeatmap } from './UmapHeatmap';
 import { useAppStore } from '../store';
@@ -67,6 +68,7 @@ export default function UmapTrajectoryViewer({
   height = 480
 }) {
   const { theme } = useAppStore();
+  const { t } = useTranslation();
   const bg = THEME_BG[theme] || THEME_BG.oscuro;
   const labelColor = THEME_LABEL[theme] || THEME_LABEL.oscuro;
   const isDark = theme !== 'claro';
@@ -263,7 +265,7 @@ export default function UmapTrajectoryViewer({
             {/* Variable selector — only when indicator mode */}
             {!colorByCluster && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--text-muted)' }}>Capa:</span>
+                <span style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('umap.layer_label')}</span>
                 <select
                   value={selectedVar}
                   onChange={e => setSelectedVar(e.target.value)}
@@ -279,16 +281,16 @@ export default function UmapTrajectoryViewer({
             {/* Color scale — only when indicator mode */}
             {!colorByCluster && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--text-muted)' }}>Paleta:</span>
+                <span style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('umap.palette_label')}</span>
                 <select
                   value={colorScale}
                   onChange={e => setColorScale(e.target.value)}
                   style={{ fontSize: '12px', padding: '6px 8px', borderRadius: '8px' }}
                 >
-                  <option value="standard">Standard (Verde-Rojo)</option>
-                  <option value="viridis">Viridis (Accesible)</option>
-                  <option value="cividis">Cividis (Alto Contraste)</option>
-                  <option value="spectral">Spectral</option>
+                  <option value="standard">{t('umap.palette_standard')}</option>
+                  <option value="viridis">{t('umap.palette_viridis')}</option>
+                  <option value="cividis">{t('umap.palette_cividis')}</option>
+                  <option value="spectral">{t('umap.palette_spectral')}</option>
                 </select>
               </div>
             )}
@@ -301,7 +303,7 @@ export default function UmapTrajectoryViewer({
                 onChange={e => setShowLabels(e.target.checked)}
                 style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
               />
-              <span>Etiquetas</span>
+              <span>{t('umap.labels_toggle')}</span>
             </label>
 
             {/* Maximize */}
@@ -600,7 +602,7 @@ export default function UmapTrajectoryViewer({
                 <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: 'var(--text-main)' }}>
                   {modalItem.name} — Espacio UMAP de Alta Resolución
                 </h3>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Visualización maximizada continua</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('umap.maximized_view')}</span>
               </div>
               <button className="btn-secondary" onClick={() => setModalItem(null)} style={{ padding: '6px', borderRadius: '8px' }}>
                 <X size={18} />

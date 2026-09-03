@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import api from '../api';
 import { X, Lock, Sparkles, Download, Bot, ExternalLink, Loader2, CheckCircle } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export default function OrcidLoginModal() {
   const { isLoginModalOpen, setLoginModalOpen, loginModalReason } = useAppStore();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
 
   if (!isLoginModalOpen) return null;
@@ -16,12 +18,12 @@ export default function OrcidLoginModal() {
       if (res.data && res.data.auth_url) {
         window.location.href = res.data.auth_url;
       } else {
-        alert('No se pudo obtener la URL de autenticación de ORCID.');
+        alert(t('orcid.error_url'));
         setLoading(false);
       }
     } catch (err) {
       console.error('Error initiating ORCID OAuth:', err);
-      alert('Error al conectar con el servicio de ORCID. Por favor intente más tarde.');
+      alert(t('orcid.error_connect'));
       setLoading(false);
     }
   };
@@ -97,21 +99,21 @@ export default function OrcidLoginModal() {
           </div>
 
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>
-            Autenticación de Investigador
+            {t('orcid.modal_title')}
           </h2>
 
           <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
             {loginModalReason === 'ai_context' ? (
               <>
-                Para <strong>compilar y exportar el Contexto de Inteligencia Artificial (Dossier)</strong> para ChatGPT y modelos LLM, es necesario iniciar sesión con tu identificador académico <strong>ORCID</strong>.
+                {t('orcid.reason_ai')}
               </>
             ) : loginModalReason === 'download_articles' ? (
               <>
-                Para realizar la <strong>descarga masiva de artículos científicos</strong> (JSON completo o CSV de 88 columnas para knoMap), conéctate con tu <strong>ORCID iD</strong>.
+                {t('orcid.reason_download')}
               </>
             ) : (
               <>
-                Conecta tu <strong>ORCID iD</strong> para desbloquear las herramientas avanzadas de inteligencia cienciométrica, descarga masiva y generación de dossiers analíticos.
+                {t('orcid.reason_general')}
               </>
             )}
           </p>
@@ -132,15 +134,15 @@ export default function OrcidLoginModal() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
             <Bot size={15} color="var(--accent-primary)" />
-            <span>Compilación de contexto estructurado para modelos de lenguaje</span>
+            <span>{t('orcid.benefit_ai')}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
             <Download size={15} color="#10b981" />
-            <span>Descarga de corpus y metadatos completos de OpenAlex</span>
+            <span>{t('orcid.benefit_download')}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
             <CheckCircle size={15} color="#a6ce39" />
-            <span>Acceso seguro, transparente y sin contraseñas adicionales</span>
+            <span>{t('orcid.benefit_secure')}</span>
           </div>
         </div>
 
@@ -169,19 +171,19 @@ export default function OrcidLoginModal() {
           {loading ? (
             <>
               <Loader2 size={18} className="animate-spin" />
-              <span>Conectando con ORCID...</span>
+              <span>{t('orcid.connecting')}</span>
             </>
           ) : (
             <>
               <span style={{ fontWeight: '900', fontSize: '16px' }}>iD</span>
-              <span>Iniciar sesión con ORCID</span>
+              <span>{t('orcid.connect_btn')}</span>
               <ExternalLink size={15} />
             </>
           )}
         </button>
 
         <p style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-dim)' }}>
-          Al autenticarte, autorizas a Revistas LATAM a leer tu identificador público ORCID conforme al protocolo OAuth 2.0.
+          {t('orcid.legal_note')}
         </p>
       </div>
     </div>

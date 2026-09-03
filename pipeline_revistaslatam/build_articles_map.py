@@ -13,13 +13,14 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
-# Force UTF-8
-if sys.platform == 'win32':
-    try:
-        sys.stdout.reconfigure(encoding='utf-8')
-        sys.stderr.reconfigure(encoding='utf-8')
-    except Exception:
-        pass
+# Force UTF-8 and Line Buffering for real-time nohup tail -f logging
+try:
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(line_buffering=True, encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(line_buffering=True, encoding='utf-8')
+except Exception:
+    pass
 
 BASE_DIR = Path.cwd()
 sys.path.append(str(BASE_DIR / 'src'))
@@ -51,6 +52,125 @@ from article_manifold import (
     TRILINGUAL_STOPWORDS
 )
 from llm_cluster_labeler import label_article_clusters
+from clickhouse_db import ch_client
+
+
+def load_or_compute_embeddings(df_works, dim=128, use_gpu=True, cache_dir=None):
+    """
+    Obtiene los embeddings densos para los artículos de df_works:
+    1. Verifica si existe caché local en .npy / .parquet en data/umap/.
+    2. Si no hay caché local, consulta ClickHouse (tabla latin_american_works_embeddings).
+    3. Si existen embeddings en ClickHouse, los recupera y los alinea con df_works.
+    4. Si faltan embeddings para algunos artículos, calcula solo los faltantes.
+    5. Guarda en caché local para acelerar ejecuciones posteriores.
+    6. Si ClickHouse no está disponible, cae en generate_article_embeddings como fallback.
+    """
+    work_ids = df_works['id'].tolist()
+    n_works = len(work_ids)
+
+    # 1. Verificar caché local en disco
+    if cache_dir is not None:
+        npy_path = cache_dir / 'articles_embeddings_cache.npy'
+        ids_path = cache_dir / 'articles_ids_cache.parquet'
+        if npy_path.exists() and ids_path.exists():
+            try:
+                print(f'  -> 📂 Verificando caché local en disco ({npy_path})...')
+                cached_df = pd.read_parquet(ids_path)
+                if len(cached_df) == n_works and cached_df['id'].tolist() == work_ids:
+                    embeddings = np.load(npy_path)
+                    print(f'  ✅ Matriz de embeddings cargada instantáneamente desde caché local: {embeddings.shape}')
+                    return embeddings
+                else:
+                    print('  -> ℹ️ El caché local no coincide exactamente con el conjunto actual de artículos. Verificando ClickHouse...')
+            except Exception as e:
+                print(f'  -> ⚠️ Error leyendo caché local ({e}). Verificando ClickHouse...')
+
+    # 2. Verificar ClickHouse
+    embeddings_matrix = None
+    loaded_from_ch = False
+
+    try:
+        if ch_client.is_connected():
+            ch_table = "latin_american_works_embeddings"
+            count_res = ch_client.query(f"SELECT count() FROM {ch_table}").result_rows
+            total_ch = count_res[0][0] if count_res else 0
+
+            if total_ch > 0:
+                print(f'  -> 🔍 Detectados {total_ch:,} embeddings guardados en ClickHouse ({ch_table}).')
+                print(f'  -> 📥 Recuperando embeddings de ClickHouse en streaming y alineando con {n_works:,} artículos...')
+                
+                # Detect dimension from first row
+                sample_dim_res = ch_client.query(f"SELECT length(embedding) FROM {ch_table} LIMIT 1").result_rows
+                emb_dim = sample_dim_res[0][0] if sample_dim_res and sample_dim_res[0][0] else dim
+
+                id_to_idx = {id_: idx for idx, id_ in enumerate(work_ids)}
+                embeddings_matrix = np.zeros((n_works, emb_dim), dtype=np.float32)
+                matched_mask = np.zeros(n_works, dtype=bool)
+
+                t_ch0 = time.time()
+                cl = ch_client.get_client()
+
+                if n_works < 50000:
+                    # Modo rápido para muestras/subconjuntos: consultar por bloques de IDs con WHERE id IN
+                    chunk_size = 10000
+                    for c_start in range(0, n_works, chunk_size):
+                        sub_ids = work_ids[c_start:c_start + chunk_size]
+                        df_res = cl.query_df(f"SELECT id, embedding FROM {ch_table} WHERE id IN %(ids)s", parameters={'ids': sub_ids})
+                        for _, row in df_res.iterrows():
+                            idx = id_to_idx.get(row['id'])
+                            if idx is not None:
+                                embeddings_matrix[idx] = row['embedding']
+                                matched_mask[idx] = True
+                else:
+                    # Modo streaming completo para corpus masivo (3.4M+ artículos)
+                    count_stream = 0
+                    with cl.query_df_stream(f"SELECT id, embedding FROM {ch_table}", settings={'max_block_size': 50000}) as stream:
+                        for chunk in stream:
+                            c_ids = chunk['id'].values
+                            c_embs = chunk['embedding'].values
+                            for _id, _emb in zip(c_ids, c_embs):
+                                idx = id_to_idx.get(_id)
+                                if idx is not None:
+                                    embeddings_matrix[idx] = _emb
+                                    matched_mask[idx] = True
+                            count_stream += len(chunk)
+                            if count_stream % 250000 < len(chunk) or count_stream >= total_ch:
+                                pct = (count_stream / total_ch) * 100
+                                print(f'     Progreso descarga ClickHouse: {count_stream:,} / {total_ch:,} ({pct:.1f}%) | Alineados: {matched_mask.sum():,}')
+
+                matched_count = int(matched_mask.sum())
+                print(f'  ✅ {matched_count:,} / {n_works:,} embeddings alineados exitosamente desde ClickHouse en {time.time() - t_ch0:.1f}s.')
+
+                # Si faltaran algunos IDs, calcular solo los faltantes
+                missing_indices = np.where(~matched_mask)[0]
+                if len(missing_indices) > 0:
+                    print(f'  ⚠️ Faltan {len(missing_indices):,} embeddings en ClickHouse. Calculando únicamente los faltantes...')
+                    missing_texts = [df_works['clean_text'].iloc[i] for i in missing_indices]
+                    missing_embs = generate_article_embeddings(missing_texts, dim=emb_dim, use_gpu=use_gpu)
+                    for idx_pos, orig_idx in enumerate(missing_indices):
+                        embeddings_matrix[orig_idx] = missing_embs[idx_pos]
+                    print(f'  ✅ {len(missing_indices):,} embeddings faltantes generados e integrados.')
+
+                loaded_from_ch = True
+
+                # Guardar en caché local para acelerar futuras ejecuciones
+                if cache_dir is not None:
+                    try:
+                        print(f'  💾 Guardando matriz de embeddings en caché local para acelerar re-ejecuciones...')
+                        np.save(cache_dir / 'articles_embeddings_cache.npy', embeddings_matrix)
+                        pd.DataFrame({'id': work_ids}).to_parquet(cache_dir / 'articles_ids_cache.parquet', index=False)
+                        print(f'  ✅ Caché local guardado en {cache_dir}.')
+                    except Exception as ce:
+                        print(f'  -> ℹ️ No se pudo guardar caché local ({ce}).')
+
+                return embeddings_matrix
+    except Exception as e:
+        print(f'  -> ⚠️ Error al consultar embeddings desde ClickHouse: {e}')
+        print('  -> ℹ️ Cayendo al generador de embeddings estándar...')
+
+    # 3. Fallback: Generar todos los embeddings desde cero si ClickHouse no está disponible
+    print(f'  -> 🚀 Generando embeddings desde cero ({dim}d)...')
+    return generate_article_embeddings(df_works['clean_text'].tolist(), dim=dim, use_gpu=use_gpu)
 
 
 def build_map(sample_limit=None, per_journal_max=None, batch_size=100000, use_gpu=True, dim=128):
@@ -180,11 +300,11 @@ def build_map(sample_limit=None, per_journal_max=None, batch_size=100000, use_gp
     df_works['clean_text'] = pure_texts
     print(f'  ✅ {len(pure_texts):,} textos limpios procesados en {time.time() - t1:.1f}s ({n_threads} hilos)')
 
-    # 5. Generate Dense Embeddings (GPU cuML / Multicore CPU)
-    print(f'\n[Paso 3] Generando embeddings densos ({dim}d)...')
+    # 5. Load Precomputed Embeddings (ClickHouse / Local Cache) or Generate
+    print(f'\n[Paso 3] Obteniendo embeddings densos ({dim}d)...')
     t2 = time.time()
-    embeddings = generate_article_embeddings(df_works['clean_text'].tolist(), dim=dim, use_gpu=use_gpu)
-    print(f'  ✅ Matriz de embeddings generada: {embeddings.shape} en {time.time() - t2:.1f}s')
+    embeddings = load_or_compute_embeddings(df_works, dim=dim, use_gpu=use_gpu, cache_dir=umap_dir)
+    print(f'  ✅ Matriz de embeddings lista: {embeddings.shape} en {time.time() - t2:.1f}s')
 
     # 6. UMAP 2D Projection (GPU cuML / Multicore CPU)
     print('\n[Paso 4] Calculando proyección UMAP 2D con alta dispersión...')

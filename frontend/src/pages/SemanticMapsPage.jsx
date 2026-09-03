@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
+import { useTranslation } from '../i18n';
 import WebGLCanvas from '../components/WebGLCanvas';
 import PlotlyChart from '../components/PlotlyChart';
 import { 
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function SemanticMapsPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('articles'); // 'articles' | 'journals'
   const [engine, setEngine] = useState('webgl'); // 'webgl' | 'plotly'
   
@@ -51,7 +53,7 @@ export default function SemanticMapsPage() {
     const params = new URLSearchParams();
     if (artCountryFilter && artCountryFilter !== 'Todos') params.append('country', artCountryFilter);
     if (artCommFilter && artCommFilter !== 'Todas') params.append('community', artCommFilter);
-    params.append('limit', artSampleLimit);
+    if (artSampleLimit && artSampleLimit > 0) params.append('limit', artSampleLimit);
 
     api.get(`/maps/articles?${params.toString()}`)
       .then(res => setArticlePoints(res.data))
@@ -61,14 +63,17 @@ export default function SemanticMapsPage() {
 
   // Load Convex Hull if enabled
   useEffect(() => {
-    if (showConvexHull && artCountryFilter && artCountryFilter !== 'Todos') {
-      api.get(`/maps/convex-hull?country=${artCountryFilter}`)
+    if (showConvexHull) {
+      const params = new URLSearchParams();
+      if (artCountryFilter && artCountryFilter !== 'Todos') params.append('country', artCountryFilter);
+      if (artCommFilter && artCommFilter !== 'Todas') params.append('community', artCommFilter);
+      api.get(`/maps/convex-hull?${params.toString()}`)
         .then(res => setConvexHullPoints(res.data?.hull || []))
         .catch(console.error);
     } else {
       setConvexHullPoints([]);
     }
-  }, [showConvexHull, artCountryFilter]);
+  }, [showConvexHull, artCountryFilter, artCommFilter]);
 
   // Load journals points
   useEffect(() => {
@@ -85,6 +90,9 @@ export default function SemanticMapsPage() {
   }, [activeTab, journalCountryFilter, journalCommFilter]);
 
   // Plotly Traces for Articles + Convex Hull
+  const commPalette = ["#0284c7", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1", "#14b8a6", "#e11d48", "#a855f7", "#38bdf8", "#22c55e"];
+  const uniqueComms = Array.from(new Set(articlePoints.map(p => p.community_name || 'General')));
+
   const articleTraces = [
     {
       x: articlePoints.map(p => p.umap_x),
@@ -92,18 +100,27 @@ export default function SemanticMapsPage() {
       mode: 'markers',
       marker: {
         size: 5,
-        color: articlePoints.map(p => p.publication_year || 2020),
-        colorscale: 'Turbo',
-        showscale: true,
+        color: artColorMode === 'year'
+          ? articlePoints.map(p => p.publication_year || 2020)
+          : artColorMode === 'community'
+          ? articlePoints.map(p => commPalette[Math.max(0, uniqueComms.indexOf(p.community_name || 'General')) % commPalette.length])
+          : '#0284c7',
+        colorscale: artColorMode === 'year' ? 'Turbo' : undefined,
+        showscale: artColorMode === 'year',
         opacity: 0.8
       },
-      text: articlePoints.map(p => `${p.title}<br>Revista: ${p.journal_name}<br>Año: ${p.publication_year} | FWCI: ${p.fwci}`),
+      text: articlePoints.map(p => `${p.title}<br>Revista: ${p.journal_name}<br>Comunidad: ${p.community_name || 'General'}<br>Año: ${p.publication_year} | FWCI: ${p.fwci}`),
       type: 'scatter',
-      name: 'Artículos'
+      name: t('maps.tab_articles')
     }
   ];
 
   if (convexHullPoints.length > 0) {
+    const hullLabel = artCountryFilter && artCountryFilter !== 'Todos'
+      ? artCountryFilter
+      : artCommFilter && artCommFilter !== 'Todas'
+      ? artCommFilter
+      : 'Global';
     articleTraces.push({
       x: convexHullPoints.map(p => p.x),
       y: convexHullPoints.map(p => p.y),
@@ -111,7 +128,7 @@ export default function SemanticMapsPage() {
       fill: 'toself',
       fillcolor: 'rgba(239, 68, 68, 0.15)',
       line: { color: '#ef4444', width: 2.5, dash: 'solid' },
-      name: `Envoltura Convexa (${artCountryFilter})`,
+      name: t('maps.hull_label', { entity: hullLabel }),
       type: 'scatter'
     });
   }
@@ -122,9 +139,9 @@ export default function SemanticMapsPage() {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h2 style={{ fontSize: '24px', fontWeight: '800' }}>🗺️ Mapas Semántico</h2>
+            <h2 style={{ fontSize: '24px', fontWeight: '800' }}>🗺️ {t('maps.title')}</h2>
             <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Proyección topológica continua del conocimiento científico (UMAP + Stopwords Trilingües + Baricentros + Envolturas Convexas).
+              {t('maps.subtitle')}
             </p>
           </div>
 
@@ -134,14 +151,14 @@ export default function SemanticMapsPage() {
               onClick={() => setEngine('webgl')}
               style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
             >
-              <Cpu size={14} /> ⚡ WebGL GPU (60 FPS)
+              <Cpu size={14} /> ⚡ {t('maps.gpu_badge')}
             </button>
             <button
               className={`segmented-pill-btn ${engine === 'plotly' ? 'active' : ''}`}
               onClick={() => setEngine('plotly')}
               style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
             >
-              <BarChart3 size={14} /> 📊 Plotly (2D Hull)
+              <BarChart3 size={14} /> 📊 {t('maps.plotly_badge')}
             </button>
           </div>
         </div>
@@ -153,14 +170,14 @@ export default function SemanticMapsPage() {
             onClick={() => setActiveTab('articles')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <FileText size={16} /> Artículos
+            <FileText size={16} /> {t('maps.tab_articles')}
           </button>
           <button
             className={`tab-btn ${activeTab === 'journals' ? 'active' : ''}`}
             onClick={() => setActiveTab('journals')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <BookOpen size={16} /> Revistas
+            <BookOpen size={16} /> {t('maps.tab_journals')}
           </button>
         </div>
       </div>
@@ -171,24 +188,24 @@ export default function SemanticMapsPage() {
           {/* Controls Bar */}
           <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', padding: '14px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>Color:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.color_label')}</span>
               <select
                 value={artColorMode}
                 onChange={(e) => setArtColorMode(e.target.value)}
               >
-                <option value="year">Año de Publicación (Turbo)</option>
-                <option value="community">Comunidad Temática</option>
-                <option value="uniform">Uniforme</option>
+                <option value="year">{t('maps.color_year')}</option>
+                <option value="community">{t('maps.color_community')}</option>
+                <option value="uniform">{t('maps.color_uniform')}</option>
               </select>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>País:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.country_label')}</span>
               <select
                 value={artCountryFilter}
                 onChange={(e) => setArtCountryFilter(e.target.value)}
               >
-                <option value="Todos">Todos los Países</option>
+                <option value="Todos">{t('maps.all_countries')}</option>
                 {filterCatalog.countries.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -196,12 +213,12 @@ export default function SemanticMapsPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>Comunidad:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.community_label')}</span>
               <select
                 value={artCommFilter}
                 onChange={(e) => setArtCommFilter(e.target.value)}
               >
-                <option value="Todas">Todas las Comunidades</option>
+                <option value="Todas">{t('maps.all_communities')}</option>
                 {filterCatalog.communities.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -209,14 +226,16 @@ export default function SemanticMapsPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>Muestra:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.sample_label')}</span>
               <select
                 value={artSampleLimit}
                 onChange={(e) => setArtSampleLimit(Number(e.target.value))}
               >
-                <option value={30000}>30,000 puntos</option>
-                <option value={50000}>50,000 puntos</option>
-                <option value={100000}>100,000 puntos</option>
+                <option value={0}>{t('maps.sample_all')}</option>
+                <option value={10000}>{t('maps.pts_10k')}</option>
+                <option value={30000}>{t('maps.pts_30k')}</option>
+                <option value={50000}>{t('maps.pts_50k')}</option>
+                <option value={100000}>{t('maps.pts_100k')}</option>
               </select>
             </div>
 
@@ -228,7 +247,7 @@ export default function SemanticMapsPage() {
                 onChange={(e) => setShowConvexHull(e.target.checked)}
               />
               <Pentagon size={14} color="#ef4444" />
-              <span>Envoltura Convexa (Convex Hull)</span>
+              <span>{t('maps.convex_hull')}</span>
             </label>
           </div>
 
@@ -236,6 +255,7 @@ export default function SemanticMapsPage() {
           {engine === 'webgl' ? (
             <WebGLCanvas
               points={articlePoints}
+              convexHull={showConvexHull ? convexHullPoints : []}
               colorMode={artColorMode}
               sizeMode="citations"
               height={700}
@@ -244,7 +264,7 @@ export default function SemanticMapsPage() {
             <div className="card">
               <PlotlyChart
                 data={articleTraces}
-                layout={{ height: 680, title: `Paisaje Temático de ${articlePoints.length.toLocaleString()} Artículos` }}
+                layout={{ height: 680, title: t('maps.landscape_title', { n: articlePoints.length.toLocaleString() }) }}
               />
             </div>
           )}
@@ -274,25 +294,25 @@ export default function SemanticMapsPage() {
           {/* Controls Bar */}
           <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', padding: '14px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>Color:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.color_label')}</span>
               <select
                 value={journalColorMode}
                 onChange={(e) => setJournalColorMode(e.target.value)}
               >
-                <option value="community">Comunidad Temática</option>
-                <option value="fwci">FWCI Promedio</option>
-                <option value="diamond">% OA Diamante</option>
-                <option value="country">País</option>
+                <option value="community">{t('maps.color_community')}</option>
+                <option value="fwci">{t('maps.color_fwci')}</option>
+                <option value="diamond">{t('maps.color_diamond')}</option>
+                <option value="country">{t('maps.color_country')}</option>
               </select>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>Comunidad:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.community_label')}</span>
               <select
                 value={journalCommFilter}
                 onChange={(e) => setJournalCommFilter(e.target.value)}
               >
-                <option value="Todas">Todas las Comunidades</option>
+                <option value="Todas">{t('maps.all_communities')}</option>
                 {filterCatalog.communities.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -300,12 +320,12 @@ export default function SemanticMapsPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>País:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.country_label')}</span>
               <select
                 value={journalCountryFilter}
                 onChange={(e) => setJournalCountryFilter(e.target.value)}
               >
-                <option value="Todos">Todos los Países</option>
+                <option value="Todos">{t('maps.all_countries')}</option>
                 {filterCatalog.countries.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}

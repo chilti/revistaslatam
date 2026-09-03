@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
+import { useTranslation } from '../i18n';
 import KpiCard from '../components/KpiCard';
 import PlotlyChart from '../components/PlotlyChart';
 import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
@@ -32,6 +33,7 @@ import {
 
 export default function RegionalPage() {
   const { addDossierItem } = useAppStore();
+  const { t } = useTranslation();
   
   // State
   const [kpis, setKpis] = useState(null);
@@ -77,18 +79,18 @@ export default function RegionalPage() {
   const [loading, setLoading] = useState(true);
 
   const MAP_INDICATORS = [
-    { id: 'num_journals', label: 'Número de Revistas' },
-    { id: 'num_documents', label: 'Artículos' },
-    { id: 'fwci_avg', label: 'FWCI Promedio' },
-    { id: 'pct_top_10', label: '% Top 10%' },
+    { id: 'num_journals', label: t('kpi.journals') },
+    { id: 'num_documents', label: t('common.works') },
+    { id: 'fwci_avg', label: t('kpi.fwci') },
+    { id: 'pct_top_10', label: t('kpi.top_10') },
     { id: 'pct_top_1', label: '% Top 1%' },
-    { id: 'pct_oa_diamond', label: '% OA Diamante' },
+    { id: 'pct_oa_diamond', label: `% ${t('common.diamond')}` },
     { id: 'pct_oa_total', label: '% OA Total' },
-    { id: 'pct_oa_gold', label: '% OA Gold' },
-    { id: 'pct_oa_green', label: '% OA Verde' },
-    { id: 'pct_oa_hybrid', label: '% OA Híbrido' },
-    { id: 'pct_oa_bronze', label: '% OA Bronce' },
-    { id: 'pct_oa_closed', label: '% Cerrado' },
+    { id: 'pct_oa_gold', label: `% ${t('common.gold')}` },
+    { id: 'pct_oa_green', label: `% ${t('common.green')}` },
+    { id: 'pct_oa_hybrid', label: `% ${t('common.hybrid')}` },
+    { id: 'pct_oa_bronze', label: `% ${t('common.bronze')}` },
+    { id: 'pct_oa_closed', label: `% ${t('common.closed')}` },
     { id: 'pct_lang_es', label: '% Idioma Español' },
     { id: 'pct_lang_en', label: '% Idioma Inglés' },
     { id: 'pct_lang_pt', label: '% Idioma Portugués' },
@@ -433,39 +435,39 @@ export default function RegionalPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       {/* Header & Title */}
       <div>
-        <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Panorama Regional (América Latina y el Caribe)</h2>
+        <h2 style={{ fontSize: '24px', fontWeight: '800' }}>{t('regional.title')}</h2>
         <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          Visión macro de la producción científica, brechas temporales, modelos de acceso abierto y cartografía temática.
+          {t('regional.subtitle')}
         </p>
       </div>
 
       {/* Top Contextual KPI Cards (Without duplicate FWCI) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
         <KpiCard
-          title="Revistas Indexadas"
+          title={t('kpi.journals')}
           value={kpis?.num_journals?.toLocaleString()}
-          subtitle="En OpenAlex Snapshot"
+          subtitle={t('kpi.journals_sub')}
           icon={BookOpen}
         />
         <KpiCard
-          title="Total Artículos"
+          title={t('kpi.works')}
           value={kpis?.total_works?.toLocaleString() || periods?.full_period?.num_documents?.toLocaleString()}
-          subtitle="Producción Histórica"
+          subtitle={t('kpi.works_sub')}
           icon={FileText}
         />
         <KpiCard
-          title="% OA Diamante"
+          title={t('kpi.diamond')}
           value={`${kpis?.pct_oa_diamond || periods?.full_period?.pct_oa_diamond || 67.0}%`}
-          subtitle="Sin cobro por APC"
+          subtitle={t('kpi.diamond_sub')}
           icon={Sparkles}
-          badge="Modelo Diamante"
+          badge="Diamante"
         />
         <KpiCard
           title="Revistas con Sello DOAJ"
           value={`${kpis?.pct_doaj || 34.2}%`}
           subtitle="Calidad Editorial Abierta"
           icon={ShieldCheck}
-          badge="Sello DOAJ"
+          badge="DOAJ"
         />
         <KpiCard
           title="% OA Total"
@@ -545,40 +547,40 @@ export default function RegionalPage() {
                   <span style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--text-main)' }}>
                     Periodo Completo: 0–2026
                   </span>
-                  <span className="badge" style={{ fontSize: '11px', background: 'var(--bg-card)' }}>Histórico</span>
+                  <span className="badge" style={{ fontSize: '11px', background: 'var(--bg-card)' }}>{t('regional.kpi_historical')}</span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_docs')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {fullDocs.toLocaleString()}
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_fwci')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-primary)', marginTop: '3px' }}>
                       {fullFwci.toFixed(2)}
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_top10')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {fullTop10.toFixed(3)}%
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_top1')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {fullTop1.toFixed(3)}%
                     </div>
                   </div>
 
                   <div style={{ gridColumn: 'span 2' }}>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_percentile')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {fullPerc.toFixed(1)}
                     </div>
@@ -607,14 +609,14 @@ export default function RegionalPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Documentos</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('tables.documents')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {recDocs.toLocaleString()}
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>FWCI Promedio</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_fwci')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-success)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {recFwci.toFixed(2)}
                       <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: '700' }}>
@@ -624,21 +626,21 @@ export default function RegionalPage() {
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 10%</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('tables.top10')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {recTop10.toFixed(3)}%
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>% Top 1%</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('tables.top1')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {recTop1.toFixed(3)}%
                     </div>
                   </div>
 
                   <div style={{ gridColumn: 'span 2' }}>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>Percentil Prom. Norm.</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_percentile')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-success)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       {recPerc.toFixed(1)}
                       <span style={{ fontSize: '11px', color: 'var(--accent-success)', fontWeight: '700' }}>
@@ -657,7 +659,7 @@ export default function RegionalPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>🗺️ Mapa Regional por Indicador</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('regional.map_section_title')}</h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               Distribución espacial y comparativa entre los 20 países latinoamericanos.
             </span>
@@ -869,7 +871,7 @@ export default function RegionalPage() {
                 checked={sunburstUnclassified}
                 onChange={(e) => setSunburstUnclassified(e.target.checked)}
               />
-              <span>Sin Clasificación</span>
+              <span>{t('tables.no_classification')}</span>
             </label>
           </div>
         </div>
@@ -898,10 +900,10 @@ export default function RegionalPage() {
             onChange={(e) => setDivergingInd(e.target.value)}
             style={{ fontWeight: '600' }}
           >
-            <option value="fwci_avg">FWCI (Base = 1.0 Mundial)</option>
-            <option value="pct_oa_diamond">% OA Diamante (Base = Media LATAM)</option>
-            <option value="pct_top_10">% Top 10% (Base = Media LATAM)</option>
-            <option value="pct_lang_en">% Inglés (Base = Media LATAM)</option>
+            <option value="fwci_avg">{t('regional.map_fwci')}</option>
+            <option value="pct_oa_diamond">{t('regional.map_oa_diamond')}</option>
+            <option value="pct_top_10">{t('regional.map_top10')}</option>
+            <option value="pct_lang_en">{t('regional.map_lang_en')}</option>
           </select>
         </div>
 
@@ -919,7 +921,7 @@ export default function RegionalPage() {
       {/* Thematic Profiles Table */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>🔬 Perfiles Temáticos de Países</h3>
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('regional.thematic_profiles_title')}</h3>
           
           <div className="segmented-pills">
             <button
@@ -973,8 +975,8 @@ export default function RegionalPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>⏳ Tendencias Anuales (1970–2026)</h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Evolución histórica de producción, impacto y modalidades de acceso abierto.</span>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('regional.annual_section_title')}</h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('regional.annual_section_desc')}</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -1102,8 +1104,8 @@ export default function RegionalPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>🏆 Tabla Comparativa por País (Ranking)</h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Desempeño general de los 20 países latinoamericanos.</span>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('regional.ranking_section_title')}</h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('regional.ranking_section_desc')}</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -1163,17 +1165,17 @@ export default function RegionalPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Código</th>
-                <th>País</th>
-                <th>Revistas</th>
-                <th>Documentos</th>
-                <th>FWCI</th>
-                <th>% Top 10%</th>
-                <th>% Top 1%</th>
-                <th>% OA Diamante</th>
-                <th>% OA Gold</th>
-                <th>% Español</th>
-                <th>% Inglés</th>
+                <th>{t('tables.code')}</th>
+                <th>{t('tables.country')}</th>
+                <th>{t('tables.journals')}</th>
+                <th>{t('tables.documents')}</th>
+                <th>{t('tables.fwci')}</th>
+                <th>{t('tables.top10')}</th>
+                <th>{t('tables.top1')}</th>
+                <th>{t('tables.oa_diamond')}</th>
+                <th>{t('tables.oa_gold')}</th>
+                <th>{t('tables.lang_es')}</th>
+                <th>{t('tables.lang_en')}</th>
               </tr>
             </thead>
             <tbody>
@@ -1201,19 +1203,19 @@ export default function RegionalPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>🎯 Explorador de Revistas — Scatter Plot Dinámico</h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Correlación interactiva entre indicadores bibliométricos para revistas latinoamericanas.</span>
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('regional.scatter_section_title')}</h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('regional.scatter_section_desc')}</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700' }}>Eje X:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700' }}>{t('regional.axis_x')}</span>
               <select value={scatterX} onChange={(e) => setScatterX(e.target.value)}>
                 {SCATTER_INDICATORS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700' }}>Eje Y:</span>
+              <span style={{ fontSize: '12px', fontWeight: '700' }}>{t('regional.axis_y')}</span>
               <select value={scatterY} onChange={(e) => setScatterY(e.target.value)}>
                 {SCATTER_INDICATORS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>

@@ -70,16 +70,38 @@ export const useAppStore = create((set, get) => ({
   // Navigation
   activeSection: initial.activeSection, // 'regional' | 'country' | 'journal' | 'maps' | 'networks' | 'about'
   setActiveSection: (section) => {
-    set({ activeSection: section });
+    set({ activeSection: section, mobileMenuOpen: false });
     const { selectedCountry, selectedJournalId } = get();
     syncUrlParams(section, selectedCountry, selectedJournalId);
   },
+
+  // Sidebar responsive & collapse state
+  sidebarCollapsed: typeof window !== 'undefined' ? localStorage.getItem('rl_sidebar_collapsed') === 'true' : false,
+  setSidebarCollapsed: (collapsed) => {
+    set({ sidebarCollapsed: collapsed });
+    try { localStorage.setItem('rl_sidebar_collapsed', String(collapsed)); } catch (e) {}
+  },
+  toggleSidebar: () => {
+    const next = !get().sidebarCollapsed;
+    set({ sidebarCollapsed: next });
+    try { localStorage.setItem('rl_sidebar_collapsed', String(next)); } catch (e) {}
+  },
+  mobileMenuOpen: false,
+  setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
+  toggleMobileMenu: () => set((state) => ({ mobileMenuOpen: !state.mobileMenuOpen })),
 
   // Theme: 'claro' | 'oscuro' | 'navy'
   theme: 'claro',
   setTheme: (theme) => {
     document.documentElement.setAttribute('data-theme', theme);
     set({ theme });
+  },
+
+  // Language: 'es' | 'pt' | 'en'
+  language: typeof window !== 'undefined' ? localStorage.getItem('rl_language') || 'es' : 'es',
+  setLanguage: (lang) => {
+    set({ language: lang });
+    try { localStorage.setItem('rl_language', lang); } catch (e) {}
   },
 
   // Country Selection

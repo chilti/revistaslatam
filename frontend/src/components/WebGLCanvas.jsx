@@ -1,11 +1,13 @@
+import { useTranslation } from '../i18n';
 import React, { useRef, useEffect, useState } from 'react';
 import { useAppStore } from '../store';
 import { Maximize2, ZoomIn, ZoomOut, RotateCcw, ExternalLink } from 'lucide-react';
 
-export default function WebGLCanvas({ points = [], colorMode = 'year', sizeMode = 'citations', height = 650 }) {
+export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 'year', sizeMode = 'citations', height = 650 }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const { theme } = useAppStore();
+  const { t } = useTranslation();
   
   const [tooltipData, setTooltipData] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -22,9 +24,12 @@ export default function WebGLCanvas({ points = [], colorMode = 'year', sizeMode 
     hoveredIdx: -1,
     gl: null,
     program: null,
+    hullProgram: null,
     posBuffer: null,
     colorBuffer: null,
     sizeBuffer: null,
+    hullPosBuffer: null,
+    hullCount: 0,
     total: 0,
     payload: null
   });
@@ -77,6 +82,28 @@ export default function WebGLCanvas({ points = [], colorMode = 'year', sizeMode 
       }
     `;
 
+    // Convex Hull shader (lines & solid polygon fill)
+    const vsHullSource = `
+      attribute vec2 a_position;
+      uniform vec2 u_resolution;
+      uniform vec2 u_translation;
+      uniform float u_zoom;
+      void main() {
+          vec2 pos = (a_position * u_zoom) + u_translation;
+          float aspect = u_resolution.x / u_resolution.y;
+          vec2 clipSpace = vec2(pos.x / aspect, pos.y);
+          gl_Position = vec4(clipSpace, 0.0, 1.0);
+      }
+    `;
+
+    const fsHullSource = `
+      precision mediump float;
+      uniform vec4 u_color;
+      void main() {
+          gl_FragColor = u_color;
+      }
+    `;
+
     function createShader(gl, type, source) {
       const shader = gl.createShader(type);
       gl.shaderSource(shader, source);
@@ -88,7 +115,11 @@ export default function WebGLCanvas({ points = [], colorMode = 'year', sizeMode 
     gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vsSource));
     gl.attachShader(program, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
     gl.linkProgram(program);
-    gl.useProgram(program);
+
+    const hullProgram = gl.createProgram();
+    gl.attachShader(hullProgram, createShader(gl, gl.VERTEX_SHADER, vsHullSource));
+    gl.attachShader(hullProgram, createShader(gl, gl.FRAGMENT_SHADER, fsHullSource));
+    gl.linkProgram(hullProgram);
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -174,22 +205,43 @@ export default function WebGLCanvas({ points = [], colorMode = 'year', sizeMode 
     gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, sizeData, gl.STATIC_DRAW);
 
+    // Convex Hull Buffer
+    let hullCount = 0;
+    let hullPosBuffer = null;
+    if (convexHull && convexHull.length >= 3) {
+      const hTotal = convexHull.length;
+      const hPosData = new Float32Array(hTotal * 2);
+      for (let i = 0; i < hTotal; i++) {
+        const hx = Number(convexHull[i].x) || 0;
+        const hy = Number(convexHull[i].y) || 0;
+        hPosData[i * 2] = ((hx - minX) / spanX) * 1.8 - 0.9;
+        hPosData[i * 2 + 1] = ((hy - minY) / spanY) * 1.8 - 0.9;
+      }
+      hullPosBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, hullPosBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, hPosData, gl.STATIC_DRAW);
+      hullCount = hTotal;
+    }
+
     stateRef.current.program = program;
+    stateRef.current.hullProgram = hullProgram;
     stateRef.current.posBuffer = posBuffer;
     stateRef.current.colorBuffer = colorBuffer;
     stateRef.current.sizeBuffer = sizeBuffer;
+    stateRef.current.hullPosBuffer = hullPosBuffer;
+    stateRef.current.hullCount = hullCount;
     stateRef.current.total = total;
     stateRef.current.payload = { posData, points };
     setRenderCount(total);
 
     render();
-  }, [points, colorMode, sizeMode, theme]);
+  }, [points, convexHull, colorMode, sizeMode, theme]);
 
   const render = () => {
     const s = stateRef.current;
     const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!s.gl || !canvas || !container) return;
+    if (!s.gl || !canvas || !container || !s.program) return;
 
     const width = container.clientWidth;
     const height = container.clientHeight;
@@ -202,6 +254,35 @@ export default function WebGLCanvas({ points = [], colorMode = 'year', sizeMode 
     const gl = s.gl;
     gl.clearColor(clearColor[0], clearColor[1], clearColor[2], 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // 1. Draw Convex Hull if available (behind the points)
+    if (s.hullProgram && s.hullPosBuffer && s.hullCount >= 3) {
+      gl.useProgram(s.hullProgram);
+      const uResH = gl.getUniformLocation(s.hullProgram, 'u_resolution');
+      const uTransH = gl.getUniformLocation(s.hullProgram, 'u_translation');
+      const uZoomH = gl.getUniformLocation(s.hullProgram, 'u_zoom');
+      const uColorH = gl.getUniformLocation(s.hullProgram, 'u_color');
+
+      gl.uniform2f(uResH, canvas.width, canvas.height);
+      gl.uniform2f(uTransH, s.transX, s.transY);
+      gl.uniform1f(uZoomH, s.zoom);
+
+      const aPosH = gl.getAttribLocation(s.hullProgram, 'a_position');
+      gl.bindBuffer(gl.ARRAY_BUFFER, s.hullPosBuffer);
+      gl.enableVertexAttribArray(aPosH);
+      gl.vertexAttribPointer(aPosH, 2, gl.FLOAT, false, 0, 0);
+
+      // Filled translucent polygon
+      gl.uniform4f(uColorH, 0.937, 0.267, 0.267, 0.18);
+      gl.drawArrays(gl.TRIANGLE_FAN, 0, s.hullCount);
+
+      // Crisp perimeter line
+      gl.uniform4f(uColorH, 0.937, 0.267, 0.267, 0.95);
+      gl.drawArrays(gl.LINE_LOOP, 0, s.hullCount);
+    }
+
+    // 2. Draw Points
+    gl.useProgram(s.program);
 
     const uRes = gl.getUniformLocation(s.program, 'u_resolution');
     const uTrans = gl.getUniformLocation(s.program, 'u_translation');
@@ -376,7 +457,7 @@ export default function WebGLCanvas({ points = [], colorMode = 'year', sizeMode 
         color: 'var(--text-main)',
         boxShadow: '0 4px 16px rgba(0,0,0,0.06)'
       }}>
-        <span>⚡ WebGL GPU: <strong style={{ color: 'var(--accent-primary)' }}>{renderCount.toLocaleString()} puntos</strong></span>
+        <span>{t('webgl.gpu_badge')}</span>
         <button
           onClick={handleRecenter}
           style={{
@@ -396,7 +477,7 @@ export default function WebGLCanvas({ points = [], colorMode = 'year', sizeMode 
           <RotateCcw size={11} /> Recentrar
         </button>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-          Rueda: Zoom • Arrastrar: Pan • <strong style={{ color: '#f59e0b' }}>🖱️ Clic Derecho: Abrir en OpenAlex ↗</strong>
+          {t('webgl.controls_hint')}
         </span>
       </div>
 

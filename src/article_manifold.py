@@ -306,6 +306,27 @@ def project_articles_umap(
     
     if HAS_CUML and use_gpu:
         try:
+            input_data = embeddings
+            if embeddings.shape[1] > 64 and n_samples > 50000:
+                print(f"  -> ⚡ [GPU cuML] Reduciendo espacio vectorial ({embeddings.shape[1]}d -> 64d) por lotes en {CUDA_DEVICE_NAME}...")
+                sample_sz = min(100000, n_samples)
+                sample_idx = np.random.choice(n_samples, size=sample_sz, replace=False)
+                svd = GPU_TruncatedSVD(n_components=64, random_state=random_state)
+                svd.fit(np.asarray(embeddings[sample_idx], dtype=np.float32))
+                
+                reduced_data = np.zeros((n_samples, 64), dtype=np.float32)
+                b_size = 250000
+                for b_i in range(0, n_samples, b_size):
+                    b_chunk = np.asarray(embeddings[b_i:b_i + b_size], dtype=np.float32)
+                    b_trans = svd.transform(b_chunk)
+                    if hasattr(b_trans, 'to_numpy'):
+                        b_trans = b_trans.to_numpy()
+                    elif hasattr(b_trans, 'values'):
+                        b_trans = b_trans.values
+                    reduced_data[b_i:b_i + b_size] = b_trans
+                input_data = reduced_data
+                print(f"  ✅ Reducción previa a 64d completada para {n_samples:,} artículos.")
+
             print(f"  -> 🚀 [GPU cuML] Ejecutando UMAP 2D acelerado en {CUDA_DEVICE_NAME} ({n_samples:,} artículos)...")
             reducer = GPU_UMAP(
                 n_components=n_components,
@@ -317,7 +338,7 @@ def project_articles_umap(
                 metric=metric,
                 random_state=random_state
             )
-            coords = reducer.fit_transform(embeddings)
+            coords = reducer.fit_transform(input_data)
             if hasattr(coords, 'to_numpy'):
                 coords = coords.to_numpy()
             elif hasattr(coords, 'values'):
@@ -335,7 +356,7 @@ def project_articles_umap(
         repulsion_strength=repulsion_strength,
         negative_sample_rate=negative_sample_rate,
         metric=metric,
-        random_state=random_state,
+        random_state=None,
         n_jobs=-1
     )
     coords = reducer.fit_transform(embeddings)
@@ -359,11 +380,32 @@ def detect_article_communities(embeddings_or_coords, n_clusters=12, min_cluster_
     data_latent = data
     if data.shape[1] > 5:
         print(f"  -> Reduciendo a espacio latente 5D (UMAP) para clustering de densidad...")
+        input_5d = data
+        if data.shape[1] > 64 and n_samples > 50000 and HAS_CUML and use_gpu:
+            try:
+                sample_sz = min(100000, n_samples)
+                sample_idx = np.random.choice(n_samples, size=sample_sz, replace=False)
+                svd_pre = GPU_TruncatedSVD(n_components=64, random_state=42)
+                svd_pre.fit(np.asarray(data[sample_idx], dtype=np.float32))
+                reduced_5d = np.zeros((n_samples, 64), dtype=np.float32)
+                b_size = 250000
+                for b_i in range(0, n_samples, b_size):
+                    b_chunk = np.asarray(data[b_i:b_i + b_size], dtype=np.float32)
+                    b_trans = svd_pre.transform(b_chunk)
+                    if hasattr(b_trans, 'to_numpy'):
+                        b_trans = b_trans.to_numpy()
+                    elif hasattr(b_trans, 'values'):
+                        b_trans = b_trans.values
+                    reduced_5d[b_i:b_i + b_size] = b_trans
+                input_5d = reduced_5d
+            except Exception as e:
+                pass
+
         if HAS_CUML and use_gpu:
             try:
                 print(f"  -> 🚀 [GPU cuML] Proyectando a espacio latente 5D en {CUDA_DEVICE_NAME}...")
                 reducer_5d = GPU_UMAP(n_components=5, n_neighbors=15, min_dist=0.0, metric='cosine', random_state=42)
-                data_latent = reducer_5d.fit_transform(data)
+                data_latent = reducer_5d.fit_transform(input_5d)
                 if hasattr(data_latent, 'to_numpy'):
                     data_latent = data_latent.to_numpy()
                 elif hasattr(data_latent, 'values'):
@@ -372,13 +414,13 @@ def detect_article_communities(embeddings_or_coords, n_clusters=12, min_cluster_
                 print(f"  ✅ Proyección latente 5D (GPU) completada: {data_latent.shape}")
             except Exception as e:
                 print(f"  -> ⚠️ GPU 5D notice ({e}). Cayendo en CPU UMAP 5D paralelizado...")
-                reducer_5d = UMAP(n_components=5, n_neighbors=15, min_dist=0.0, metric='cosine', random_state=42, n_jobs=-1)
+                reducer_5d = UMAP(n_components=5, n_neighbors=15, min_dist=0.0, metric='cosine', random_state=None, n_jobs=-1)
                 data_latent = reducer_5d.fit_transform(data)
                 data_latent = np.asarray(data_latent, dtype=np.float32)
                 print(f"  ✅ Proyección latente 5D (CPU) completada: {data_latent.shape}")
         else:
             try:
-                reducer_5d = UMAP(n_components=5, n_neighbors=15, min_dist=0.0, metric='cosine', random_state=42, n_jobs=-1)
+                reducer_5d = UMAP(n_components=5, n_neighbors=15, min_dist=0.0, metric='cosine', random_state=None, n_jobs=-1)
                 data_latent = reducer_5d.fit_transform(data)
                 data_latent = np.asarray(data_latent, dtype=np.float32)
                 print(f"  ✅ Proyección latente 5D (CPU) completada: {data_latent.shape}")

@@ -25,33 +25,78 @@ from pipeline_revistaslatam.export_articles_openalex import (
     normalize_id
 )
 
+# Integración con TlachIA Metrics Engine y dependencias
+def _get_metrics_engine():
+    """Importa e inicializa dinámicamente TlachIAMetricsEngine asegurando los paths de dependencias."""
+    REVISTASLATAM_PACKAGES = Path("/home/ambientesPy/revistaslatam/lib/python3.12/site-packages").resolve()
+    if str(REVISTASLATAM_PACKAGES) not in sys.path and REVISTASLATAM_PACKAGES.exists():
+        sys.path.insert(0, str(REVISTASLATAM_PACKAGES))
+
+    TLACHIA_PATH = Path("/mnt/expansion/desplegados/TlachIA-Metrics").resolve()
+    if str(TLACHIA_PATH) not in sys.path and TLACHIA_PATH.exists():
+        sys.path.insert(0, str(TLACHIA_PATH))
+
+    try:
+        from openalex_indicators_engine.engine import TlachIAMetricsEngine
+        return TlachIAMetricsEngine()
+    except Exception as e:
+        raise RuntimeError(f"No se pudo inicializar TlachIAMetricsEngine: {e}")
+
 router = APIRouter(prefix="/api/exports", tags=["Exportaciones Asíncronas"])
 
 EXPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "exports"
 EXPORTS_DIR.mkdir(exist_ok=True)
 
-# In-memory registry of export jobs
-# Structure:
-# {
-#   job_id: {
-#     "id": str,
-#     "title": str,
-#     "format": "json" | "csv" | "jsonl",
-#     "status": "pending" | "processing" | "completed" | "failed",
-#     "progress": int,
-#     "total": int,
-#     "pct": float,
-#     "filename": str,
-#     "filepath": str,
-#     "filesize_bytes": int,
-#     "filesize_mb": float,
-#     "created_at": float,
-#     "completed_at": Optional[float],
-#     "error": Optional[str]
-#   }
-# }
-JOBS: Dict[str, Dict[str, Any]] = {}
+JOBS_REGISTRY_FILE = EXPORTS_DIR / "jobs_registry.json"
 JOBS_LOCK = threading.Lock()
+
+
+def _load_all_jobs() -> Dict[str, Dict[str, Any]]:
+    """Carga todos los jobs desde el registro en disco de forma segura."""
+    if not JOBS_REGISTRY_FILE.exists():
+        return {}
+    try:
+        with open(JOBS_REGISTRY_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_job_record(job_info: Dict[str, Any]):
+    """Guarda o actualiza un job en el registro en disco de forma atómica."""
+    with JOBS_LOCK:
+        jobs = _load_all_jobs()
+        jobs[job_info["id"]] = job_info
+        temp_file = JOBS_REGISTRY_FILE.with_suffix(".tmp")
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(jobs, f, ensure_ascii=False, indent=2)
+            temp_file.replace(JOBS_REGISTRY_FILE)
+        except Exception:
+            pass
+
+
+def _get_job_record(job_id: str) -> Optional[Dict[str, Any]]:
+    """Obtiene un job específico por ID."""
+    jobs = _load_all_jobs()
+    return jobs.get(job_id)
+
+
+def _delete_job_record(job_id: str) -> bool:
+    """Elimina un job del registro en disco."""
+    with JOBS_LOCK:
+        jobs = _load_all_jobs()
+        if job_id in jobs:
+            del jobs[job_id]
+            temp_file = JOBS_REGISTRY_FILE.with_suffix(".tmp")
+            try:
+                with open(temp_file, "w", encoding="utf-8") as f:
+                    json.dump(jobs, f, ensure_ascii=False, indent=2)
+                temp_file.replace(JOBS_REGISTRY_FILE)
+                return True
+            except Exception:
+                pass
+    return False
 
 
 class ExportRequest(BaseModel):
@@ -59,17 +104,19 @@ class ExportRequest(BaseModel):
     country_code: Optional[str] = None
     year_min: Optional[int] = None
     year_max: Optional[int] = None
-    format: str = "json"  # "json", "csv", "jsonl"
+    format: str = "json"  # "json", "csv", "jsonl", "metrics"
     limit: Optional[int] = None
     title: Optional[str] = None
 
 
 def run_export_job(job_id: str, req_data: Dict[str, Any]):
     """Background worker function executing the full export pipeline."""
-    with JOBS_LOCK:
-        if job_id not in JOBS:
-            return
-        JOBS[job_id]["status"] = "processing"
+    job_info = _get_job_record(job_id)
+    if not job_info:
+        return
+
+    job_info["status"] = "processing"
+    _save_job_record(job_info)
 
     try:
         journal_id = req_data.get("journal_id")
@@ -91,17 +138,63 @@ def run_export_job(job_id: str, req_data: Dict[str, Any]):
 
         total_works = len(work_ids)
         if total_works == 0:
-            with JOBS_LOCK:
-                JOBS[job_id]["status"] = "failed"
-                JOBS[job_id]["error"] = "No se encontraron artículos para exportar con los filtros indicados."
+            job_info["status"] = "failed"
+            job_info["error"] = "No se encontraron artículos para exportar con los filtros indicados."
+            _save_job_record(job_info)
             return
 
-        with JOBS_LOCK:
-            JOBS[job_id]["total"] = total_works
-            JOBS[job_id]["progress"] = 0
-            JOBS[job_id]["pct"] = 0.0
+        job_info["total"] = total_works
+        job_info["progress"] = 0
+        job_info["pct"] = 0.0
+        _save_job_record(job_info)
 
-        # 2. Fetch full OpenAlex records concurrently
+        safe_title = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in title_hint)[:40]
+        year_tag = f"_{year_min}_{year_max}" if (year_min or year_max) else "_todos"
+
+        # ── Caso Especial: Cálculo de Métricas Cienciométricas TlachIA (ZIP) ───
+        if fmt in ("metrics", "zip", "tlachia"):
+            engine = _get_metrics_engine()
+            job_info["pct"] = 5.0
+            _save_job_record(job_info)
+
+            # Carga del corpus directamente desde los IDs normalizados
+            df_corpus = engine.load_corpus(work_ids)
+            
+            def progress_cb(pct, msg):
+                rec = _get_job_record(job_id)
+                if rec:
+                    rec["pct"] = round(float(pct), 1)
+                    rec["progress"] = int((float(pct) / 100.0) * total_works)
+                    _save_job_record(rec)
+
+            pkg_name = f"metricas_{safe_title}{year_tag}_{job_id[:8]}"
+            out_pkg_dir = EXPORTS_DIR / pkg_name
+            
+            res_pkg = engine.process_and_export_package(
+                df=df_corpus,
+                package_name=pkg_name,
+                output_dir=out_pkg_dir,
+                export_parquet=True,
+                export_json=True,
+                progress_callback=progress_cb
+            )
+
+            zip_path = Path(res_pkg["zip_path"])
+            file_size = zip_path.stat().st_size
+            file_size_mb = round(file_size / (1024 * 1024), 2)
+
+            job_info["status"] = "completed"
+            job_info["progress"] = total_works
+            job_info["pct"] = 100.0
+            job_info["filename"] = zip_path.name
+            job_info["filepath"] = str(zip_path)
+            job_info["filesize_bytes"] = file_size
+            job_info["filesize_mb"] = file_size_mb
+            job_info["completed_at"] = time.time()
+            _save_job_record(job_info)
+            return
+
+        # 2. Fetch full OpenAlex records concurrently para JSON / CSV / JSONL
         works = []
         max_workers = 16
         completed_count = 0
@@ -117,20 +210,19 @@ def run_export_job(job_id: str, req_data: Dict[str, Any]):
                     works.append(res)
                 completed_count += 1
                 if completed_count % 10 == 0 or completed_count == total_works:
-                    with JOBS_LOCK:
-                        JOBS[job_id]["progress"] = completed_count
-                        JOBS[job_id]["pct"] = round((completed_count / total_works) * 100, 1)
+                    rec = _get_job_record(job_id)
+                    if rec:
+                        rec["progress"] = completed_count
+                        rec["pct"] = round((completed_count / total_works) * 100, 1)
+                        _save_job_record(rec)
 
         if not works:
-            with JOBS_LOCK:
-                JOBS[job_id]["status"] = "failed"
-                JOBS[job_id]["error"] = "No se pudieron descargar los registros desde OpenAlex local."
+            job_info["status"] = "failed"
+            job_info["error"] = "No se pudieron descargar los registros desde OpenAlex local."
+            _save_job_record(job_info)
             return
 
-        # 3. Write file to disk (Compressed JSON/JSONL with gzip)
-        safe_title = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in title_hint)[:40]
-        year_tag = f"_{year_min}_{year_max}" if (year_min or year_max) else "_todos"
-
+        # 3. Write file to disk (Compressed JSON/JSONL with gzip / CSV)
         import gzip
         if fmt == "csv":
             filename = f"openalex_{safe_title}{year_tag}_{job_id[:8]}.csv"
@@ -155,20 +247,22 @@ def run_export_job(job_id: str, req_data: Dict[str, Any]):
         file_size = filepath.stat().st_size
         file_size_mb = round(file_size / (1024 * 1024), 2)
 
-        with JOBS_LOCK:
-            JOBS[job_id]["status"] = "completed"
-            JOBS[job_id]["progress"] = total_works
-            JOBS[job_id]["pct"] = 100.0
-            JOBS[job_id]["filename"] = filename
-            JOBS[job_id]["filepath"] = str(filepath)
-            JOBS[job_id]["filesize_bytes"] = file_size
-            JOBS[job_id]["filesize_mb"] = file_size_mb
-            JOBS[job_id]["completed_at"] = time.time()
+        job_info["status"] = "completed"
+        job_info["progress"] = total_works
+        job_info["pct"] = 100.0
+        job_info["filename"] = filename
+        job_info["filepath"] = str(filepath)
+        job_info["filesize_bytes"] = file_size
+        job_info["filesize_mb"] = file_size_mb
+        job_info["completed_at"] = time.time()
+        _save_job_record(job_info)
 
     except Exception as e:
-        with JOBS_LOCK:
-            JOBS[job_id]["status"] = "failed"
-            JOBS[job_id]["error"] = str(e)
+        rec = _get_job_record(job_id) or job_info
+        if rec:
+            rec["status"] = "failed"
+            rec["error"] = str(e)
+            _save_job_record(rec)
 
 
 @router.post("/start")
@@ -194,8 +288,7 @@ def start_export_job(req: ExportRequest, background_tasks: BackgroundTasks):
         "error": None
     }
 
-    with JOBS_LOCK:
-        JOBS[job_id] = job_info
+    _save_job_record(job_info)
 
     # Launch background thread
     threading.Thread(
@@ -215,27 +308,26 @@ def start_export_job(req: ExportRequest, background_tasks: BackgroundTasks):
 @router.get("/status/{job_id}")
 def get_export_status(job_id: str):
     """Polls the real-time progress and completion state of an export job."""
-    with JOBS_LOCK:
-        if job_id not in JOBS:
-            raise HTTPException(status_code=404, detail="Trabajo de exportación no encontrado")
-        return JOBS[job_id]
+    job = _get_job_record(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Trabajo de exportación no encontrado")
+    return job
 
 
 @router.get("/list")
 def list_exports():
     """Returns the list of recent export jobs sorted by most recent first."""
-    with JOBS_LOCK:
-        jobs_list = sorted(list(JOBS.values()), key=lambda x: x.get("created_at", 0), reverse=True)
-        return jobs_list[:50]
+    all_jobs = _load_all_jobs()
+    jobs_list = sorted(list(all_jobs.values()), key=lambda x: x.get("created_at", 0), reverse=True)
+    return jobs_list[:50]
 
 
 @router.get("/download/{job_id}")
 def download_export_file(job_id: str):
     """Downloads the generated file when the export job is completed."""
-    with JOBS_LOCK:
-        if job_id not in JOBS:
-            raise HTTPException(status_code=404, detail="Trabajo de exportación no encontrado")
-        job = JOBS[job_id]
+    job = _get_job_record(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Trabajo de exportación no encontrado")
 
     if job["status"] != "completed":
         raise HTTPException(status_code=400, detail=f"El archivo aún no está listo. Estado actual: {job['status']}")
@@ -244,7 +336,9 @@ def download_export_file(job_id: str):
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="El archivo generado ya no existe en el servidor.")
 
-    if job["filename"].endswith(".gz"):
+    if job["filename"].endswith(".zip") or job["format"] in ("metrics", "zip", "tlachia"):
+        media_type = "application/zip"
+    elif job["filename"].endswith(".gz"):
         media_type = "application/gzip"
     elif job["format"] == "csv":
         media_type = "text/csv; charset=utf-8"
@@ -261,10 +355,11 @@ def download_export_file(job_id: str):
 @router.delete("/{job_id}")
 def delete_export_job(job_id: str):
     """Removes an export job and deletes its file if exists."""
-    with JOBS_LOCK:
-        if job_id not in JOBS:
-            raise HTTPException(status_code=404, detail="Trabajo no encontrado")
-        job = JOBS.pop(job_id)
+    job = _get_job_record(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Trabajo no encontrado")
+
+    _delete_job_record(job_id)
 
     if job.get("filepath"):
         fp = Path(job["filepath"])
@@ -275,3 +370,5 @@ def delete_export_job(job_id: str):
                 pass
 
     return {"deleted": True, "job_id": job_id}
+
+

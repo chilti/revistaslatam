@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAppStore } from '../store';
+import { useTranslation } from '../i18n';
 import { 
   Bot, 
   Sparkles, 
@@ -28,6 +29,7 @@ export default function PageDossierExpander({
   sections = [] // Array of { id, title, category, defaultChecked, buildDataText, rawData }
 }) {
   const { addDossierItem, dossierItems, setDossierOpen, requireAuth } = useAppStore();
+  const { t } = useTranslation();
   
   // Open / Close Expander State (open by default so users see it, or toggleable)
   const [isOpen, setIsOpen] = useState(true);
@@ -385,7 +387,7 @@ export default function PageDossierExpander({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>Medidor de Longitud para Envío Directo a ChatGPT:</span>
+                <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{t('dossier.char_counter')}</span>
                 <span style={{ color: 'var(--text-muted)' }}>
                   ({charCount.toLocaleString()} / {MAX_CHATGPT_URL_CHARS.toLocaleString()} caracteres recomendados para URL)
                 </span>
@@ -489,7 +491,7 @@ export default function PageDossierExpander({
               }}
             >
               {addedToDossier ? <CheckCircle2 size={16} /> : <BookmarkPlus size={16} color="var(--accent-primary)" />}
-              {addedToDossier ? '¡Guardado en Contexto IA!' : '📌 Guardar Selección en Contexto IA'}
+              {addedToDossier ? t('common.in_dossier') : `📌 ${t('buttons.save_selection_ai')}`}
             </button>
 
             {/* Right: ChatGPT & Export Action Buttons */}
@@ -518,7 +520,7 @@ export default function PageDossierExpander({
                 }}
               >
                 {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                {copied ? '¡Copiado para ChatGPT!' : '📋 Copiar Texto para ChatGPT'}
+                {copied ? '¡Copiado!' : `📋 ${t('buttons.copy_chatgpt')}`}
               </button>
 
               {/* Direct Open in ChatGPT (URL limited) */}

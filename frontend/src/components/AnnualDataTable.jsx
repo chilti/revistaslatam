@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n';
 import React, { useState, useMemo } from 'react';
 import { Download, ChevronDown, ChevronUp, FileSpreadsheet } from 'lucide-react';
 
@@ -16,6 +17,7 @@ export default function AnnualDataTable({
   title = null, 
   subtitle = null 
 }) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(true);
   const [activeWindow, setActiveWindow] = useState(0); // 0 = raw, 3 = w3, 5 = w5
   const [sortField, setSortField] = useState('year');
@@ -228,7 +230,7 @@ export default function AnnualDataTable({
             disabled={processedData.length === 0}
           >
             <Download size={14} />
-            <span>Descargar CSV</span>
+            <span>{t('tables.download_csv')}</span>
           </button>
           {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </div>

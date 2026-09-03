@@ -1,3 +1,4 @@
+import { useTranslation } from '../i18n';
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
@@ -10,6 +11,7 @@ const LEVEL_CONFIG = [
 ];
 
 export default function CountryThematicProfilesTable({ countryCode, countryName }) {
+  const { t } = useTranslation();
   const { setSelectedJournal, setActiveSection } = useAppStore();
   const [level, setLevel] = useState('domain');
   const [profilesData, setProfilesData] = useState({ columns: [], data: [] });
@@ -127,9 +129,9 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
               onChange={e => setLimit(Number(e.target.value))}
               style={{ fontSize: '13px', padding: '6px 10px', borderRadius: '8px' }}
             >
-              <option value={30}>Top 30</option>
-              <option value={100}>Top 100</option>
-              <option value={500}>Top 500</option>
+              <option value={30}>{t('thematic_table.top_30')}</option>
+              <option value={100}>{t('thematic_table.top_100')}</option>
+              <option value={500}>{t('thematic_table.top_500')}</option>
               <option value={0}>Todas ({(profilesData.data || []).length})</option>
             </select>
           </div>
@@ -142,7 +144,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
           disabled={!profilesData.data || profilesData.data.length === 0}
         >
           <Download size={15} />
-          <span>Descargar CSV</span>
+          <span>{t('thematic_table.download_csv')}</span>
         </button>
       </div>
 
@@ -150,7 +152,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
           <div className="spinner" style={{ margin: '0 auto 10px' }} />
-          <span>Cargando matriz de perfiles temáticos...</span>
+          <span>{t('thematic_table.loading_profiles')}</span>
         </div>
       ) : filteredData.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
@@ -208,7 +210,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
 
       <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
         <span>Mostrando {filteredData.length} de {(profilesData.data || []).length} revistas ordenadas por volumen total.</span>
-        <span>Nivel: {LEVEL_CONFIG.find(l => l.id === level)?.label}</span>
+        <span>{t('thematic_table.level_label')} {LEVEL_CONFIG.find(l => l.id === level)?.label}</span>
       </div>
     </div>
   );

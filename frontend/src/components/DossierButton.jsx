@@ -1,6 +1,7 @@
 import React from 'react';
 import { PlusCircle, Check } from 'lucide-react';
 import { useAppStore } from '../store';
+import { useTranslation } from '../i18n';
 
 /**
  * Botón reutilizable "Guardar en Dossier".
@@ -8,11 +9,12 @@ import { useAppStore } from '../store';
  *
  * Props:
  *   item  – { key, title, context, category, data }
- *   label – texto del botón (por defecto "Guardar")
+ *   label – texto del botón (opcional)
  *   compact – si true, solo muestra el ícono
  */
-export default function DossierButton({ item, label = 'Guardar en Contexto IA', compact = false }) {
+export default function DossierButton({ item, label, compact = false }) {
   const { addDossierItem, dossierItems } = useAppStore();
+  const { t } = useTranslation();
   const [saved, setSaved] = React.useState(false);
 
   const alreadySaved = dossierItems.some(d => d.key === item?.key);
@@ -25,11 +27,13 @@ export default function DossierButton({ item, label = 'Guardar en Contexto IA', 
   };
 
   const isActive = saved || alreadySaved;
+  const buttonLabel = label || t('common.add_dossier');
+  const savedLabel = t('common.in_dossier');
 
   return (
     <button
       onClick={handleClick}
-      title={isActive ? 'Ya en Contexto para IA' : `Guardar en Contexto para IA: ${item?.title || ''}`}
+      title={isActive ? t('common.in_dossier') : `${t('common.add_dossier')}: ${item?.title || ''}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -53,7 +57,8 @@ export default function DossierButton({ item, label = 'Guardar en Contexto IA', 
       {isActive
         ? <Check size={12} />
         : <PlusCircle size={12} />}
-      {!compact && (isActive ? 'Guardado' : label)}
+      {!compact && (isActive ? savedLabel : buttonLabel)}
     </button>
   );
 }
+
