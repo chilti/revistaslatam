@@ -178,15 +178,15 @@ def process_country_parallel(args):
     period_metrics['country_code'] = country_code
     period_metrics['period'] = f'{start_year}-{end_year}'
     
-    # Period metrics (Recent: 2021-2025)
+    # Period metrics (Recent: 2016-2025)
     period_recent_works = country_works[
-        (country_works['publication_year'] >= 2021) & 
+        (country_works['publication_year'] >= 2016) & 
         (country_works['publication_year'] <= 2025)
     ]
     period_recent_metrics = calculate_performance_metrics_from_df(period_recent_works)
     period_recent_metrics.update(journal_metrics)
     period_recent_metrics['country_code'] = country_code
-    period_recent_metrics['period'] = '2021-2025'
+    period_recent_metrics['period'] = '2016-2025'
     
     return country_code, annual_metrics_df, period_metrics, period_recent_metrics
 
@@ -237,14 +237,14 @@ def process_journal_parallel(args):
     period_metrics['period'] = f'{start_year}-{end_year}'
     period_metrics.update(journal_indexing)
     
-    # Period metrics (Recent: 2021-2025)
+    # Period metrics (Recent: 2016-2025)
     period_recent_works = journal_works[
-        (journal_works['publication_year'] >= 2021) & 
+        (journal_works['publication_year'] >= 2016) & 
         (journal_works['publication_year'] <= 2025)
     ]
     period_recent_metrics = calculate_performance_metrics_from_df(period_recent_works)
     period_recent_metrics['journal_id'] = journal_id
-    period_recent_metrics['period'] = '2021-2025'
+    period_recent_metrics['period'] = '2016-2025'
     period_recent_metrics.update(journal_indexing)
     
     return annual_metrics_df, period_metrics, period_recent_metrics
@@ -326,12 +326,12 @@ def main():
     latam_period['period'] = f'{start_year}-{end_year}'
     pd.DataFrame([latam_period]).to_parquet(cache_dir / 'metrics_latam_period.parquet', index=False)
 
-    # Period (Recent: 2021-2025)
-    recent_works = works_df[(works_df['publication_year'] >= 2021) & (works_df['publication_year'] <= 2025)]
+    # Period (Recent: 2016-2025)
+    recent_works = works_df[(works_df['publication_year'] >= 2016) & (works_df['publication_year'] <= 2025)]
     latam_recent = calculate_performance_metrics_from_df(recent_works)
     latam_recent.update(journal_metrics)
-    latam_recent['period'] = '2021-2025'
-    pd.DataFrame([latam_recent]).to_parquet(cache_dir / 'metrics_latam_period_2021_2025.parquet', index=False)
+    latam_recent['period'] = '2016-2025'
+    pd.DataFrame([latam_recent]).to_parquet(cache_dir / 'metrics_latam_period_2016_2025.parquet', index=False)
     
     latam_time = time.time() - latam_start
     print(f"  ✓ LATAM metrics completed in {latam_time:.1f}s")
@@ -383,8 +383,8 @@ def main():
 
     if country_recent_list:
         country_recent_df = pd.DataFrame(country_recent_list)
-        country_recent_df.to_parquet(cache_dir / 'metrics_country_period_2021_2025.parquet', index=False)
-        print(f"  ✓ Saved country recent period metrics (2021-2025): {len(country_recent_df)} countries")
+        country_recent_df.to_parquet(cache_dir / 'metrics_country_period_2016_2025.parquet', index=False)
+        print(f"  ✓ Saved country recent period metrics (2016-2025): {len(country_recent_df)} countries")
     
     country_time = time.time() - country_start
     print(f"  ✓ Country metrics completed in {country_time:.1f}s")
@@ -435,8 +435,8 @@ def main():
 
     if journal_recent_list:
         journal_recent_df = pd.DataFrame(journal_recent_list)
-        journal_recent_df.to_parquet(cache_dir / 'metrics_journal_period_2021_2025.parquet', index=False)
-        print(f"  ✓ Saved journal recent period metrics (2021-2025): {len(journal_recent_df)} journals")
+        journal_recent_df.to_parquet(cache_dir / 'metrics_journal_period_2016_2025.parquet', index=False)
+        print(f"  ✓ Saved journal recent period metrics (2016-2025): {len(journal_recent_df)} journals")
     
     journal_time = time.time() - journal_start
     print(f"  ✓ Journal metrics completed in {journal_time:.1f}s")

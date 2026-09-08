@@ -197,15 +197,15 @@ def process_country_worker(country_code):
     
     period_metrics['period'] = f'{_start_year}-{_end_year}'
     
-    # Recent Period metrics (2021-2025)
+    # Recent Period metrics (2016-2025)
     period_recent_works = country_works[
-        (country_works['publication_year'] >= 2021) & 
+        (country_works['publication_year'] >= 2016) & 
         (country_works['publication_year'] <= 2025)
     ]
     period_recent_metrics = calculate_performance_metrics_from_df(period_recent_works)
     period_recent_metrics.update(journal_metrics)
     period_recent_metrics['country_code'] = country_code
-    period_recent_metrics['period'] = '2021-2025'
+    period_recent_metrics['period'] = '2016-2025'
     
     return country_code, annual_metrics_df, period_metrics, period_recent_metrics
 
@@ -265,14 +265,14 @@ def process_journal_worker(journal_id):
     # Add indexing info to period metrics
     period_metrics.update(journal_indexing)
     
-    # Recent Period metrics (2021-2025)
+    # Recent Period metrics (2016-2025)
     period_recent_works = journal_works[
-        (journal_works['publication_year'] >= 2021) & 
+        (journal_works['publication_year'] >= 2016) & 
         (journal_works['publication_year'] <= 2025)
     ]
     period_recent_metrics = calculate_performance_metrics_from_df(period_recent_works)
     period_recent_metrics['journal_id'] = journal_id
-    period_recent_metrics['period'] = '2021-2025'
+    period_recent_metrics['period'] = '2016-2025'
     # Add indexing info to recent period metrics
     period_recent_metrics.update(journal_indexing)
     
@@ -309,10 +309,10 @@ def load_existing_metrics(cache_dir, metric_type):
     file_map = {
         'country_annual': 'metrics_country_annual.parquet',
         'country_period': 'metrics_country_period.parquet',
-        'country_period_recent': 'metrics_country_period_2021_2025.parquet',
+        'country_period_recent': 'metrics_country_period_2016_2025.parquet',
         'journal_annual': 'metrics_journal_annual.parquet',
         'journal_period': 'metrics_journal_period.parquet',
-        'journal_period_recent': 'metrics_journal_period_2021_2025.parquet'
+        'journal_period_recent': 'metrics_journal_period_2016_2025.parquet'
     }
     
     file_path = cache_dir / file_map.get(metric_type)
@@ -445,12 +445,12 @@ def main():
     latam_period['period'] = f'{start_year}-{end_year}'
     pd.DataFrame([latam_period]).to_parquet(cache_dir / 'metrics_latam_period.parquet', index=False)
     
-    # Recent Period (2021-2025)
-    period_recent_works = works_df[(works_df['publication_year'] >= 2021) & (works_df['publication_year'] <= 2025)]
+    # Recent Period (2016-2025)
+    period_recent_works = works_df[(works_df['publication_year'] >= 2016) & (works_df['publication_year'] <= 2025)]
     latam_period_recent = calculate_performance_metrics_from_df(period_recent_works)
     latam_period_recent.update(journal_metrics)
-    latam_period_recent['period'] = '2021-2025'
-    pd.DataFrame([latam_period_recent]).to_parquet(cache_dir / 'metrics_latam_period_2021_2025.parquet', index=False)
+    latam_period_recent['period'] = '2016-2025'
+    pd.DataFrame([latam_period_recent]).to_parquet(cache_dir / 'metrics_latam_period_2016_2025.parquet', index=False)
     
     latam_time = time.time() - latam_start
     print(f"  ✓ LATAM metrics completed in {latam_time:.1f}s")
@@ -532,7 +532,7 @@ def main():
                 print(f"  ✓ Combined {len(new_country_period_recent)} new countries (recent) with {len(existing_country_period_recent)} existing")
             else:
                 country_period_recent_df = new_country_period_recent
-            country_period_recent_df.to_parquet(cache_dir / 'metrics_country_period_2021_2025.parquet', index=False)
+            country_period_recent_df.to_parquet(cache_dir / 'metrics_country_period_2016_2025.parquet', index=False)
             print(f"  ✓ Saved country recent period metrics: {len(country_period_recent_df)} total countries")
         
         country_time = time.time() - country_start
@@ -613,7 +613,7 @@ def main():
                 print(f"  ✓ Combined {len(new_journal_period_recent)} new journals (recent) with {len(existing_journal_period_recent)} existing")
             else:
                 journal_period_recent_df = new_journal_period_recent
-            journal_period_recent_df.to_parquet(cache_dir / 'metrics_journal_period_2021_2025.parquet', index=False)
+            journal_period_recent_df.to_parquet(cache_dir / 'metrics_journal_period_2016_2025.parquet', index=False)
             print(f"  ✓ Saved journal recent period metrics: {len(journal_period_recent_df)} total journals")
         
         journal_time = time.time() - journal_start

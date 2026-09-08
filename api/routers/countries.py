@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, HTTPException, Path
 
 from api.db import query_df, sanitize_records, DATA_DIR, CACHE_DIR, UMAP_DIR
 from api.constants import COUNTRY_NAMES, ISO2_TO_ISO3
+from api.routers.regional import get_recent_cache_file
 
 router = APIRouter(prefix="/api/countries", tags=["Análisis por País"])
 
@@ -36,7 +37,7 @@ def get_country_summary(country_code: str = Path(..., description="2-letter coun
     c_code = country_code.upper()
     df_period = query_df("SELECT * FROM metrics_country_period WHERE country_code = ?", [c_code])
     
-    rec_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet'
+    rec_file = get_recent_cache_file('metrics_country_period')
     if rec_file.exists():
         df_rec_all = pd.read_parquet(rec_file)
         df_rec = df_rec_all[df_rec_all['country_code'] == c_code]
@@ -321,8 +322,7 @@ def get_country_journals_scatter(
 ):
     """Returns journal-level metrics for dynamic scatter plot exploration."""
     c_code = country_code.upper()
-    file_name = 'metrics_journal_period_2021_2025.parquet' if period == 'recent' else 'metrics_journal_period.parquet'
-    period_file = CACHE_DIR / file_name
+    period_file = get_recent_cache_file('metrics_journal_period') if period == 'recent' else CACHE_DIR / 'metrics_journal_period.parquet'
     
     if not period_file.exists():
         return []
@@ -421,7 +421,7 @@ def get_country_slope_data(country_code: str):
     """Returns ranking changes across indicators between Full and Recent periods."""
     c_code = country_code.upper()
     df_full = query_df("SELECT country_code, fwci_avg, pct_oa_diamond, pct_top_10, num_documents FROM metrics_country_period")
-    rec_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet'
+    rec_file = get_recent_cache_file('metrics_country_period')
     df_rec = pd.read_parquet(rec_file) if rec_file.exists() else df_full.copy()
     
     indicators = ['fwci_avg', 'pct_oa_diamond', 'pct_top_10', 'num_documents']

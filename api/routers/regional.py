@@ -12,6 +12,12 @@ from api.constants import COUNTRY_NAMES, ISO2_TO_ISO3
 
 router = APIRouter(prefix="/api/regional", tags=["Panorama Regional"])
 
+def get_recent_cache_file(pattern_prefix: str):
+    """Returns the 10-year recent period parquet file (2016-2025) if available, otherwise 5-year (2021-2025)."""
+    rec_10y = CACHE_DIR / f'{pattern_prefix}_2016_2025.parquet'
+    rec_5y = CACHE_DIR / f'{pattern_prefix}_2021_2025.parquet'
+    return rec_10y if rec_10y.exists() else rec_5y
+
 @router.get("/kpis")
 def get_regional_kpis():
     """Returns top-level LATAM macro KPIs."""
@@ -30,19 +36,42 @@ def get_regional_kpis():
             row.get('pct_oa_green', 0) + row.get('pct_oa_hybrid', 0) + 
             row.get('pct_oa_bronze', 0)
         )
-        if oa_total == 0:
-            oa_total = 92.0
+        cites_doc = float(row.get('cites_per_doc', 1.48))
+        h_index = int(row.get('h_index', 0))
     else:
         fwci = 0.56
         oa_diamond = 67.0
-        oa_total = 92.0
+        oa_total = 85.0
+        cites_doc = 1.48
+        h_index = 0
         
     return {
         "num_journals": num_journals,
         "total_works": total_works,
-        "fwci_avg": round(fwci, 2),
-        "pct_oa_diamond": round(oa_diamond, 1),
-        "pct_oa_total": round(oa_total, 1)
+        "fwci_avg": fwci,
+        "pct_oa_diamond": oa_diamond,
+        "pct_oa_total": oa_total,
+        "cites_per_doc": cites_doc,
+        "h_index": h_index
+    }
+
+@router.get("/periods-comparison")
+def get_periods_comparison():
+    """Returns comparative metrics: Full Period vs Recent Period (10 years: 2016-2025, or 2021-2025 fallback)."""
+    df_full = query_df("SELECT * FROM metrics_latam_period LIMIT 1")
+    
+    recent_p = get_recent_cache_file('metrics_latam_period')
+    if recent_p.exists():
+        df_rec = pd.read_parquet(recent_p)
+    else:
+        df_rec = query_df("SELECT * FROM metrics_latam_annual WHERE year >= 2016")
+        
+    full_data = df_full.iloc[0].to_dict() if not df_full.empty else {}
+    rec_data = df_rec.iloc[0].to_dict() if not df_rec.empty else {}
+    
+    return {
+        "full_period": sanitize_records(pd.DataFrame([full_data]))[0] if full_data else {},
+        "recent_period": sanitize_records(pd.DataFrame([rec_data]))[0] if rec_data else {}
     }
 
 @router.get("/choropleth")
@@ -73,14 +102,14 @@ def get_choropleth_data(indicator: str = Query("num_journals", description="Indi
 
 @router.get("/periods-comparison")
 def get_periods_comparison():
-    """Returns comparative metrics: Full Period vs Recent Period (2021-2025)."""
+    """Returns comparative metrics: Full Period vs Recent Period (2016-2025 / 2021-2025)."""
     df_full = query_df("SELECT * FROM metrics_latam_period LIMIT 1")
     
-    recent_p = CACHE_DIR / 'metrics_latam_period_2021_2025.parquet'
+    recent_p = get_recent_cache_file('metrics_latam_period')
     if recent_p.exists():
         df_rec = pd.read_parquet(recent_p)
     else:
-        df_rec = query_df("SELECT * FROM metrics_latam_annual WHERE year >= 2021")
+        df_rec = query_df("SELECT * FROM metrics_latam_annual WHERE year >= 2016")
         
     full_data = df_full.iloc[0].to_dict() if not df_full.empty else {}
     rec_data = df_rec.iloc[0].to_dict() if not df_rec.empty else {}
@@ -249,7 +278,7 @@ def get_regional_annual_trends(
 def get_country_rankings(period: str = Query("full", pattern="^(full|recent)$")):
     """Returns full rankings table of LATAM countries."""
     if period == "recent":
-        rec_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet'
+        rec_file = get_recent_cache_file('metrics_country_period')
         if rec_file.exists():
             df = pd.read_parquet(rec_file)
         else:
@@ -328,7 +357,7 @@ def get_global_trajectories():
 def get_country_radar_profiles():
     """Returns normalized [0,1] radar profiles for all countries (Full vs Recent)."""
     df_full = query_df("SELECT * FROM metrics_country_period")
-    rec_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet'
+    rec_file = get_recent_cache_file('metrics_country_period')
     df_rec = pd.read_parquet(rec_file) if rec_file.exists() else df_full
     
     if df_full.empty:
@@ -396,9 +425,9 @@ def get_journals_scatter_explorer(
 
 @router.get("/period-gaps")
 def get_period_gaps():
-    """Returns comparative gap data (Full vs Recent 2021-2025) per country for Dumbbell and Slope charts."""
+    """Returns comparative gap data (Full vs Recent 2016-2025 / 2021-2025) per country for Dumbbell and Slope charts."""
     df_full = query_df("SELECT * FROM metrics_country_period")
-    rec_file = CACHE_DIR / 'metrics_country_period_2021_2025.parquet'
+    rec_file = get_recent_cache_file('metrics_country_period')
     if rec_file.exists():
         df_rec = pd.read_parquet(rec_file)
     else:

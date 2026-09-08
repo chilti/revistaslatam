@@ -10,6 +10,7 @@ from fastapi import APIRouter, Query, HTTPException, Path
 
 from api.db import query_df, sanitize_records, DATA_DIR, CACHE_DIR, UMAP_DIR
 from api.constants import COUNTRY_NAMES
+from api.routers.regional import get_recent_cache_file
 
 router = APIRouter(prefix="/api/journals", tags=["Detalle de Revista"])
 
@@ -94,7 +95,9 @@ def get_journal_details(journal_id: str):
     df_p = query_df("SELECT * FROM metrics_journal_period WHERE journal_id = ?", [jid])
     period_data = df_p.iloc[0].to_dict() if not df_p.empty else {}
     
-    rec_file = CACHE_DIR / 'metrics_journal_period_2021_2025.parquet'
+    rec_file = get_recent_cache_file('metrics_journal_period')
+    use_10y = '2016_2025' in str(rec_file)
+    start_yr = 2016 if use_10y else 2021
     if rec_file.exists():
         df_rec_all = pd.read_parquet(rec_file)
         df_rec = df_rec_all[df_rec_all['journal_id'] == jid]
@@ -102,15 +105,15 @@ def get_journal_details(journal_id: str):
     else:
         recent_data = {}
 
-    # Calculate recent period citations and h/i10 index for 2021-2025 from works
+    # Calculate recent period citations and h/i10 index for 2016-2025 (or 2021-2025) from works
     try:
         res_cites = query_df("""
             SELECT 
                 COALESCE(SUM(cited_by_count), 0) as cited_by_count,
                 LIST(cited_by_count ORDER BY cited_by_count DESC) as cites_list
             FROM works 
-            WHERE journal_id = ? AND publication_year BETWEEN 2021 AND 2025
-        """, [jid])
+            WHERE journal_id = ? AND publication_year BETWEEN ? AND 2025
+        """, [jid, start_yr])
         if not res_cites.empty:
             recent_data['cited_by_count'] = int(res_cites['cited_by_count'].iloc[0])
             c_val = res_cites['cites_list'].iloc[0]
