@@ -1,0 +1,39 @@
+{
+  "title": "Revistas LATAM: Plataforma de Inteligencia Cienciométrica y Acceso Abierto Diamante",
+  "description": "Plataforma integral de recolección, procesamiento y visualización de datos bibliométricos a gran escala sobre la ciencia latinoamericana, impulsada por OpenAlex, DuckDB, FastAPI y React 18 / Vite. Evalúa el impacto, la soberanía editorial del Acceso Abierto Diamante y la evolución de la producción científica en América Latina e Iberoamérica mediante indicadores cienciométricos avanzados (FWCI, Percentiles, Índice H, Multilingüismo) y representaciones visuales interactivas (Scimago Graphica + WebGL GPU).",
+  "creators": [
+    {
+      "name": "Jiménez Andrade, José Luis",
+      "affiliation": "Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)",
+      "orcid": "0000-0003-3453-7159"
+    },
+    {
+      "name": "Carrillo Calvet, Humberto Andrés",
+      "affiliation": "Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)",
+      "orcid": "0000-0003-3659-6769"
+    },
+    {
+      "name": "Arencibia Jorge, Ricardo",
+      "affiliation": "Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)",
+      "orcid": "0000-0001-8907-2454"
+    }
+  ],
+  "keywords": [
+    "cienciometría",
+    "bibliometría",
+    "acceso abierto",
+    "acceso abierto diamante",
+    "América Latina",
+    "OpenAlex",
+    "DuckDB",
+    "UMAP",
+    "FastAPI",
+    "React",
+    "visualización científica",
+    "soberanía editorial",
+    "multilingüismo"
+  ],
+  "license": "MIT",
+  "upload_type": "software",
+  "access_right": "open"
+}

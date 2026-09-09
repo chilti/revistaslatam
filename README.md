@@ -248,10 +248,12 @@ El proyecto **Revistas LATAM** es un desarrollo de ciencia abierta enfocado en l
 
 **Complejidad, Cienciometría y Ciencia de la Ciencia** — *Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)*
 
-- **Dr. Humberto Andrés Carrillo Calvet** — *Investigador Titular*[![ORCID](https://img.shields.io/badge/ORCID-0000--0003--3659--6769-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0003-3659-6769)
-- **Dr. Ricardo Arencibia Jorge** — *Especialista Cienciométrico*[![ORCID](https://img.shields.io/badge/ORCID-0000--0001--8907--2454-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0001-8907-2454)
-- **Dr. José Luis Jiménez Andrade** — *Arquitectura y Modelado Matemático*
+- **Dr. José Luis Jiménez Andrade** — *Arquitectura y Modelado Matemático*  
   [![ORCID](https://img.shields.io/badge/ORCID-0000--0003--3453--7159-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0003-3453-7159)
+- **Dr. Humberto Andrés Carrillo Calvet** — *Investigador Titular*  
+  [![ORCID](https://img.shields.io/badge/ORCID-0000--0003--3659--6769-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0003-3659-6769)
+- **Dr. Ricardo Arencibia Jorge** — *Especialista Cienciométrico*  
+  [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--8907--2454-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0001-8907-2454)
 
 ### 💻 Desarrollo, ETL e Ingeniería de Software
 

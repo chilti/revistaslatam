@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Revistas LATAM: Plataforma de Inteligencia Cienciométrica y Acceso Abierto Diamante"
+abstract: "Plataforma integral de recolección, procesamiento y visualización de datos bibliométricos a gran escala sobre la ciencia latinoamericana, impulsada por OpenAlex, DuckDB, FastAPI y React 18 / Vite."
+authors:
+  - family-names: "Jiménez Andrade"
+    given-names: "José Luis"
+    orcid: "https://orcid.org/0000-0003-3453-7159"
+    affiliation: "Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)"
+  - family-names: "Carrillo Calvet"
+    given-names: "Humberto Andrés"
+    orcid: "https://orcid.org/0000-0003-3659-6769"
+    affiliation: "Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)"
+  - family-names: "Arencibia Jorge"
+    given-names: "Ricardo"
+    orcid: "https://orcid.org/0000-0001-8907-2454"
+    affiliation: "Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)"
+repository-code: "https://github.com/chilti/revistaslatam"
+url: "https://dinamica1.fciencias.unam.mx/revistaslatam/"
+keywords:
+  - cienciometría
+  - bibliometría
+  - acceso abierto
+  - diamante
+  - América Latina
+  - OpenAlex
+  - DuckDB
+  - UMAP
+license: MIT
+version: "2.0.0"
+date-released: "2026-09-09"
