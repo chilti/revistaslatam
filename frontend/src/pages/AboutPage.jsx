@@ -172,6 +172,9 @@ export default function AboutPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <div>
                 <strong>Dr. José Luis Jiménez Andrade</strong> — <span style={{ color: 'var(--text-muted)' }}>{t('about.role_architecture_math')}</span>
+                <div style={{ fontSize: '11.5px', color: 'var(--accent-primary)', marginTop: '2px', fontWeight: '500' }}>
+                  {t('about.affil_fc_c3')}
+                </div>
               </div>
               <a
                 href="https://orcid.org/0000-0003-3453-7159"
@@ -187,6 +190,9 @@ export default function AboutPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <div>
                 <strong>Dr. Humberto Andrés Carrillo Calvet</strong> — <span style={{ color: 'var(--text-muted)' }}>{t('about.role_lead_researcher')}</span>
+                <div style={{ fontSize: '11.5px', color: 'var(--accent-primary)', marginTop: '2px', fontWeight: '500' }}>
+                  {t('about.affil_fc_c3')}
+                </div>
               </div>
               <a
                 href="https://orcid.org/0000-0003-3659-6769"
@@ -202,6 +208,9 @@ export default function AboutPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <div>
                 <strong>Dr. Ricardo Arencibia Jorge</strong> — <span style={{ color: 'var(--text-muted)' }}>{t('about.role_scientometrics_specialist')}</span>
+                <div style={{ fontSize: '11.5px', color: 'var(--accent-primary)', marginTop: '2px', fontWeight: '500' }}>
+                  {t('about.affil_c3')}
+                </div>
               </div>
               <a
                 href="https://orcid.org/0000-0001-8907-2454"

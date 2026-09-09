@@ -85,7 +85,9 @@ cd ..
 ```
 
 ### 3. Configuración de Variables de Entorno (`.env`):
+
 Crea un archivo `.env` en la raíz del proyecto para la conexión a fuentes de datos y APIs (opcional si usas los archivos Parquet precacheados):
+
 ```dotenv
 # Conexión a ClickHouse (Snapshot masivo de OpenAlex) - Requerido solo para Fase 1
 CH_HOST=localhost
@@ -116,14 +118,15 @@ graph LR
 
 El pipeline maestro maneja una arquitectura híbrida para la adquisición y procesamiento de datos:
 
-| Componente | Fuente | Rol en el Pipeline | Requisitos |
-|---|---|---|---|
-| **Extracción Masiva (Fase 1)** | **ClickHouse Local** (`localhost:8124`) | Extracción veloz de más de **7,490 revistas** y **3.63 millones de artículos** latinoamericanos desde el snapshot completo de OpenAlex (569M trabajos). | Requiere ClickHouse con snapshot cargado o usar Parquet local (`--skip-extraction`). |
-| **Enriquecimiento Temático (Fase 2)** | **API Oficial OpenAlex** (`api.openalex.org`) | Descarga de jerarquía taxonómica (Tópicos → Subcampos → Campos → Dominios) para el diagrama Sunburst. | Conexión a internet y `OPENALEX_EMAIL` en `.env` (*Polite Pool* a 10 req/s). |
-| **Cálculo Analítico y Proyecciones (Fases 3-5)** | **Parquet & DuckDB** locales | Computación columnar de FWCI, percentiles, redes, mapas UMAP/SOM e indexación OLAP. | Totalmente local e independiente de servidores externos. |
+| Componente                                               | Fuente                                                | Rol en el Pipeline                                                                                                                                                    | Requisitos                                                                             |
+| -------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **Extracción Masiva (Fase 1)**                    | **ClickHouse Local** (`localhost:8124`)       | Extracción veloz de más de**7,490 revistas** y **3.63 millones de artículos** latinoamericanos desde el snapshot completo de OpenAlex (569M trabajos). | Requiere ClickHouse con snapshot cargado o usar Parquet local (`--skip-extraction`). |
+| **Enriquecimiento Temático (Fase 2)**             | **API Oficial OpenAlex** (`api.openalex.org`) | Descarga de jerarquía taxonómica (Tópicos → Subcampos → Campos → Dominios) para el diagrama Sunburst.                                                           | Conexión a internet y`OPENALEX_EMAIL` en `.env` (*Polite Pool* a 10 req/s).     |
+| **Cálculo Analítico y Proyecciones (Fases 3-5)** | **Parquet & DuckDB** locales                    | Computación columnar de FWCI, percentiles, redes, mapas UMAP/SOM e indexación OLAP.                                                                                 | Totalmente local e independiente de servidores externos.                               |
 
 > [!NOTE]
 > **¿Se puede ejecutar directamente con la API pública de OpenAlex sin ClickHouse?**
+>
 > - **Extracción Masiva**: Técnicamente es posible consultar la API REST de OpenAlex para obras científicas (`https://api.openalex.org/works?filter=primary_location.source.id:...`), pero descargar y paginar **3.63 millones de registros completos** vía HTTP requeriría cientos de miles de peticiones y decenas de horas de transferencia continua, además de estar sujeto a límites de cuota diaria.
 > - **Por qué ClickHouse local**: Permite extraer y consolidar los 3.63 millones de trabajos en cuestión de **minutos**, con compresión columnar y consultas SQL nativas.
 > - **Modo Autónomo (Sin ClickHouse)**: Si no cuentas con la base local de ClickHouse (~500GB+), **no es necesario instalarla ni configurarla**: el repositorio incluye o provee los archivos Parquet consolidados en `data/` (`latin_american_works.parquet` y `latin_american_journals.parquet`). Ejecutando el pipeline con `--skip-extraction` o `--only-compute`, se generan todas las métricas, proyecciones UMAP/SOM y la base DuckDB sin requerir ClickHouse.
@@ -246,13 +249,13 @@ El proyecto **Revistas LATAM** es un desarrollo de ciencia abierta enfocado en l
 
 ### 👥 Grupo de Trabajo
 
-**Complejidad, Cienciometría y Ciencia de la Ciencia** — *Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)*
+**Complejidad, Cienciometría y Ciencia de la Ciencia** — *Facultad de Ciencias / Centro de Ciencias de la Complejidad (C3), Universidad Nacional Autónoma de México (UNAM)*
 
-- **Dr. José Luis Jiménez Andrade** — *Arquitectura y Modelado Matemático*  
+- **Dr. José Luis Jiménez Andrade** — *Arquitectura y Modelado Matemático (Facultad de Ciencias & C3, UNAM)*  
   [![ORCID](https://img.shields.io/badge/ORCID-0000--0003--3453--7159-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0003-3453-7159)
-- **Dr. Humberto Andrés Carrillo Calvet** — *Investigador Titular*  
+- **Dr. Humberto Andrés Carrillo Calvet** — *Investigador Titular (Facultad de Ciencias & C3, UNAM)*  
   [![ORCID](https://img.shields.io/badge/ORCID-0000--0003--3659--6769-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0003-3659-6769)
-- **Dr. Ricardo Arencibia Jorge** — *Especialista Cienciométrico*  
+- **Dr. Ricardo Arencibia Jorge** — *Especialista Cienciométrico (Centro de Ciencias de la Complejidad - C3, UNAM)*  
   [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--8907--2454-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0001-8907-2454)
 
 ### 💻 Desarrollo, ETL e Ingeniería de Software
