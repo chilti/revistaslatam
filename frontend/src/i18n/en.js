@@ -711,7 +711,9 @@ export default {
     arch_5_desc: "Structured Study Dossier exporter for seamless integration with ChatGPT / LLMs.",
     methods_title: "Scientometric Methodology and Editorial Sovereignty",
     methods_p1: "The system implements a scientific intelligence pipeline to map the academic journal ecosystem in Latin America. Through neural language models and nonlinear topological reduction (UMAP), the pure semantic manifold of regional knowledge is projected without institutional or geopolitical biases.",
-    methods_p2: "Citation and field-normalized impact metrics (FWCI), global percentile classification (Top 1% and Top 10%), and comprehensive tracking of Diamond and Gold Open Access pathways enable a thorough, fair, and transparent evaluation of Latin American academic publications."
+    methods_p2: "Citation and field-normalized impact metrics (FWCI), global percentile classification (Top 1% and Top 10%), and comprehensive tracking of Diamond and Gold Open Access pathways enable a thorough, fair, and transparent evaluation of Latin American academic publications.",
+    ack_title: "Special Acknowledgments",
+    ack_desc: "Our special recognition and gratitude to Romel Calero Ramos for the design, deployment, and administration of the high-performance server infrastructure and ClickHouse analytical database at the Center for Complexity Sciences (C3, UNAM), a fundamental pillar for the large-scale data querying and processing of this project."
   },
   admin: {
     title: "Administration & Management Dashboard",

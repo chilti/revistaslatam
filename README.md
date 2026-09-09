@@ -302,6 +302,9 @@ El sistema implementa un pipeline de inteligencia científica para cartografiar 
 
 Las métricas de citación e impacto normalizado por campo (**FWCI**), la clasificación en percentiles mundiales (**Top 1%** y **Top 10%**) y el seguimiento exhaustivo de las vías de **Acceso Abierto Diamante y Dorado** permiten una evaluación integral, justa y transparente de las publicaciones académicas latinoamericanas.
 
+### 🙏 Agradecimientos
+Nuestro especial reconocimiento y agradecimiento a **Romel Calero Ramos**, por el diseño, despliegue y administración de la infraestructura de servidores y base de datos analítica masiva en **ClickHouse** en el **Centro de Ciencias de la Complejidad (C3, UNAM)**, pilar fundamental para el procesamiento y consulta a gran escala de los datos de este proyecto.
+
 ---
 
 Desarrollado para el análisis y fortalecimiento de la ciencia abierta en Latinoamérica. 🌎

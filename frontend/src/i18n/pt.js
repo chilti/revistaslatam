@@ -711,7 +711,9 @@ export default {
     arch_5_desc: "Exportador estruturado de Dossiê de Estudo para integração fluida com ChatGPT / LLMs.",
     methods_title: "Metodologia Cienciométrica e Soberania Editorial",
     methods_p1: "O sistema implementa um pipeline de inteligência científica para mapear o ecossistema de periódicos acadêmicos na América Latina. Por meio de modelos neurais de linguagem e redução topológica não linear (UMAP), projeta-se a variedade semântica pura do conhecimento regional sem vieses institucionais nem geopolíticos.",
-    methods_p2: "Métricas de citação e impacto normalizado por campo (FWCI), classificação em percentis mundiais (Top 1% e Top 10%) e o monitoramento exaustivo das vias de Acesso Aberto Diamante e Dourado permitem uma avaliação abrangente, justa e transparente das publicações acadêmicas latino-americanas."
+    methods_p2: "Métricas de citação e impacto normalizado por campo (FWCI), classificação em percentis mundiais (Top 1% e Top 10%) e o monitoramento exaustivo das vias de Acesso Aberto Diamante e Dourado permitem uma avaliação abrangente, justa e transparente das publicações acadêmicas latino-americanas.",
+    ack_title: "Agradecimentos Especiais",
+    ack_desc: "Nosso especial reconhecimento e agradecimento a Romel Calero Ramos pelo projeto, implantação e administração da infraestrutura de servidores e banco de dados analítico massivo em ClickHouse no Centro de Ciências da Complexidade (C3, UNAM), pilar fundamental para o processamento e consulta em grande escala dos dados deste projeto."
   },
   admin: {
     title: "Painel de Administração & Gestão",

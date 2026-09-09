@@ -14,7 +14,8 @@ import {
   Share2,
   Quote,
   Copy,
-  Check
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 
@@ -381,6 +382,24 @@ export default function AboutPage() {
           </p>
           <p>
             {t('about.methods_p2')}
+          </p>
+        </div>
+      </div>
+
+      {/* Acknowledgments */}
+      <div className="card" style={{
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(2, 132, 199, 0.04) 100%)',
+        border: '1px solid rgba(245, 158, 11, 0.2)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <Sparkles size={18} color="#f59e0b" />
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+            {t('about.ack_title')}
+          </h3>
+        </div>
+        <div style={{ fontSize: '13px', lineHeight: 1.65, color: 'var(--text-main)' }}>
+          <p>
+            {t('about.ack_desc')}
           </p>
         </div>
       </div>
