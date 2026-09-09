@@ -2,12 +2,6 @@ import { useTranslation } from '../i18n';
 import React, { useState, useMemo } from 'react';
 import { Download, ChevronDown, ChevronUp, FileSpreadsheet } from 'lucide-react';
 
-const WINDOW_OPTIONS = [
-  { id: 0, label: '📊 Datos Crudos' },
-  { id: 3, label: '🌊 Suavizado (w=3)' },
-  { id: 5, label: '🌌 Suavizado (w=5)' },
-];
-
 export default function AnnualDataTable({ 
   data = [], 
   countryName = null, 
@@ -22,6 +16,12 @@ export default function AnnualDataTable({
   const [activeWindow, setActiveWindow] = useState(0); // 0 = raw, 3 = w3, 5 = w5
   const [sortField, setSortField] = useState('year');
   const [sortAsc, setSortAsc] = useState(false); // Default: newest first
+
+  const windowOptions = [
+    { id: 0, label: t('annual_table.raw_data') },
+    { id: 3, label: t('annual_table.smoothed_w3') },
+    { id: 5, label: t('annual_table.smoothed_w5') },
+  ];
 
   // Metrics to smooth
   const metricCols = useMemo(() => [
@@ -115,27 +115,27 @@ export default function AnnualDataTable({
     if (processedData.length === 0) return;
 
     const headers = [
-      'Año',
-      ...(hasJournalsCol ? ['Revistas'] : []),
-      'Documentos',
-      'FWCI Promedio',
-      '% OA Total',
-      '% OA Diamante',
-      '% OA Gold',
-      '% OA Verde',
-      '% OA Híbrido',
-      '% OA Bronce',
-      '% Cerrado',
-      '% Español',
-      '% Inglés',
-      '% Portugués',
-      '% Francés',
-      '% Alemán',
-      '% Italiano',
-      'Percentil Prom.',
-      '% Top 10',
-      '% Top 1',
-      ...(hasDomesticCol ? ['% Autoría Doméstica'] : [])
+      t('annual_table.col_year'),
+      ...(hasJournalsCol ? [t('annual_table.col_journals')] : []),
+      t('annual_table.col_documents'),
+      t('annual_table.col_fwci'),
+      t('annual_table.col_oa_total'),
+      t('annual_table.col_oa_diamond'),
+      t('annual_table.col_oa_gold'),
+      t('annual_table.col_oa_green'),
+      t('annual_table.col_oa_hybrid'),
+      t('annual_table.col_oa_bronze'),
+      t('annual_table.col_oa_closed'),
+      t('annual_table.col_lang_es'),
+      t('annual_table.col_lang_en'),
+      t('annual_table.col_lang_pt'),
+      t('annual_table.col_lang_fr'),
+      t('annual_table.col_lang_de'),
+      t('annual_table.col_lang_it'),
+      t('annual_table.col_percentile'),
+      t('annual_table.col_top_10'),
+      t('annual_table.col_top_1'),
+      ...(hasDomesticCol ? [t('annual_table.col_domestic')] : [])
     ];
 
     const rows = processedData.map(d => {
@@ -181,16 +181,16 @@ export default function AnnualDataTable({
   };
 
   const defaultTitle = journalName
-    ? `Indicadores Históricos de ${journalName}`
+    ? t('annual_table.default_title_item', { name: journalName })
     : (countryName
-      ? `Indicadores Históricos de ${countryName}`
-      : '📊 Ver Tabla de Datos Anuales (Latinoamérica 1970–2026)');
+      ? t('annual_table.default_title_item', { name: countryName })
+      : t('annual_table.default_title_regional'));
 
   const defaultSubtitle = journalName
-    ? `Desglose histórico anual de producción, citación, vías de acceso abierto y distribución lingüística de ${journalName}.`
+    ? t('annual_table.default_subtitle_item', { name: journalName })
     : (countryName
-      ? `Desglose histórico anual de producción, citación, vías de acceso abierto y distribución lingüística de ${countryName}.`
-      : 'Desglose exhaustivo de producción histórica, citación, vías de acceso abierto y distribución lingüística.');
+      ? t('annual_table.default_subtitle_item', { name: countryName })
+      : t('annual_table.default_subtitle_regional'));
 
   return (
     <div className="card" style={{ marginTop: '20px' }}>
@@ -242,7 +242,7 @@ export default function AnnualDataTable({
           {/* Smoothing Window Tabs */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <div className="segmented-pills">
-              {WINDOW_OPTIONS.map(opt => (
+              {windowOptions.map(opt => (
                 <button
                   key={opt.id}
                   className={`segmented-pill-btn ${activeWindow === opt.id ? 'active' : ''}`}
@@ -258,14 +258,14 @@ export default function AnnualDataTable({
 
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {activeWindow === 0 
-                ? 'Valores anuales directos sin transformación.' 
-                : `Promedio móvil centrado en ventana de ${activeWindow} años para reducir ruido.`}
+                ? t('annual_table.raw_desc')
+                : t('annual_table.smoothed_desc', { w: activeWindow })}
             </span>
           </div>
 
           {processedData.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
-              No hay series anuales disponibles.
+              {t('annual_table.empty')}
             </div>
           ) : (
             <div style={{ overflowX: 'auto', maxHeight: '520px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
@@ -273,70 +273,70 @@ export default function AnnualDataTable({
                 <thead style={{ position: 'sticky', top: 0, zIndex: 3, backgroundColor: 'var(--bg-card)' }}>
                   <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
                     <th onClick={() => handleSort('year')} style={{ position: 'sticky', left: 0, zIndex: 4, backgroundColor: 'var(--bg-card)', cursor: 'pointer', padding: '10px 12px', textAlign: 'center', minWidth: '70px', color: 'var(--text-main)' }}>
-                      Año {sortField === 'year' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_year')} {sortField === 'year' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     {hasJournalsCol && (
                       <th onClick={() => handleSort('num_journals')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '80px', color: '#c084fc' }}>
-                        Revistas {sortField === 'num_journals' ? (sortAsc ? '▲' : '▼') : ''}
+                        {t('annual_table.col_journals')} {sortField === 'num_journals' ? (sortAsc ? '▲' : '▼') : ''}
                       </th>
                     )}
                     <th onClick={() => handleSort('num_documents')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '95px', color: '#60a5fa' }}>
-                      Documentos {sortField === 'num_documents' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_documents')} {sortField === 'num_documents' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('fwci_avg')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '75px', color: '#34d399' }}>
-                      FWCI {sortField === 'fwci_avg' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_fwci')} {sortField === 'fwci_avg' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_oa_total')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '85px', color: 'var(--text-main)' }}>
-                      % OA Total {sortField === 'pct_oa_total' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_oa_total')} {sortField === 'pct_oa_total' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_oa_diamond')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '95px', color: '#38bdf8' }}>
-                      % Diamante {sortField === 'pct_oa_diamond' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_oa_diamond')} {sortField === 'pct_oa_diamond' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_oa_gold')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '75px', color: '#fbbf24' }}>
-                      % Gold {sortField === 'pct_oa_gold' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_oa_gold')} {sortField === 'pct_oa_gold' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_oa_green')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '75px', color: '#4ade80' }}>
-                      % Verde {sortField === 'pct_oa_green' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_oa_green')} {sortField === 'pct_oa_green' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_oa_hybrid')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '80px', color: '#a78bfa' }}>
-                      % Híbrido {sortField === 'pct_oa_hybrid' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_oa_hybrid')} {sortField === 'pct_oa_hybrid' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_oa_bronze')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '80px', color: '#fb923c' }}>
-                      % Bronce {sortField === 'pct_oa_bronze' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_oa_bronze')} {sortField === 'pct_oa_bronze' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_oa_closed')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '80px', color: '#f87171' }}>
-                      % Cerrado {sortField === 'pct_oa_closed' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_oa_closed')} {sortField === 'pct_oa_closed' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_lang_es')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '80px', color: 'var(--text-main)' }}>
-                      % Español {sortField === 'pct_lang_es' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_lang_es')} {sortField === 'pct_lang_es' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_lang_en')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '75px', color: 'var(--text-main)' }}>
-                      % Inglés {sortField === 'pct_lang_en' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_lang_en')} {sortField === 'pct_lang_en' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_lang_pt')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '85px', color: 'var(--text-main)' }}>
-                      % Portugués {sortField === 'pct_lang_pt' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_lang_pt')} {sortField === 'pct_lang_pt' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_lang_fr')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '75px', color: 'var(--text-main)' }}>
-                      % Francés {sortField === 'pct_lang_fr' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_lang_fr')} {sortField === 'pct_lang_fr' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_lang_de')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '75px', color: 'var(--text-main)' }}>
-                      % Alemán {sortField === 'pct_lang_de' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_lang_de')} {sortField === 'pct_lang_de' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_lang_it')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '75px', color: 'var(--text-main)' }}>
-                      % Italiano {sortField === 'pct_lang_it' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_lang_it')} {sortField === 'pct_lang_it' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('avg_percentile')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '100px', color: 'var(--text-main)' }}>
-                      Percentil Prom. {sortField === 'avg_percentile' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_percentile')} {sortField === 'avg_percentile' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_top_10')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '80px', color: '#f59e0b' }}>
-                      % Top 10 {sortField === 'pct_top_10' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_top_10')} {sortField === 'pct_top_10' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     <th onClick={() => handleSort('pct_top_1')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '75px', color: '#ef4444' }}>
-                      % Top 1 {sortField === 'pct_top_1' ? (sortAsc ? '▲' : '▼') : ''}
+                      {t('annual_table.col_top_1')} {sortField === 'pct_top_1' ? (sortAsc ? '▲' : '▼') : ''}
                     </th>
                     {hasDomesticCol && (
                       <th onClick={() => handleSort('pct_authors_domestic')} style={{ textAlign: 'right', cursor: 'pointer', padding: '10px 10px', minWidth: '110px', color: 'var(--text-main)' }}>
-                        % Doméstica {sortField === 'pct_authors_domestic' ? (sortAsc ? '▲' : '▼') : ''}
+                        {t('annual_table.col_domestic')} {sortField === 'pct_authors_domestic' ? (sortAsc ? '▲' : '▼') : ''}
                       </th>
                     )}
                   </tr>

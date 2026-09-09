@@ -81,7 +81,7 @@ export default function PageDossierExpander({
 
     const lines = [];
     lines.push(`# ${pageTitle}`);
-    lines.push(`> Exportación de Inteligencia Científica — Revistas LATAM (${new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })})`);
+    lines.push(`> ${t('dossier.generated_from', { date: new Date().toLocaleDateString() })}`);
     lines.push('');
     lines.push('---');
     lines.push('');
@@ -89,7 +89,7 @@ export default function PageDossierExpander({
     sections.forEach(s => {
       if (!selectedIds.has(s.id)) return;
       lines.push(`## 📌 ${s.title}`);
-      if (s.category) lines.push(`*Categoría:* ${s.category}`);
+      if (s.category) lines.push(`*${t('dossier.category_label')}* ${s.category}`);
       lines.push('');
       
       const content = typeof s.buildDataText === 'function' ? s.buildDataText() : (s.dataText || '');
@@ -100,30 +100,23 @@ export default function PageDossierExpander({
     });
 
     return lines.join('\n');
-  }, [sections, selectedIds, pageTitle]);
+  }, [sections, selectedIds, pageTitle, t]);
 
   // Full prompt for ChatGPT with system instructions
   const fullChatGptPrompt = useMemo(() => {
     if (!compiledMarkdown) return '';
     const systemInstructions = [
-      `Eres un experto cienciométrico y analista de políticas científicas de la UNAM y de América Latina.`,
-      `Analiza en profundidad el siguiente conjunto de datos empíricos de "${pageTitle}".`,
-      `Los datos han sido calculados a partir de OpenAlex 2025 y procesados con motores OLAP (DuckDB).`,
-      ``,
-      `Por favor realiza:`,
-      `1. Un resumen ejecutivo de los principales hallazgos y magnitudes.`,
-      `2. Análisis de fortalezas, asimetrías y áreas de oportunidad identificadas en los indicadores (FWCI, Acceso Abierto Diamante, producción e impacto).`,
-      `3. Recomendaciones estratégicas para editores, investigadores o tomadores de decisión.`,
-      ``,
-      `=== DATOS DEL ESTUDIO ===`,
-      ``,
-      `Compiled Markdown`,
-      ``,
+      t('dossier.chatgpt_prefix_1'),
+      t('dossier.chatgpt_prefix_2'),
+      t('dossier.chatgpt_prefix_3'),
+      '',
+      `=== ${pageTitle.toUpperCase()} ===`,
+      '',
       compiledMarkdown
     ].join('\n');
 
     return systemInstructions;
-  }, [compiledMarkdown, pageTitle]);
+  }, [compiledMarkdown, pageTitle, t]);
 
   // Length calculation
   const charCount = fullChatGptPrompt.length;
@@ -227,7 +220,7 @@ export default function PageDossierExpander({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: 'var(--text-main)' }}>
-                Compilador de Contexto para IA (Envío a ChatGPT / LLMs)
+                {t('dossier.compiler_title')}
               </h3>
               <span className="badge" style={{
                 background: 'rgba(2, 132, 199, 0.15)',
@@ -235,7 +228,7 @@ export default function PageDossierExpander({
                 border: '1px solid var(--accent-primary)',
                 fontSize: '11px'
               }}>
-                {selectedIds.size} de {sections.length} secciones seleccionadas
+                {t('dossier.sections_selected', { selected: selectedIds.size, total: sections.length })}
               </span>
             </div>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
@@ -258,9 +251,7 @@ export default function PageDossierExpander({
             borderRadius: '8px',
             border: '1px solid var(--border-color)'
           }}>
-            <span>{charCount.toLocaleString()} caracteres</span>
-            <span>•</span>
-            <span>~{estimatedTokens.toLocaleString()} tokens</span>
+            <span>{t('dossier.chars_tokens', { chars: charCount.toLocaleString(), tokens: estimatedTokens.toLocaleString() })}</span>
           </div>
 
           <button
@@ -285,28 +276,28 @@ export default function PageDossierExpander({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Selección rápida:
+                {t('dossier.quick_selection')}
               </span>
               <button 
                 className="segmented-pill-btn" 
                 onClick={selectAll}
                 style={{ fontSize: '11.5px', padding: '4px 10px', height: 'auto' }}
               >
-                ✓ Seleccionar Todos
+                {t('dossier.select_all')}
               </button>
               <button 
                 className="segmented-pill-btn" 
                 onClick={selectDefault}
                 style={{ fontSize: '11.5px', padding: '4px 10px', height: 'auto' }}
               >
-                ⭐ Solo Indicadores Clave / Cabecera
+                {t('dossier.select_key')}
               </button>
               <button 
                 className="segmented-pill-btn" 
                 onClick={selectNone}
                 style={{ fontSize: '11.5px', padding: '4px 10px', height: 'auto' }}
               >
-                ✗ Deseleccionar Todos
+                {t('dossier.deselect_all')}
               </button>
             </div>
 
@@ -316,7 +307,7 @@ export default function PageDossierExpander({
               style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
             >
               {showPreview ? <EyeOff size={14} /> : <Eye size={14} />}
-              {showPreview ? 'Ocultar Vista Previa' : 'Ver Vista Previa Markdown'}
+              {showPreview ? t('dossier.hide_preview') : t('dossier.show_preview')}
             </button>
           </div>
 
@@ -389,11 +380,11 @@ export default function PageDossierExpander({
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{t('dossier.char_counter')}</span>
                 <span style={{ color: 'var(--text-muted)' }}>
-                  ({charCount.toLocaleString()} / {MAX_CHATGPT_URL_CHARS.toLocaleString()} caracteres recomendados para URL)
+                  {t('dossier.char_counter_hint', { chars: charCount.toLocaleString(), max: MAX_CHATGPT_URL_CHARS.toLocaleString() })}
                 </span>
               </div>
               <strong style={{ color: exceedsUrlLimit ? 'var(--accent-warning)' : 'var(--accent-success)' }}>
-                {exceedsUrlLimit ? 'Límite URL Superado' : `${percentageOfLimit}% del límite URL`}
+                {exceedsUrlLimit ? t('dossier.limit_exceeded') : t('dossier.limit_pct', { pct: percentageOfLimit })}
               </strong>
             </div>
 
@@ -426,8 +417,7 @@ export default function PageDossierExpander({
               }}>
                 <AlertTriangle size={14} flexShrink={0} />
                 <span>
-                  La selección actual ({charCount.toLocaleString()} caracteres) es muy extensa para abrirse directamente vía URL en el navegador. 
-                  <strong> Usa el botón "📋 Copiar Texto para ChatGPT"</strong> y pégalo directamente en tu conversación de ChatGPT sin restricciones.
+                  {t('dossier.warning_text', { chars: charCount.toLocaleString() })}
                 </span>
               </div>
             )}
@@ -444,7 +434,7 @@ export default function PageDossierExpander({
               overflowY: 'auto'
             }}>
               <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Vista Previa del Markdown Consolidado:
+                {t('dossier.preview_consolidated')}
               </div>
               <pre style={{
                 fontFamily: 'Fira Code, monospace',
@@ -455,7 +445,7 @@ export default function PageDossierExpander({
                 margin: 0,
                 lineHeight: 1.5
               }}>
-                {fullChatGptPrompt || 'No hay secciones seleccionadas.'}
+                {fullChatGptPrompt || t('dossier.no_sections_selected')}
               </pre>
             </div>
           )}
@@ -491,7 +481,7 @@ export default function PageDossierExpander({
               }}
             >
               {addedToDossier ? <CheckCircle2 size={16} /> : <BookmarkPlus size={16} color="var(--accent-primary)" />}
-              {addedToDossier ? t('common.in_dossier') : `📌 ${t('buttons.save_selection_ai')}`}
+              {addedToDossier ? t('common.in_dossier') : `📌 ${t('dossier.save_selection_ai')}`}
             </button>
 
             {/* Right: ChatGPT & Export Action Buttons */}
@@ -520,14 +510,14 @@ export default function PageDossierExpander({
                 }}
               >
                 {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                {copied ? '¡Copiado!' : `📋 ${t('buttons.copy_chatgpt')}`}
+                {copied ? t('dossier.copied_short') : t('dossier.copy_chatgpt_btn')}
               </button>
 
               {/* Direct Open in ChatGPT (URL limited) */}
               <button
                 onClick={handleOpenChatGPT}
                 disabled={selectedIds.size === 0 || exceedsUrlLimit}
-                title={exceedsUrlLimit ? 'Texto demasiado largo para URL directa. Usa "Copiar Texto para ChatGPT"' : 'Abrir prompt en ChatGPT en nueva pestaña'}
+                title={exceedsUrlLimit ? t('dossier.open_chatgpt_too_long') : t('dossier.open_chatgpt_tooltip')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -544,7 +534,7 @@ export default function PageDossierExpander({
                   transition: 'all 0.2s ease'
                 }}
               >
-                <ExternalLink size={14} /> Abrir en ChatGPT
+                <ExternalLink size={14} /> {t('dossier.open_chatgpt')}
               </button>
 
               {/* Download Markdown */}
@@ -553,7 +543,7 @@ export default function PageDossierExpander({
                 disabled={selectedIds.size === 0}
                 className="btn-secondary"
                 style={{ fontSize: '13px', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                title="Descargar archivo Markdown formateado"
+                title={t('dossier.download_md_tooltip')}
               >
                 <Download size={14} /> .MD
               </button>

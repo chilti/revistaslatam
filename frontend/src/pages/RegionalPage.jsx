@@ -83,41 +83,41 @@ export default function RegionalPage() {
     { id: 'num_documents', label: t('common.works') },
     { id: 'fwci_avg', label: t('kpi.fwci') },
     { id: 'pct_top_10', label: t('kpi.top_10') },
-    { id: 'pct_top_1', label: '% Top 1%' },
+    { id: 'pct_top_1', label: t('kpi.top_1') },
     { id: 'pct_oa_diamond', label: `% ${t('common.diamond')}` },
-    { id: 'pct_oa_total', label: '% OA Total' },
+    { id: 'pct_oa_total', label: t('kpi.oa_total') },
     { id: 'pct_oa_gold', label: `% ${t('common.gold')}` },
     { id: 'pct_oa_green', label: `% ${t('common.green')}` },
     { id: 'pct_oa_hybrid', label: `% ${t('common.hybrid')}` },
     { id: 'pct_oa_bronze', label: `% ${t('common.bronze')}` },
     { id: 'pct_oa_closed', label: `% ${t('common.closed')}` },
-    { id: 'pct_lang_es', label: '% Idioma Español' },
-    { id: 'pct_lang_en', label: '% Idioma Inglés' },
-    { id: 'pct_lang_pt', label: '% Idioma Portugués' },
+    { id: 'pct_lang_es', label: t('regional.pct_lang_es') },
+    { id: 'pct_lang_en', label: t('regional.pct_lang_en') },
+    { id: 'pct_lang_pt', label: t('regional.pct_lang_pt') },
   ];
 
   const SUNBURST_INDICATORS = [
     { id: 'fwci_avg_recent', label: 'FWCI (2021-2025)' },
-    { id: 'avg_percentile_recent', label: 'Percentil (2021-2025)' },
+    { id: 'avg_percentile_recent', label: `${t('thematic_table.percentile')} (2021-2025)` },
     { id: 'pct_top_1_recent', label: '% Top 1% (2021-2025)' },
     { id: 'pct_top_10_recent', label: '% Top 10% (2021-2025)' },
     { id: 'pct_oa_gold_recent', label: '% OA Gold (2021-2025)' },
-    { id: 'fwci_avg_full', label: 'FWCI (Todo)' },
-    { id: 'avg_percentile_full', label: 'Percentil (Todo)' },
-    { id: 'pct_top_1_full', label: '% Top 1% (Todo)' },
-    { id: 'pct_top_10_full', label: '% Top 10% (Todo)' },
-    { id: 'pct_oa_gold_full', label: '% OA Gold (Todo)' },
+    { id: 'fwci_avg_full', label: `FWCI (${t('thematic_table.full_label')})` },
+    { id: 'avg_percentile_full', label: `${t('thematic_table.percentile')} (${t('thematic_table.full_label')})` },
+    { id: 'pct_top_1_full', label: `% Top 1% (${t('thematic_table.full_label')})` },
+    { id: 'pct_top_10_full', label: `% Top 10% (${t('thematic_table.full_label')})` },
+    { id: 'pct_oa_gold_full', label: `% OA Gold (${t('thematic_table.full_label')})` },
   ];
 
   const SCATTER_INDICATORS = [
-    { id: 'num_documents', label: 'Documentos' },
-    { id: 'fwci_avg', label: 'FWCI Promedio' },
-    { id: 'pct_top_10', label: '% Top 10%' },
-    { id: 'pct_top_1', label: '% Top 1%' },
-    { id: 'avg_percentile', label: 'Percentil Promedio' },
-    { id: 'pct_oa_diamond', label: '% OA Diamante' },
-    { id: 'pct_oa_gold', label: '% OA Gold' },
-    { id: 'pct_oa_total', label: '% OA Total' }
+    { id: 'num_documents', label: t('regional.kpi_docs') },
+    { id: 'fwci_avg', label: t('regional.kpi_fwci') },
+    { id: 'pct_top_10', label: t('tables.top10') },
+    { id: 'pct_top_1', label: t('tables.top1') },
+    { id: 'avg_percentile', label: t('tables.percentile_avg') },
+    { id: 'pct_oa_diamond', label: t('regional.dumbbell_diamond') },
+    { id: 'pct_oa_gold', label: t('tables.oa_gold') },
+    { id: 'pct_oa_total', label: t('tables.oa_total') }
   ];
 
   useEffect(() => {
@@ -253,34 +253,34 @@ export default function RegionalPage() {
   const sunburstTrace = (sunburstData && Array.isArray(sunburstData.nodes) && sunburstData.nodes.length > 0) ? [{
     type: 'sunburst',
     ids: sunburstData.nodes.map(n => n.id),
-    labels: sunburstData.nodes.map(n => n.label),
+    labels: sunburstData.nodes.map(n => (n.label === 'Sin Clasificación' || n.label === 'Unknown') ? t('tables.no_classification') : n.label),
     parents: sunburstData.nodes.map(n => n.parent),
     values: sunburstData.nodes.map(n => n.value),
     marker: {
       colors: sunburstData.nodes.map(n => n.color_val),
       colorscale: 'Viridis',
       showscale: true,
-      colorbar: { title: SUNBURST_INDICATORS.find(s => s.id === selectedSunburstInd)?.label || 'Indicador' }
+      colorbar: { title: SUNBURST_INDICATORS.find(s => s.id === selectedSunburstInd)?.label || t('thematic_table.indicator') }
     },
     branchvalues: 'total',
-    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+    hovertemplate: `<b>%{label}</b><br>${t('tables.articles')}: %{value:,.0f}<br>${t('thematic_table.color_label')}: %{color:.2f}<extra></extra>`
   }] : [];
 
   // Treemap Trace
   const treemapTrace = (treemapData && Array.isArray(treemapData.nodes) && treemapData.nodes.length > 0) ? [{
     type: 'treemap',
     ids: treemapData.nodes.map(n => n.id),
-    labels: treemapData.nodes.map(n => n.label),
+    labels: treemapData.nodes.map(n => (n.label === 'Sin Clasificación' || n.label === 'Unknown') ? t('tables.no_classification') : n.label),
     parents: treemapData.nodes.map(n => n.parent),
     values: treemapData.nodes.map(n => n.value),
     marker: {
       colors: treemapData.nodes.map(n => n.color_val),
       colorscale: 'Viridis',
       showscale: true,
-      colorbar: { title: SUNBURST_INDICATORS.find(s => s.id === selectedSunburstInd)?.label || 'Indicador' }
+      colorbar: { title: SUNBURST_INDICATORS.find(s => s.id === selectedSunburstInd)?.label || t('thematic_table.indicator') }
     },
     branchvalues: 'total',
-    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+    hovertemplate: `<b>%{label}</b><br>${t('tables.articles')}: %{value:,.0f}<br>${t('thematic_table.color_label')}: %{color:.2f}<extra></extra>`
   }] : [];
 
   // Dumbbell Chart Traces
@@ -312,9 +312,9 @@ export default function RegionalPage() {
       y: periodGaps.map(d => d.country_name),
       type: 'scatter',
       mode: 'markers',
-      name: 'Periodo Histórico',
+      name: t('regional.period_historical'),
       marker: { color: '#0284c7', size: 10, symbol: 'circle' },
-      hovertemplate: '<b>%{y}</b> (Histórico): %{x:.2f}<extra></extra>'
+      hovertemplate: `<b>%{y}</b> (${t('regional.historical')}): %{x:.2f}<extra></extra>`
     });
 
     // Recent Period Dots
@@ -323,7 +323,7 @@ export default function RegionalPage() {
       y: periodGaps.map(d => d.country_name),
       type: 'scatter',
       mode: 'markers',
-      name: 'Reciente (2021–2025)',
+      name: `${t('regional.recent')} (2021–2025)`,
       marker: { color: '#10b981', size: 11, symbol: 'diamond' },
       hovertemplate: '<b>%{y}</b> (2021–2025): %{x:.2f}<extra></extra>'
     });
@@ -334,40 +334,40 @@ export default function RegionalPage() {
   if (stackedData.length > 0) {
     if (stackedMode === 'oa') {
       const oaTypes = [
-        { key: 'oa_diamond', label: 'Diamante', color: '#0284c7' },
-        { key: 'oa_gold', label: 'Gold (APC)', color: '#f59e0b' },
-        { key: 'oa_green', label: 'Verde (Repositorio)', color: '#10b981' },
-        { key: 'oa_hybrid', label: 'Híbrido', color: '#8b5cf6' },
-        { key: 'oa_bronze', label: 'Bronce', color: '#d97706' },
-        { key: 'oa_closed', label: 'Cerrado', color: '#64748b' }
+        { key: 'oa_diamond', label: t('regional.stacked_oa_diamond'), color: '#0284c7' },
+        { key: 'oa_gold', label: t('regional.stacked_oa_gold'), color: '#f59e0b' },
+        { key: 'oa_green', label: t('regional.stacked_oa_green'), color: '#10b981' },
+        { key: 'oa_hybrid', label: t('regional.stacked_oa_hybrid'), color: '#8b5cf6' },
+        { key: 'oa_bronze', label: t('regional.stacked_oa_bronze'), color: '#d97706' },
+        { key: 'oa_closed', label: t('regional.stacked_oa_closed'), color: '#64748b' }
       ];
-      oaTypes.forEach(t => {
+      oaTypes.forEach(tType => {
         stackedTraces.push({
-          x: stackedData.map(d => d[t.key]),
+          x: stackedData.map(d => d[tType.key]),
           y: stackedData.map(d => d.country_name),
-          name: t.label,
+          name: tType.label,
           type: 'bar',
           orientation: 'h',
-          marker: { color: t.color },
-          hovertemplate: `<b>%{y}</b>: %{x}% ${t.label}<extra></extra>`
+          marker: { color: tType.color },
+          hovertemplate: `<b>%{y}</b>: %{x}% ${tType.label}<extra></extra>`
         });
       });
     } else {
       const langTypes = [
-        { key: 'lang_es', label: 'Español', color: '#0284c7' },
-        { key: 'lang_pt', label: 'Portugués', color: '#10b981' },
-        { key: 'lang_en', label: 'Inglés', color: '#f59e0b' },
-        { key: 'lang_other', label: 'Otros', color: '#94a3b8' }
+        { key: 'lang_es', label: t('regional.stacked_lang_es'), color: '#0284c7' },
+        { key: 'lang_pt', label: t('regional.stacked_lang_pt'), color: '#10b981' },
+        { key: 'lang_en', label: t('regional.stacked_lang_en'), color: '#f59e0b' },
+        { key: 'lang_other', label: t('regional.stacked_lang_other'), color: '#94a3b8' }
       ];
-      langTypes.forEach(t => {
+      langTypes.forEach(tType => {
         stackedTraces.push({
-          x: stackedData.map(d => d[t.key]),
+          x: stackedData.map(d => d[tType.key]),
           y: stackedData.map(d => d.country_name),
-          name: t.label,
+          name: tType.label,
           type: 'bar',
           orientation: 'h',
-          marker: { color: t.color },
-          hovertemplate: `<b>%{y}</b>: %{x}% ${t.label}<extra></extra>`
+          marker: { color: tType.color },
+          hovertemplate: `<b>%{y}</b>: %{x}% ${tType.label}<extra></extra>`
         });
       });
     }
@@ -376,19 +376,23 @@ export default function RegionalPage() {
   // Stream Graph Traces
   const streamTraces = [];
   if (streamData.length > 0) {
-    const domains = ['Health Sciences', 'Social Sciences', 'Physical Sciences', 'Life Sciences'];
-    const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6'];
-    domains.forEach((dom, i) => {
-      if (streamData[0] && dom in streamData[0]) {
+    const domains = [
+      { id: 'Health Sciences', label: t('regional.domain_health'), color: '#0284c7' },
+      { id: 'Social Sciences', label: t('regional.domain_social'), color: '#10b981' },
+      { id: 'Physical Sciences', label: t('regional.domain_physical'), color: '#f59e0b' },
+      { id: 'Life Sciences', label: t('regional.domain_life'), color: '#8b5cf6' }
+    ];
+    domains.forEach((dom) => {
+      if (streamData[0] && dom.id in streamData[0]) {
         streamTraces.push({
           x: streamData.map(d => d.year),
-          y: streamData.map(d => d[dom]),
-          name: dom,
+          y: streamData.map(d => d[dom.id]),
+          name: dom.label,
           type: 'scatter',
           mode: 'lines',
           stackgroup: 'one',
-          line: { shape: 'spline', color: colors[i % colors.length] },
-          hovertemplate: `<b>${dom}</b> (%{x}): %{y:,.0f} artículos<extra></extra>`
+          line: { shape: 'spline', color: dom.color },
+          hovertemplate: `<b>${dom.label}</b> (%{x}): %{y:,.0f} ${t('regional.stream_articles_hover')}<extra></extra>`
         });
       }
     });
@@ -403,7 +407,7 @@ export default function RegionalPage() {
     marker: {
       color: divergingData.map(d => d.deviation >= 0 ? '#10b981' : '#ef4444')
     },
-    hovertemplate: '<b>%{y}</b><br>Valor: %{customdata[0]:.2f}<br>Línea Base: %{customdata[1]:.2f}<br>Desviación: %{x:+.2f}<extra></extra>',
+    hovertemplate: `<b>%{y}</b><br>${t('regional.diverging_value')}: %{customdata[0]:.2f}<br>${t('regional.diverging_baseline')}: %{customdata[1]:.2f}<br>${t('regional.diverging_deviation')}: %{x:+.2f}<extra></extra>`,
     customdata: divergingData.map(d => [d.actual_value, d.baseline])
   }] : [];
 
@@ -460,19 +464,19 @@ export default function RegionalPage() {
           value={`${kpis?.pct_oa_diamond || periods?.full_period?.pct_oa_diamond || 67.0}%`}
           subtitle={t('kpi.diamond_sub')}
           icon={Sparkles}
-          badge="Diamante"
+          badge={t('common.diamond')}
         />
         <KpiCard
-          title="Revistas con Sello DOAJ"
+          title={t('kpi.doaj_seal')}
           value={`${kpis?.pct_doaj || 34.2}%`}
-          subtitle="Calidad Editorial Abierta"
+          subtitle={t('regional.kpi_doaj_sub')}
           icon={ShieldCheck}
           badge="DOAJ"
         />
         <KpiCard
-          title="% OA Total"
-          value={`${kpis?.pct_oa_total || 92.1}%`}
-          subtitle="Acceso Abierto Global"
+          title={t('kpi.oa_total')}
+          value={`${Number(kpis?.pct_oa_total || 92.1).toFixed(2)}%`}
+          subtitle={t('regional.kpi_oa_total_sub')}
           icon={Globe2}
         />
       </div>
@@ -523,10 +527,10 @@ export default function RegionalPage() {
                 </div>
                 <div>
                   <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: 'var(--text-main)' }}>
-                    Indicadores de Desempeño
+                    {t('regional.performance_indicators')}
                   </h3>
                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Comparativa consolidada de impacto y excelencia entre periodos
+                    {t('regional.comparative_periods_sub')}
                   </span>
                 </div>
               </div>
@@ -545,7 +549,7 @@ export default function RegionalPage() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                   <span style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--text-main)' }}>
-                    Periodo Completo: 0–2026
+                    {t('regional.period_full')}: 0–2026
                   </span>
                   <span className="badge" style={{ fontSize: '11px', background: 'var(--bg-card)' }}>{t('regional.kpi_historical')}</span>
                 </div>
@@ -600,16 +604,16 @@ export default function RegionalPage() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                   <span style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--accent-success)' }}>
-                    Periodo Reciente: 2021–2025
+                    {t('regional.period_recent_label')}: 2021–2025
                   </span>
                   <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981', fontSize: '11px' }}>
-                    Reciente
+                    {t('regional.recent')}
                   </span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('tables.documents')}</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_docs')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {recDocs.toLocaleString()}
                     </div>
@@ -626,14 +630,14 @@ export default function RegionalPage() {
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('tables.top10')}</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_top10')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {recTop10.toFixed(3)}%
                     </div>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('tables.top1')}</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('regional.kpi_top1')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '3px' }}>
                       {recTop1.toFixed(3)}%
                     </div>
@@ -661,7 +665,7 @@ export default function RegionalPage() {
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('regional.map_section_title')}</h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Distribución espacial y comparativa entre los 20 países latinoamericanos.
+              {t('regional.map_section_desc')}
             </span>
           </div>
 
@@ -687,7 +691,7 @@ export default function RegionalPage() {
               })}
               style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--bg-input)', border: '1px solid var(--border-color)' }}
             >
-              <PlusCircle size={13} /> Guardar
+              <PlusCircle size={13} /> {t('common.save')}
             </button>
           </div>
         </div>
@@ -702,11 +706,11 @@ export default function RegionalPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <GitCommit size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-                Gráfico de Mancuerna (Dumbbell Chart) — Brecha Histórico vs Reciente (2021–2025)
+                {t('regional.dumbbell_chart_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Visualiza la aceleración o desaceleración cienciométrica de cada país entre el promedio histórico (punto azul) y el último lustro (diamante verde).
+              {t('regional.dumbbell_chart_desc')}
             </span>
           </div>
 
@@ -715,25 +719,25 @@ export default function RegionalPage() {
               className={`segmented-pill-btn ${selectedDumbbellInd === 'fwci' ? 'active' : ''}`}
               onClick={() => setSelectedDumbbellInd('fwci')}
             >
-              FWCI Promedio
+              {t('regional.dumbbell_fwci')}
             </button>
             <button
               className={`segmented-pill-btn ${selectedDumbbellInd === 'diamond' ? 'active' : ''}`}
               onClick={() => setSelectedDumbbellInd('diamond')}
             >
-              % OA Diamante
+              {t('regional.dumbbell_diamond')}
             </button>
             <button
               className={`segmented-pill-btn ${selectedDumbbellInd === 'top10' ? 'active' : ''}`}
               onClick={() => setSelectedDumbbellInd('top10')}
             >
-              % Top 10%
+              {t('regional.dumbbell_top10')}
             </button>
             <button
               className={`segmented-pill-btn ${selectedDumbbellInd === 'english' ? 'active' : ''}`}
               onClick={() => setSelectedDumbbellInd('english')}
             >
-              % Inglés
+              {t('regional.dumbbell_english')}
             </button>
           </div>
         </div>
@@ -744,7 +748,7 @@ export default function RegionalPage() {
             height: 540,
             margin: { l: 140, r: 20, t: 20, b: 40 },
             xaxis: {
-              title: selectedDumbbellInd === 'fwci' ? 'FWCI Ponderado' : 'Porcentaje (%)',
+              title: selectedDumbbellInd === 'fwci' ? t('regional.dumbbell_xaxis_fwci') : t('regional.dumbbell_xaxis_pct'),
               zeroline: false
             },
             yaxis: { autorange: 'reversed' },
@@ -760,11 +764,11 @@ export default function RegionalPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <BarChart2 size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-                Barras Apiladas 100% (100% Stacked Bar) — Vías de Acceso e Idiomas por País
+                {t('regional.stacked_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Composición porcentual de publicaciones según modalidad de acceso abierto o idioma editorial por país.
+              {t('regional.stacked_desc')}
             </span>
           </div>
 
@@ -773,13 +777,13 @@ export default function RegionalPage() {
               className={`segmented-pill-btn ${stackedMode === 'oa' ? 'active' : ''}`}
               onClick={() => setStackedMode('oa')}
             >
-              Vías de Acceso Abierto
+              {t('regional.stacked_mode_oa')}
             </button>
             <button
               className={`segmented-pill-btn ${stackedMode === 'lang' ? 'active' : ''}`}
               onClick={() => setStackedMode('lang')}
             >
-              Idiomas de Publicación
+              {t('regional.stacked_mode_lang')}
             </button>
           </div>
         </div>
@@ -790,7 +794,7 @@ export default function RegionalPage() {
             barmode: 'stack',
             height: 520,
             margin: { l: 140, r: 20, t: 20, b: 40 },
-            xaxis: { title: 'Porcentaje Acumulado (%)', range: [0, 100] },
+            xaxis: { title: t('regional.stacked_xaxis'), range: [0, 100] },
             yaxis: { autorange: 'reversed' },
             legend: { orientation: 'h', y: 1.08, x: 0.1 }
           }}
@@ -802,11 +806,11 @@ export default function RegionalPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
           <Activity size={18} color="var(--accent-primary)" />
           <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-            Stream Graph / Área Apilada — Dinámica Histórica de Grandes Áreas (1985–2025)
+            {t('regional.stream_title')}
           </h3>
         </div>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Evolución y peso relativo del volumen de producción científica en América Latina por dominios de conocimiento.
+          {t('regional.stream_desc')}
         </p>
 
         <PlotlyChart
@@ -814,8 +818,8 @@ export default function RegionalPage() {
           layout={{
             height: 380,
             margin: { l: 50, r: 20, t: 20, b: 40 },
-            xaxis: { title: 'Año de Publicación' },
-            yaxis: { title: 'Artículos Publicados' },
+            xaxis: { title: t('regional.stream_xaxis') },
+            yaxis: { title: t('regional.stream_yaxis') },
             legend: { orientation: 'h', y: 1.1, x: 0.15 }
           }}
         />
@@ -831,11 +835,11 @@ export default function RegionalPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Layers3 size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-                Estructura Temática Jerárquica: Dominio → Campo → Subcampo → Tópico
+                {t('regional.sunburst_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Alterna entre la vista radial (Sunburst) y la vista rectangular compacta (Treemap).
+              {t('regional.sunburst_desc')}
             </span>
           </div>
 
@@ -845,13 +849,13 @@ export default function RegionalPage() {
                 className={`segmented-pill-btn ${thematicViewType === 'sunburst' ? 'active' : ''}`}
                 onClick={() => setThematicViewType('sunburst')}
               >
-                🏵️ Sunburst
+                {t('regional.view_sunburst')}
               </button>
               <button
                 className={`segmented-pill-btn ${thematicViewType === 'treemap' ? 'active' : ''}`}
                 onClick={() => setThematicViewType('treemap')}
               >
-                🌲 Treemap
+                {t('regional.view_treemap')}
               </button>
             </div>
 
@@ -888,10 +892,10 @@ export default function RegionalPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              Gráfico de Barras Divergentes (Diverging Bar Chart) — Desviación de la Media
+              {t('regional.diverging_title')}
             </h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Países que superan la línea base (verde) vs países por debajo de la media regional (rojo).
+              {t('regional.diverging_desc')}
             </span>
           </div>
 
@@ -912,7 +916,7 @@ export default function RegionalPage() {
           layout={{
             height: 500,
             margin: { l: 140, r: 20, t: 20, b: 40 },
-            xaxis: { title: 'Desviación Absoluta respecto a Línea Base', zeroline: true, zerolinewidth: 2, zerolinecolor: '#334155' },
+            xaxis: { title: t('regional.diverging_xaxis'), zeroline: true, zerolinewidth: 2, zerolinecolor: '#334155' },
             yaxis: { autorange: 'reversed' }
           }}
         />
@@ -928,19 +932,19 @@ export default function RegionalPage() {
               className={`segmented-pill-btn ${thematicLevel === 'domain' ? 'active' : ''}`}
               onClick={() => setThematicLevel('domain')}
             >
-              Dominio
+              {t('thematic_table.domain')}
             </button>
             <button
               className={`segmented-pill-btn ${thematicLevel === 'field' ? 'active' : ''}`}
               onClick={() => setThematicLevel('field')}
             >
-              Campo
+              {t('thematic_table.field')}
             </button>
             <button
               className={`segmented-pill-btn ${thematicLevel === 'subfield' ? 'active' : ''}`}
               onClick={() => setThematicLevel('subfield')}
             >
-              Subcampo
+              {t('thematic_table.subfield')}
             </button>
           </div>
         </div>
@@ -950,9 +954,14 @@ export default function RegionalPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  {thematicProfiles.columns.map(col => (
-                    <th key={col}>{col}</th>
-                  ))}
+                  {thematicProfiles.columns.map(col => {
+                    let colLabel = col;
+                    if (col === 'domain') colLabel = t('thematic_table.domain');
+                    else if (col === 'field') colLabel = t('thematic_table.field');
+                    else if (col === 'subfield') colLabel = t('thematic_table.subfield');
+                    else if (col === 'Total Región LATAM') colLabel = t('regional.total_latam_region');
+                    return <th key={col}>{colLabel}</th>;
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -1014,7 +1023,7 @@ export default function RegionalPage() {
                 className={`segmented-pill-btn ${annualWindow === 0 ? 'active' : ''}`}
                 onClick={() => setAnnualWindow(0)}
               >
-                Crudos
+                {t('regional.raw_label')}
               </button>
               <button
                 className={`segmented-pill-btn ${annualWindow === 3 ? 'active' : ''}`}
@@ -1041,11 +1050,11 @@ export default function RegionalPage() {
                 y: annualTrends.map(d => d.num_documents),
                 type: 'scatter',
                 mode: 'lines+markers',
-                name: 'Documentos',
+                name: t('regional.kpi_docs'),
                 line: { color: '#0284c7', width: 2 }
               }
             ]}
-            layout={{ title: 'Evolución de Documentos Publicados', height: 300 }}
+            layout={{ title: t('regional.annual_docs_title'), height: 300 }}
           />
 
           <PlotlyChart
@@ -1055,7 +1064,7 @@ export default function RegionalPage() {
                 y: annualTrends.map(d => d.fwci_avg),
                 type: 'scatter',
                 mode: 'lines+markers',
-                name: 'FWCI Promedio',
+                name: t('regional.kpi_fwci'),
                 line: { color: '#10b981', width: 2 }
               },
               {
@@ -1063,11 +1072,11 @@ export default function RegionalPage() {
                 y: annualTrends.map(() => 1.0),
                 type: 'scatter',
                 mode: 'lines',
-                name: 'Media Mundial (1.0)',
+                name: t('regional.annual_world_avg'),
                 line: { color: '#ef4444', dash: 'dash' }
               }
             ]}
-            layout={{ title: 'Evolución del FWCI Promedio', height: 300 }}
+            layout={{ title: t('regional.annual_fwci_title'), height: 300 }}
           />
         </div>
       </div>
@@ -1078,8 +1087,8 @@ export default function RegionalPage() {
       {/* 1. Espacio UMAP Multidimensional de Países Reciente (umap_countries_recent) */}
       {umapCountries && umapCountries.length > 0 && (
         <UmapTrajectoryViewer
-          title="🌌 Espacio UMAP de Países Latinoamericanos (Perfil Multidimensional Reciente)"
-          subtitle="Proyección topológica no lineal 2D de los 20 países latinoamericanos según su desempeño cienciométrico integral (FWCI, % Diamante, % Top 10%, % Inglés, % Scopus)."
+          title={t('regional.umap_countries_title')}
+          subtitle={t('regional.umap_countries_desc')}
           points={umapCountries}
           allowTrajectoryFilter={false}
           showGridSection={true}
@@ -1090,8 +1099,8 @@ export default function RegionalPage() {
       {/* 2. Global Trajectories in UMAP (2000-2025) */}
       {trajectories && Object.keys(trajectories).length > 0 && (
         <UmapTrajectoryViewer
-          title="📈 Trayectorias de Desempeño Latam (Global 2000–2025)"
-          subtitle="Evolución temporal continua de todos los países y el promedio regional LATAM (línea verde) en el espacio UMAP con mapas de calor gaussianos por indicador."
+          title={t('regional.umap_trajectories_title')}
+          subtitle={t('regional.umap_trajectories_desc')}
           trajectories={trajectories}
           allowTrajectoryFilter={true}
           showGridSection={true}
@@ -1114,13 +1123,13 @@ export default function RegionalPage() {
                 className={`segmented-pill-btn ${rankingsPeriod === 'full' ? 'active' : ''}`}
                 onClick={() => setRankingsPeriod('full')}
               >
-                Periodo Completo
+                {t('regional.rankings_period_full')}
               </button>
               <button
                 className={`segmented-pill-btn ${rankingsPeriod === 'recent' ? 'active' : ''}`}
                 onClick={() => setRankingsPeriod('recent')}
               >
-                Reciente (2021-2025)
+                {t('regional.rankings_period_recent')}
               </button>
             </div>
 
@@ -1132,7 +1141,7 @@ export default function RegionalPage() {
                 const headers = ['Codigo', 'Pais', 'Revistas', 'Documentos', 'FWCI', 'Pct_Top_10', 'Pct_Top_1', 'Pct_OA_Diamante', 'Pct_OA_Gold', 'Pct_Espanol', 'Pct_Ingles'];
                 const rows = rankings.map(r => [
                   r.country_code,
-                  `"${(r.country_name || '').replace(/"/g, '""')}"`,
+                  `"${((r.country_code && t(`country_names.${r.country_code}`) !== `country_names.${r.country_code}`) ? t(`country_names.${r.country_code}`) : (r.country_name || '')).replace(/"/g, '""')}"`,
                   r.num_journals || 0,
                   r.num_documents || 0,
                   Number(r.fwci_avg || 0).toFixed(2),
@@ -1153,9 +1162,9 @@ export default function RegionalPage() {
                 document.body.removeChild(link);
               }}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
-              title="Descargar ranking en formato CSV"
+              title={t('regional.download_csv_tooltip')}
             >
-              <Download size={14} /> Descargar CSV
+              <Download size={14} /> {t('regional.download_csv')}
             </button>
           </div>
         </div>
@@ -1182,7 +1191,7 @@ export default function RegionalPage() {
               {rankings.map((r, idx) => (
                 <tr key={idx}>
                   <td><strong>{r.country_code}</strong></td>
-                  <td>{r.country_name}</td>
+                  <td>{(r.country_code && t(`country_names.${r.country_code}`) !== `country_names.${r.country_code}`) ? t(`country_names.${r.country_code}`) : r.country_name}</td>
                   <td>{r.num_journals?.toLocaleString()}</td>
                   <td>{r.num_documents?.toLocaleString()}</td>
                   <td>{Number(r.fwci_avg || 0).toFixed(2)}</td>
@@ -1242,13 +1251,13 @@ export default function RegionalPage() {
 
       {/* ── EXPANDER DE DOSSIER DE ESTUDIO Y ENVÍO A CHATGPT (PIE DE PÁGINA) ── */}
       <PageDossierExpander
-        pageTitle="Panorama Regional de Revistas Científicas de América Latina"
-        pageDescription="Selecciona cualquiera de las gráficas, tablas o indicadores de esta vista regional para generar un reporte integral o enviarlo a ChatGPT."
+        pageTitle={t('regional.page_title_dossier')}
+        pageDescription={t('regional.page_desc_dossier')}
         sections={[
           {
             id: 'kpis_macro',
-            title: '1. Indicadores Macro Regionales (Cabecera)',
-            category: 'KPIs Principales',
+            title: t('regional.dossier_sec1_title'),
+            category: t('regional.dossier_sec1_cat'),
             defaultChecked: true,
             rawData: kpis,
             buildDataText: () => {
@@ -1268,8 +1277,8 @@ export default function RegionalPage() {
           },
           {
             id: 'periods_comparison',
-            title: '2. Panel Consolidado de Indicadores de Desempeño (Histórico 0–2026 vs Reciente 2021–2025)',
-            category: 'Comparativa Temporal y Desempeño',
+            title: t('regional.dossier_sec2_title'),
+            category: t('regional.dossier_sec2_cat'),
             defaultChecked: true,
             rawData: periods,
             buildDataText: () => {
@@ -1306,8 +1315,8 @@ export default function RegionalPage() {
           },
           {
             id: 'thematic_profiles_table',
-            title: `3. Perfiles Temáticos de Países (Nivel: ${thematicLevel.toUpperCase()})`,
-            category: 'Estructura Disciplinar por País',
+            title: t('regional.dossier_sec3_title', { level: thematicLevel.toUpperCase() }),
+            category: t('regional.dossier_sec3_cat'),
             defaultChecked: false,
             rawData: thematicProfiles,
             buildDataText: () => {
@@ -1330,8 +1339,8 @@ export default function RegionalPage() {
           },
           {
             id: 'distributions_oa_lang',
-            title: '4. Distribución Global de Vías de Acceso Abierto e Idiomas (Donuts)',
-            category: 'Distribuciones',
+            title: t('regional.dossier_sec4_title'),
+            category: t('regional.dossier_sec4_cat'),
             defaultChecked: false,
             rawData: distributions,
             buildDataText: () => {
@@ -1353,8 +1362,8 @@ export default function RegionalPage() {
           },
           {
             id: 'map_choropleth',
-            title: `5. Mapa Coroplético Espacial (${MAP_INDICATORS.find(m => m.id === selectedMapIndicator)?.label || selectedMapIndicator})`,
-            category: 'Cartografía Geopolítica',
+            title: t('regional.dossier_sec5_title', { ind: MAP_INDICATORS.find(m => m.id === selectedMapIndicator)?.label || selectedMapIndicator }),
+            category: t('regional.dossier_sec5_cat'),
             defaultChecked: true,
             rawData: choroplethData,
             buildDataText: () => {
@@ -1372,8 +1381,8 @@ export default function RegionalPage() {
           },
           {
             id: 'period_gaps',
-            title: `6. Gráfico de Mancuerna (Dumbbell) — Brechas Histórico vs 2021–2025 (${selectedDumbbellInd.toUpperCase()})`,
-            category: 'Evolución Longitudinal',
+            title: t('regional.dossier_sec6_title', { ind: selectedDumbbellInd.toUpperCase() }),
+            category: t('regional.dossier_sec6_cat'),
             defaultChecked: false,
             rawData: periodGaps,
             buildDataText: () => {
@@ -1392,8 +1401,8 @@ export default function RegionalPage() {
           },
           {
             id: 'stacked_bars',
-            title: `7. Barras Apiladas 100% — Composición de Vías OA e Idiomas por País (${stackedMode === 'oa' ? 'Vías OA' : 'Idiomas'})`,
-            category: 'Estructura por País',
+            title: t('regional.dossier_sec7_title', { mode: stackedMode === 'oa' ? t('regional.bar_100_oa') : t('regional.bar_100_lang') }),
+            category: t('regional.dossier_sec7_cat'),
             defaultChecked: false,
             rawData: stackedData,
             buildDataText: () => {
@@ -1416,8 +1425,8 @@ export default function RegionalPage() {
           },
           {
             id: 'stream_graph',
-            title: '8. Stream Graph / Dinámica Histórica de Grandes Áreas Temáticas (1985–2025)',
-            category: 'Dinámica Temática',
+            title: t('regional.dossier_sec8_title'),
+            category: t('regional.dossier_sec8_cat'),
             defaultChecked: false,
             rawData: streamData,
             buildDataText: () => {
@@ -1434,8 +1443,8 @@ export default function RegionalPage() {
           },
           {
             id: 'thematic_hierarchy',
-            title: `9. Estructura Temática Jerárquica (${thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap'})`,
-            category: 'Taxonomía Científica',
+            title: t('regional.dossier_sec9_title', { type: thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap' }),
+            category: t('regional.dossier_sec9_cat'),
             defaultChecked: false,
             rawData: thematicViewType === 'sunburst' ? sunburstData : treemapData,
             buildDataText: () => {
@@ -1458,8 +1467,8 @@ export default function RegionalPage() {
           },
           {
             id: 'diverging_deviations',
-            title: `10. Gráfico de Barras Divergentes — Desviación de la Media (${divergingInd})`,
-            category: 'Posicionamiento Relativo',
+            title: t('regional.dossier_sec10_title', { ind: divergingInd }),
+            category: t('regional.dossier_sec10_cat'),
             defaultChecked: false,
             rawData: divergingData,
             buildDataText: () => {
@@ -1477,8 +1486,8 @@ export default function RegionalPage() {
           },
           {
             id: 'annual_trends',
-            title: `11. Serie Temporal Anual con Ventana Móvil (1970–2026)`,
-            category: 'Series de Tiempo',
+            title: t('regional.dossier_sec11_title'),
+            category: t('regional.dossier_sec11_cat'),
             defaultChecked: false,
             rawData: annualTrends,
             buildDataText: () => {
@@ -1495,8 +1504,8 @@ export default function RegionalPage() {
           },
           {
             id: 'umap_countries',
-            title: '12. Espacio UMAP Multidimensional de Países Reciente (umap_countries_recent)',
-            category: 'Variedades Semánticas / UMAP',
+            title: t('regional.dossier_sec12_title'),
+            category: t('regional.dossier_sec12_cat'),
             defaultChecked: false,
             rawData: umapCountries,
             buildDataText: () => {
@@ -1513,8 +1522,8 @@ export default function RegionalPage() {
           },
           {
             id: 'umap_trajectories',
-            title: '13. Trayectorias de Desempeño Latam en UMAP (Global 2000–2025)',
-            category: 'Variedades Semánticas / UMAP',
+            title: t('regional.dossier_sec13_title'),
+            category: t('regional.dossier_sec13_cat'),
             defaultChecked: false,
             rawData: trajectories,
             buildDataText: () => {
@@ -1535,8 +1544,8 @@ export default function RegionalPage() {
           },
           {
             id: 'rankings_table',
-            title: `14. Tabla Comparativa por País (Ranking ${rankingsPeriod === 'full' ? 'Histórico' : '2021–2025'})`,
-            category: 'Benchmarking Institucional',
+            title: t('regional.dossier_sec14_title', { period: rankingsPeriod === 'full' ? t('regional.rankings_period_full') : t('regional.rankings_period_recent') }),
+            category: t('regional.dossier_sec14_cat'),
             defaultChecked: false,
             rawData: rankings,
             buildDataText: () => {
@@ -1553,8 +1562,8 @@ export default function RegionalPage() {
           },
           {
             id: 'scatter_explorer',
-            title: `15. Explorador de Revistas — Scatter Plot Dinámico (${SCATTER_INDICATORS.find(s => s.id === scatterX)?.label} vs ${SCATTER_INDICATORS.find(s => s.id === scatterY)?.label})`,
-            category: 'Correlaciones Multivariadas',
+            title: t('regional.dossier_sec15_title', { x: SCATTER_INDICATORS.find(s => s.id === scatterX)?.label || scatterX, y: SCATTER_INDICATORS.find(s => s.id === scatterY)?.label || scatterY }),
+            category: t('regional.dossier_sec15_cat'),
             defaultChecked: false,
             rawData: scatterData,
             buildDataText: () => {

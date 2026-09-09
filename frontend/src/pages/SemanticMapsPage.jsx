@@ -272,17 +272,17 @@ export default function SemanticMapsPage() {
           {/* Methodology Card */}
           <div className="card" style={{ background: 'var(--bg-input)' }}>
             <h4 style={{ fontSize: '14.5px', fontWeight: '700', marginBottom: '8px' }}>
-              🌌 Metodología de Creación del Paisaje Científico de Artículos (LATAM) — Arquitectura Sinapsis AI
+              🌌 {t('maps.methodology_title')}
             </h4>
             <ol style={{ fontSize: '12.5px', lineHeight: 1.65, color: 'var(--text-muted)', marginLeft: '20px' }}>
-              <li><strong>Semántica Pura:</strong> Extracción de títulos y resúmenes de los 3.54 millones de artículos de OpenAlex, aislando metadatos de autor, institución o país para evitar sesgos geográficos.</li>
-              <li><strong>Procesamiento Trilingüe:</strong> Filtro avanzado de <em>stopwords</em> combinadas en Español, Portugués e Inglés.</li>
-              <li><strong>Vectorización Densa y Espacio Latente:</strong> Generación de embeddings densos de alta dimensionalidad (<em>Nomic Embed Text v2 / SVD denso</em>) normalizados en norma <em>L₂</em>.</li>
-              <li><strong>Clustering en la Dimensión Intrínseca (HDBSCAN):</strong> Agrupamiento basado en densidad no lineal en el espacio latente (<code>min_cluster_size=300</code>, <code>min_samples=30</code>) descubriendo macro-comunidades naturales y separando ruido periférico.</li>
-              <li><strong>Etiquetado Semántico Híbrido (Centroides + TF-IDF + LLM):</strong> Para cada clúster se calculan los 10 artículos más cercanos al centroide geométrico y sus palabras clave TF-IDF, sintetizando con un modelo LLM local un nombre temático conciso (2 a 4 palabras en español).</li>
-              <li><strong>Sub-etiquetas Jerárquicas (Nivel 2):</strong> Micro-partición con K-Means y re-etiquetado temático para grandes macro-clústeres.</li>
-              <li><strong>Variedades No Lineales (UMAP 2D):</strong> Reducción topológica continua con métrica del coseno (<code>n_neighbors=30</code>, <code>min_dist=0.35</code>, <code>spread=1.8</code>) para visualización fluida en GPU WebGL.</li>
-              <li><strong>Envolturas Convexas (Convex Hulls):</strong> Delimitación de polígonos mínimos que encierran el territorio temático de un país o revista seleccionados.</li>
+              <li><strong>{t('maps.methodology_pure_semantics_title')}:</strong> {t('maps.methodology_pure_semantics_desc')}</li>
+              <li><strong>{t('maps.methodology_trilingual_proc_title')}:</strong> {t('maps.methodology_trilingual_proc_desc')}</li>
+              <li><strong>{t('maps.methodology_dense_vec_title')}:</strong> {t('maps.methodology_dense_vec_desc')}</li>
+              <li><strong>{t('maps.methodology_clustering_title')}:</strong> {t('maps.methodology_clustering_desc')}</li>
+              <li><strong>{t('maps.methodology_labeling_title')}:</strong> {t('maps.methodology_labeling_desc')}</li>
+              <li><strong>{t('maps.methodology_sublabels_title')}:</strong> {t('maps.methodology_sublabels_desc')}</li>
+              <li><strong>{t('maps.methodology_umap_title')}:</strong> {t('maps.methodology_umap_desc')}</li>
+              <li><strong>{t('maps.methodology_convex_hulls_title')}:</strong> {t('maps.methodology_convex_hulls_desc')}</li>
             </ol>
           </div>
         </div>
@@ -358,7 +358,7 @@ export default function SemanticMapsPage() {
                   text: journalPoints.map(p => `${p.display_name}<br>Editorial: ${p.publisher}<br>FWCI: ${p.fwci_avg} | Citas: ${p.cited_by_count}`),
                   type: 'scatter'
                 }]}
-                layout={{ height: 680, title: `Espacio Semántico 2D de ${journalPoints.length.toLocaleString()} Revistas` }}
+                layout={{ height: 680, title: t('maps.journals_space_title', { n: journalPoints.length.toLocaleString() }) }}
               />
             </div>
           )}
@@ -366,12 +366,12 @@ export default function SemanticMapsPage() {
           {/* Methodology Card */}
           <div className="card" style={{ background: 'var(--bg-input)' }}>
             <h4 style={{ fontSize: '14.5px', fontWeight: '700', marginBottom: '8px' }}>
-              📐 Metodología de Construcción del Espacio Semántico 2D de Revistas — Baricentros y Multimodalidad
+              📐 {t('maps.methodology_journals_title')}
             </h4>
             <ol style={{ fontSize: '12.5px', lineHeight: 1.65, color: 'var(--text-muted)', marginLeft: '20px' }}>
-              <li><strong>Baricentro de Artículos (Mean Pooling):</strong> Cada una de las 7,509 revistas se posiciona en el centroide geométrico calculado a partir de la totalidad de sus artículos proyectados en el espacio semántico maestro.</li>
-              <li><strong>Espacio Híbrido Multimodal (&alpha; = 0.40):</strong> Fusión ponderada de 60% contenido semántico + 40% perfil de rendimiento cienciométrico (FWCI, OA Diamante, % Top 10%, Índice H y PageRank).</li>
-              <li><strong>Reducción UMAP 2D:</strong> Preservación de vecindades disciplinares, clusters de afinidad editorial y diferenciación de excelencia científica en el espacio bidimensional.</li>
+              <li><strong>{t('maps.methodology_journals_barycenter_title')}:</strong> {t('maps.methodology_journals_barycenter_desc')}</li>
+              <li><strong>{t('maps.methodology_journals_hybrid_title')}:</strong> {t('maps.methodology_journals_hybrid_desc')}</li>
+              <li><strong>{t('maps.methodology_journals_umap_title')}:</strong> {t('maps.methodology_journals_umap_desc')}</li>
             </ol>
           </div>
         </div>

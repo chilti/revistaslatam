@@ -112,6 +112,18 @@ export default function UmapTrajectoryViewer({
   const selectOnlyEntity = (k) => setActiveEntities(new Set([k, 'LATAM']));
   const selectAllEntities = () => setActiveEntities(new Set(entityKeys));
 
+  const getEntityName = useCallback((entityId, fallbackName) => {
+    if (!entityId) return fallbackName || '';
+    const localized = t(`country_names.${entityId}`);
+    if (localized && localized !== `country_names.${entityId}`) {
+      return localized;
+    }
+    if (entityId === 'LATAM' || fallbackName === 'Iberoamérica (Ref.)') {
+      return t('country_names.LATAM');
+    }
+    return fallbackName || entityId;
+  }, [t]);
+
   // Determine cluster key per point (cluster field > entityId > country_code)
   const clusterKey = useCallback((p) =>
     p.cluster != null ? String(p.cluster)
@@ -126,12 +138,13 @@ export default function UmapTrajectoryViewer({
         const entityId = p.country_code || p.journal_id || p.id || '';
         // If entity filter is active, only show label for active entities
         const isEntityActive = activeEntities.size === 0 || !allowTrajectoryFilter || activeEntities.has(entityId) || activeEntities.has(ck);
+        const ptLabel = p.country_code ? getEntityName(p.country_code, p.country_name || p.name) : (p.display_name || p.country_name || p.name || p.label || '');
         return {
           x:            p.umap_x ?? p.x,
           y:            p.umap_y ?? p.y,
           value:        colorByCluster ? null : (p[selectedVar] ?? p.value ?? 0),
           clusterColor: colorByCluster ? clusterColor(ck, CLUSTER_PALETTE) : null,
-          label:        isEntityActive ? (p.display_name || p.country_name || p.name || p.label || '') : '',
+          label:        isEntityActive ? ptLabel : '',
           entityId:     entityId,
           cluster:      ck,
           raw: p
@@ -149,6 +162,7 @@ export default function UmapTrajectoryViewer({
       if (ent && Array.isArray(ent.points)) {
         const isRef = ent.is_ref || k === 'LATAM';
         const color = isRef ? '#10b981' : clusterColor(k, CLUSTER_PALETTE);
+        const entityName = getEntityName(k, ent.name);
 
         ent.points.forEach((pt, ptIdx) => {
           const isLatest = ptIdx === ent.points.length - 1;
@@ -157,7 +171,7 @@ export default function UmapTrajectoryViewer({
           // Label only start and end points for active entities
           let ptLabel = '';
           if (isLatest) {
-            ptLabel = `${ent.name} (${pt.year})`;
+            ptLabel = `${entityName} (${pt.year})`;
           } else if (isStart) {
             ptLabel = `'${String(pt.year).slice(-2)}`;
           }
@@ -177,7 +191,7 @@ export default function UmapTrajectoryViewer({
       }
     });
     return pts;
-  }, [points, trajectories, activeEntities, allowTrajectoryFilter, selectedVar, colorByCluster, clusterKey]);
+  }, [points, trajectories, activeEntities, allowTrajectoryFilter, selectedVar, colorByCluster, clusterKey, getEntityName]);
 
   // Points for grid heatmaps (always variable-colored, no cluster)
   const gridPoints = useMemo(() => {
@@ -185,18 +199,19 @@ export default function UmapTrajectoryViewer({
       return points.map(p => ({
         x: p.umap_x ?? p.x,
         y: p.umap_y ?? p.y,
-        label: p.display_name || p.country_name || p.name || '',
+        label: p.country_code ? getEntityName(p.country_code, p.country_name || p.name) : (p.display_name || p.country_name || p.name || ''),
         entityId: p.country_code || p.id || '',
         raw: p
       }));
     }
     return Object.keys(trajectories || {}).flatMap(k => {
       const ent = trajectories[k];
+      const entityName = getEntityName(k, ent.name);
       return (ent?.points || []).map(pt => ({
-        x: pt.x, y: pt.y, label: `${ent.name} (${pt.year})`, entityId: k, raw: pt
+        x: pt.x, y: pt.y, label: `${entityName} (${pt.year})`, entityId: k, raw: pt
       }));
     });
-  }, [points, trajectories]);
+  }, [points, trajectories, getEntityName]);
 
   // Active trajectories list
   const activeTrajList = useMemo(() => {
@@ -204,22 +219,36 @@ export default function UmapTrajectoryViewer({
       .filter(k => activeEntities.has(k))
       .map(k => {
         const t = trajectories[k];
+        const isRef = t.is_ref || k === 'LATAM';
         return {
-          name: t.name || k,
-          is_ref: t.is_ref || k === 'LATAM',
-          color: t.is_ref || k === 'LATAM' ? '#10b981' : clusterColor(k, CLUSTER_PALETTE),
-          width: t.is_ref || k === 'LATAM' ? 4 : 2,
+          name: getEntityName(k, t.name),
+          is_ref: isRef,
+          color: isRef ? '#10b981' : clusterColor(k, CLUSTER_PALETTE),
+          width: isRef ? 4 : 2,
           points: t.points
         };
       });
-  }, [trajectories, activeEntities]);
+  }, [trajectories, activeEntities, getEntityName]);
 
   // Hover handler
   const handlePointHover = useCallback((point, clientX, clientY) => {
     setHoveredInfo(point ? { point, x: clientX, y: clientY } : null);
   }, []);
 
-  const currentVarObj = variables.find(v => v.id === selectedVar) || variables[0];
+  const effectiveVariables = useMemo(() => {
+    return (variables || DEFAULT_VARIABLES).map(v => {
+      let label = v.label;
+      if (v.id === 'fwci_avg') label = t('umap.var_fwci');
+      else if (v.id === 'pct_oa_diamond') label = t('umap.var_diamond');
+      else if (v.id === 'pct_top_10') label = t('umap.var_top10');
+      else if (v.id === 'pct_top_1') label = t('umap.var_top1');
+      else if (v.id === 'pct_lang_en') label = t('umap.var_english');
+      else if (v.id === 'num_documents') label = t('umap.var_docs');
+      return { ...v, label };
+    });
+  }, [variables, t]);
+
+  const currentVarObj = effectiveVariables.find(v => v.id === selectedVar) || effectiveVariables[0];
 
   // Unique clusters for legend
   const clusterKeys = useMemo(() => {
@@ -249,16 +278,16 @@ export default function UmapTrajectoryViewer({
               <button
                 className={`segmented-pill-btn ${colorByCluster ? 'active' : ''}`}
                 onClick={() => setColorByCluster(true)}
-                title="Colorear por grupos/clusters"
+                title={t('umap.btn_clusters_tooltip')}
               >
-                🎨 Clusters
+                {t('umap.btn_clusters')}
               </button>
               <button
                 className={`segmented-pill-btn ${!colorByCluster ? 'active' : ''}`}
                 onClick={() => setColorByCluster(false)}
-                title="Colorear por indicador numérico"
+                title={t('umap.btn_indicator_tooltip')}
               >
-                🌡 Indicador
+                {t('umap.btn_indicator')}
               </button>
             </div>
 
@@ -271,7 +300,7 @@ export default function UmapTrajectoryViewer({
                   onChange={e => setSelectedVar(e.target.value)}
                   style={{ fontSize: '12px', padding: '6px 10px', borderRadius: '8px', fontWeight: '600' }}
                 >
-                  {variables.map(v => (
+                  {effectiveVariables.map(v => (
                     <option key={v.id} value={v.id}>{v.label}</option>
                   ))}
                 </select>
@@ -309,9 +338,9 @@ export default function UmapTrajectoryViewer({
             {/* Maximize */}
             <button
               className="btn-secondary"
-              onClick={() => setModalItem({ name: colorByCluster ? 'Clusters' : currentVarObj.label, varId: selectedVar })}
+              onClick={() => setModalItem({ name: colorByCluster ? t('umap.btn_clusters') : currentVarObj.label, varId: selectedVar })}
               style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', padding: '6px 10px' }}
-              title="Maximizar en alta resolución"
+              title={t('umap.btn_maximize_tooltip')}
             >
               <Maximize2 size={13} />
             </button>
@@ -322,20 +351,21 @@ export default function UmapTrajectoryViewer({
         {allowTrajectoryFilter && entityKeys.length > 1 && (
           <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginRight: '4px' }}>
-              Trayectorias Activas ({activeEntities.size}/{entityKeys.length}):
+              {t('umap.active_trajectories', { active: activeEntities.size, total: entityKeys.length })}
             </span>
             <button
               className="segmented-pill-btn"
               onClick={selectAllEntities}
               style={{ fontSize: '11px', padding: '3px 8px', height: 'auto' }}
             >
-              Mostrar Todas
+              {t('umap.show_all')}
             </button>
             {entityKeys.map(k => {
               const ent = trajectories[k];
               const isAct = activeEntities.has(k);
               const isRef = ent.is_ref || k === 'LATAM';
               const dotCol = isRef ? '#10b981' : clusterColor(k, CLUSTER_PALETTE);
+              const entityName = getEntityName(k, ent.name);
               return (
                 <button
                   key={k}
@@ -350,10 +380,10 @@ export default function UmapTrajectoryViewer({
                     color: isAct ? dotCol : 'var(--text-muted)',
                     cursor: 'pointer', transition: 'all 0.15s ease'
                   }}
-                  title={`Click alternar · Doble click aislar ${ent.name}`}
+                  title={t('umap.pill_tooltip', { name: entityName })}
                 >
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isAct ? dotCol : '#64748b' }} />
-                  {ent.name || k}
+                  {entityName}
                 </button>
               );
             })}
@@ -404,7 +434,7 @@ export default function UmapTrajectoryViewer({
               {clusterKeys.map(ck => (
                 <span key={ck} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)' }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: clusterColor(ck, CLUSTER_PALETTE), flexShrink: 0 }} />
-                  {ck}
+                  {getEntityName(ck, ck)}
                 </span>
               ))}
             </div>
@@ -432,7 +462,7 @@ export default function UmapTrajectoryViewer({
                 )}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px', fontSize: '11px', marginTop: '6px' }}>
-                {variables.map(v => {
+                {effectiveVariables.map(v => {
                   const val = hoveredInfo.point.raw?.[v.id] ?? (v.id === selectedVar ? hoveredInfo.point.value : null);
                   if (val == null) return null;
                   return (
@@ -458,11 +488,11 @@ export default function UmapTrajectoryViewer({
             }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }} />
-                Región LATAM (Ref.)
+                {t('umap.legend_latam_ref')}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#38bdf8' }} />
-                Países / Revistas
+                {t('umap.legend_entities')}
               </span>
             </div>
           )}
@@ -476,16 +506,16 @@ export default function UmapTrajectoryViewer({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sliders size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '15px', fontWeight: '800', margin: 0 }}>
-                Cuadrícula de Mapas de Calor por Indicador (Espacio UMAP)
+                {t('umap.grid_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Concentración topológica de cada dimensión con trayectorias superpuestas.
+              {t('umap.grid_desc')}
             </span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-            {variables.map(v => {
+            {effectiveVariables.map(v => {
               const ptsForVar = (gridPoints.length > 0 ? gridPoints : mappedPoints).map(p => ({
                 x:       p.x ?? p.umap_x,
                 y:       p.y ?? p.umap_y,
@@ -526,7 +556,7 @@ export default function UmapTrajectoryViewer({
                       <button
                         onClick={() => { setColorByCluster(false); setSelectedVar(v.id); setModalItem({ name: v.label, varId: v.id }); }}
                         style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-                        title="Maximizar"
+                        title={t('umap.maximize')}
                       >
                         <Maximize2 size={12} />
                       </button>
@@ -600,7 +630,7 @@ export default function UmapTrajectoryViewer({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: 'var(--text-main)' }}>
-                  {modalItem.name} — Espacio UMAP de Alta Resolución
+                  {t('umap.modal_title', { name: modalItem.name })}
                 </h3>
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('umap.maximized_view')}</span>
               </div>

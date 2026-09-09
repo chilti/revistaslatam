@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
 import { useTranslation } from '../i18n';
@@ -99,42 +99,40 @@ export default function CountryPage() {
   
   const [loading, setLoading] = useState(true);
 
-  const DYNAMIC_SCATTER_INDICATORS = [
-    { id: 'num_documents', label: 'Documentos' },
-    { id: 'fwci_avg', label: 'FWCI Promedio' },
-    { id: 'pct_top_10', label: '% Top 10%' },
-    { id: 'pct_top_1', label: '% Top 1%' },
-    { id: 'avg_percentile', label: 'Percentil Promedio' },
-    { id: 'pct_oa_total', label: '% OA Total' },
-    { id: 'pct_oa_diamond', label: '% OA Diamante' },
-    { id: 'pct_oa_gold', label: '% OA Dorado' },
-    { id: 'pct_oa_green', label: '% OA Verde' },
-    { id: 'pct_oa_hybrid', label: '% OA Híbrido' },
-    { id: 'pct_oa_bronze', label: '% OA Bronce' },
-    { id: 'pct_oa_closed', label: '% Cerrado' },
-    { id: 'pct_authors_domestic', label: 'Autoría Doméstica (%)' },
-    { id: 'pct_lang_es', label: '% Español' },
-    { id: 'pct_lang_en', label: '% Inglés' },
-    { id: 'pct_lang_pt', label: '% Portugués' },
-    { id: 'pct_lang_fr', label: '% Francés' },
-    { id: 'pct_lang_de', label: '% Alemán' },
-    { id: 'pct_lang_it', label: '% Italiano' },
-    { id: 'pct_lang_other', label: '% Otros Idiomas' },
-    { id: 'cited_by_count', label: 'Citas Totales' },
-    { id: 'h_index', label: 'Índice h' },
-    { id: 'i10_index', label: 'Índice i10' },
-    { id: 'citedness_2yr', label: 'Citas 2 Años (Mean Citedness)' },
-    { id: 'pagerank', label: 'PageRank Citas (‰)' },
-    { id: 'eigenfactor', label: 'Eigenfactor Score (%)' }
-  ];
+  const localizedCountry = t(`country_names.${selectedCountry}`);
+  const countryDisplayName = (localizedCountry && localizedCountry !== `country_names.${selectedCountry}`)
+    ? localizedCountry
+    : (summary?.country_name || selectedCountry);
 
-  const SCATTER_OPTIONS = [
-    { id: 'works_count', label: 'Documentos Publicados' },
-    { id: 'cited_by_count', label: 'Citas Totales' },
-    { id: 'fwci_avg', label: 'FWCI Promedio' },
-    { id: 'h_index', label: 'Índice H' },
-    { id: 'pct_oa_diamond', label: '% OA Diamante' },
-  ];
+  const DYNAMIC_SCATTER_INDICATORS = React.useMemo(() => [
+    { id: 'num_documents', label: t('country.scatter_ind_docs') },
+    { id: 'fwci_avg', label: t('country.scatter_ind_fwci') },
+    { id: 'pct_top_10', label: t('country.scatter_ind_top10') },
+    { id: 'pct_top_1', label: t('country.scatter_ind_top1') },
+    { id: 'avg_percentile', label: t('country.scatter_ind_percentile') },
+    { id: 'pct_oa_total', label: t('country.scatter_ind_oa_total') },
+    { id: 'pct_oa_diamond', label: t('country.scatter_ind_oa_diamond') },
+    { id: 'pct_oa_gold', label: t('country.scatter_ind_oa_gold') },
+    { id: 'pct_oa_green', label: t('country.scatter_ind_oa_green') },
+    { id: 'pct_oa_hybrid', label: t('country.scatter_ind_oa_hybrid') },
+    { id: 'pct_oa_bronze', label: t('country.scatter_ind_oa_bronze') },
+    { id: 'pct_oa_closed', label: t('country.scatter_ind_oa_closed') },
+    { id: 'pct_authors_domestic', label: t('country.scatter_ind_domestic_authors') },
+    { id: 'pct_lang_es', label: t('country.scatter_ind_lang_es') },
+    { id: 'pct_lang_en', label: t('country.scatter_ind_lang_en') },
+    { id: 'pct_lang_pt', label: t('country.scatter_ind_lang_pt') },
+    { id: 'pct_lang_fr', label: t('country.scatter_ind_lang_fr') },
+    { id: 'pct_lang_de', label: t('country.scatter_ind_lang_de') },
+    { id: 'pct_lang_it', label: t('country.scatter_ind_lang_it') },
+    { id: 'pct_lang_other', label: t('country.scatter_ind_lang_other') },
+    { id: 'cited_by_count', label: t('country.scatter_ind_citations') },
+    { id: 'h_index', label: t('country.scatter_ind_h_index') },
+    { id: 'i10_index', label: t('country.scatter_ind_i10_index') },
+    { id: 'citedness_2yr', label: t('country.scatter_ind_citedness_2yr') },
+    { id: 'pagerank', label: t('country.scatter_ind_pagerank') },
+    { id: 'eigenfactor', label: t('country.scatter_ind_eigenfactor') }
+  ], [t]);
+
 
   // Load countries catalog
   useEffect(() => {
@@ -219,32 +217,34 @@ export default function CountryPage() {
   const sunburstTrace = (countrySunburst && Array.isArray(countrySunburst.nodes) && countrySunburst.nodes.length > 0) ? [{
     type: 'sunburst',
     ids: countrySunburst.nodes.map(n => n.id),
-    labels: countrySunburst.nodes.map(n => n.label),
+    labels: countrySunburst.nodes.map(n => (n.label === 'Sin Clasificación' || n.label === 'Unknown') ? t('country.hierarchy_unclassified') : n.label),
     parents: countrySunburst.nodes.map(n => n.parent),
     values: countrySunburst.nodes.map(n => n.value),
     marker: {
       colors: countrySunburst.nodes.map(n => n.color_val),
       colorscale: 'Viridis',
-      showscale: true
+      showscale: true,
+      colorbar: { title: t('country.hierarchy_hover_metric') }
     },
     branchvalues: 'total',
-    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+    hovertemplate: `<b>%{label}</b><br>${t('country.hierarchy_hover_articles')}: %{value:,.0f}<br>${t('country.hierarchy_hover_metric')}: %{color:.2f}<extra></extra>`
   }] : [];
 
   // Treemap Trace
   const treemapTrace = (countryTreemap && Array.isArray(countryTreemap.nodes) && countryTreemap.nodes.length > 0) ? [{
     type: 'treemap',
     ids: countryTreemap.nodes.map(n => n.id),
-    labels: countryTreemap.nodes.map(n => n.label),
+    labels: countryTreemap.nodes.map(n => (n.label === 'Sin Clasificación' || n.label === 'Unknown') ? t('country.hierarchy_unclassified') : n.label),
     parents: countryTreemap.nodes.map(n => n.parent),
     values: countryTreemap.nodes.map(n => n.value),
     marker: {
       colors: countryTreemap.nodes.map(n => n.color_val),
       colorscale: 'Viridis',
-      showscale: true
+      showscale: true,
+      colorbar: { title: t('country.hierarchy_hover_metric') }
     },
     branchvalues: 'total',
-    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+    hovertemplate: `<b>%{label}</b><br>${t('country.hierarchy_hover_articles')}: %{value:,.0f}<br>${t('country.hierarchy_hover_metric')}: %{color:.2f}<extra></extra>`
   }] : [];
 
   // Trajectory Trace
@@ -268,7 +268,7 @@ export default function CountryPage() {
     {
       x: validAnnual.map(d => d.year),
       y: validAnnual.map(d => d.num_documents),
-      name: 'Artículos Publicados',
+      name: t('country.trace_published_docs'),
       type: 'bar',
       marker: { color: 'rgba(2, 132, 199, 0.65)' },
       yaxis: 'y'
@@ -276,7 +276,7 @@ export default function CountryPage() {
     {
       x: validAnnual.map(d => d.year),
       y: validAnnual.map(d => d.fwci_avg),
-      name: 'FWCI Promedio',
+      name: t('country.trace_fwci_avg'),
       type: 'scatter',
       mode: 'lines+markers',
       line: { color: '#10b981', width: 3 },
@@ -286,7 +286,7 @@ export default function CountryPage() {
     {
       x: validAnnual.map(d => d.year),
       y: validAnnual.map(() => 1.0),
-      name: 'Media Mundial (1.0)',
+      name: t('country.trace_world_avg'),
       type: 'scatter',
       mode: 'lines',
       line: { color: '#ef4444', dash: 'dash', width: 1.5 },
@@ -309,9 +309,9 @@ export default function CountryPage() {
     },
     fillcolor: 'rgba(2, 132, 199, 0.1)',
     line: { color: '#0284c7' },
-    text: journalsDist.map(d => `${d.display_name}<br>Valor: ${d[beeswarmMetric]}<br>Artículos: ${d.works_count}`),
+    text: journalsDist.map(d => `${d.display_name}<br>${t('country.beeswarm_hover_val')}: ${d[beeswarmMetric]}<br>${t('country.beeswarm_hover_docs')}: ${d.works_count}`),
     hoverinfo: 'text+y',
-    name: summary?.country_name || selectedCountry
+    name: countryDisplayName
   }];
 
   // Slope Chart Traces
@@ -320,23 +320,23 @@ export default function CountryPage() {
     const isClimbed = s.rank_change > 0;
     const color = isClimbed ? '#10b981' : (s.rank_change < 0 ? '#ef4444' : '#94a3b8');
     const labelMap = {
-      'fwci_avg': 'FWCI Ponderado',
-      'pct_oa_diamond': '% OA Diamante',
-      'pct_top_10': '% Top 10%',
-      'num_documents': 'Volumen de Artículos'
+      'fwci_avg': t('country.slope_fwci'),
+      'pct_oa_diamond': t('country.slope_diamond'),
+      'pct_top_10': t('country.slope_top10'),
+      'num_documents': t('country.slope_docs')
     };
     
     slopeTraces.push({
-      x: ['Periodo Histórico', 'Reciente (2021–2025)'],
+      x: [t('country.slope_x_historical'), t('country.slope_x_recent')],
       y: [s.rank_full, s.rank_recent],
       type: 'scatter',
       mode: 'lines+markers+text',
       name: labelMap[s.indicator] || s.indicator,
       line: { color: color, width: 3 },
       marker: { size: 10, color: color },
-      text: [`Puesto #${s.rank_full}`, `Puesto #${s.rank_recent}`],
+      text: [`${t('country.slope_rank_label')}${s.rank_full}`, `${t('country.slope_rank_label')}${s.rank_recent}`],
       textposition: ['top left', 'top right'],
-      hovertemplate: `<b>${labelMap[s.indicator] || s.indicator}</b><br>Histórico: #${s.rank_full} (${s.val_full})<br>Reciente: #${s.rank_recent} (${s.val_recent})<extra></extra>`
+      hovertemplate: `<b>${labelMap[s.indicator] || s.indicator}</b><br>${t('country.slope_hover_hist')}: #${s.rank_full} (${s.val_full})<br>${t('country.slope_hover_recent')}: #${s.rank_recent} (${s.val_recent})<extra></extra>`
     });
   });
 
@@ -353,7 +353,7 @@ export default function CountryPage() {
       y: effectiveBgArts.map(a => a.umap_y),
       mode: 'markers',
       type: 'scatter',
-      name: 'Otros Artículos LATAM',
+      name: t('country.landscape_trace_other'),
       marker: { size: 3.5, color: '#94a3b8', opacity: 0.22 },
       hoverinfo: 'skip'
     });
@@ -369,25 +369,25 @@ export default function CountryPage() {
       y: countryArts.map(a => a.umap_y),
       mode: 'markers',
       type: 'scatter',
-      name: `Artículos de ${summary?.country_name || selectedCountry}`,
+      name: t('country.landscape_trace_country', { country: countryDisplayName }),
       marker: {
         size: 5.5,
         color: countryArts.map(a => a.publication_year),
         colorscale: 'Turbo',
         cmin: minYr,
         cmax: maxYr,
-        colorbar: { title: 'Año de Publ.', x: 1.02 },
+        colorbar: { title: t('country.landscape_colorbar_title'), x: 1.02 },
         opacity: 0.85,
         line: { width: 0.3, color: '#ffffff' }
       },
       text: countryArts.map(a => a.title),
       customdata: countryArts.map(a => [
-        a.journal_name || 'Desconocida',
+        a.journal_name || '—',
         a.publication_year || '—',
         a.fwci != null ? Number(a.fwci).toFixed(2) : '—',
-        a.community_name || 'General'
+        a.community_name || '—'
       ]),
-      hovertemplate: '<b>%{text}</b><br>Revista: %{customdata[0]}<br>Año: %{customdata[1]} | FWCI: %{customdata[2]}<br>Comunidad: %{customdata[3]}<extra></extra>'
+      hovertemplate: `<b>%{text}</b><br>${t('country.landscape_hover_journal')}: %{customdata[0]}<br>${t('country.landscape_hover_year')}: %{customdata[1]} | FWCI: %{customdata[2]}<br>${t('country.landscape_hover_community')}: %{customdata[3]}<extra></extra>`
     });
   }
 
@@ -448,12 +448,12 @@ export default function CountryPage() {
   const activePieData = piePeriod === 'recent' ? (summary?.recent_period || {}) : (summary?.full_period || {});
 
   const oaPieValues = [
-    { label: 'Diamante', value: Number(activePieData.pct_oa_diamond || 0), color: '#38bdf8' },
-    { label: 'Gold', value: Number(activePieData.pct_oa_gold || 0), color: '#fbbf24' },
-    { label: 'Verde', value: Number(activePieData.pct_oa_green || 0), color: '#34d399' },
-    { label: 'Híbrido', value: Number(activePieData.pct_oa_hybrid || 0), color: '#a78bfa' },
-    { label: 'Bronce', value: Number(activePieData.pct_oa_bronze || 0), color: '#fb923c' },
-    { label: 'Cerrado', value: Number(activePieData.pct_oa_closed || 0), color: '#f87171' },
+    { label: t('common.diamond'), value: Number(activePieData.pct_oa_diamond || 0), color: '#38bdf8' },
+    { label: t('common.gold'), value: Number(activePieData.pct_oa_gold || 0), color: '#fbbf24' },
+    { label: t('common.green'), value: Number(activePieData.pct_oa_green || 0), color: '#34d399' },
+    { label: t('common.hybrid'), value: Number(activePieData.pct_oa_hybrid || 0), color: '#a78bfa' },
+    { label: t('common.bronze'), value: Number(activePieData.pct_oa_bronze || 0), color: '#fb923c' },
+    { label: t('common.closed'), value: Number(activePieData.pct_oa_closed || 0), color: '#f87171' },
   ].filter(item => item.value > 0);
 
   const oaPieTrace = [{
@@ -470,13 +470,13 @@ export default function CountryPage() {
   }];
 
   const langPieValues = [
-    { label: 'Español', value: Number(activePieData.pct_lang_es || 0), color: '#a855f7' },
-    { label: 'Inglés', value: Number(activePieData.pct_lang_en || 0), color: '#38bdf8' },
-    { label: 'Portugués', value: Number(activePieData.pct_lang_pt || 0), color: '#f59e0b' },
-    { label: 'Francés', value: Number(activePieData.pct_lang_fr || 0), color: '#ec4899' },
-    { label: 'Alemán', value: Number(activePieData.pct_lang_de || 0), color: '#10b981' },
-    { label: 'Italiano', value: Number(activePieData.pct_lang_it || 0), color: '#6366f1' },
-    { label: 'Otros', value: Number(activePieData.pct_lang_other || 0), color: '#94a3b8' },
+    { label: t('country.lang_name_es'), value: Number(activePieData.pct_lang_es || 0), color: '#a855f7' },
+    { label: t('country.lang_name_en'), value: Number(activePieData.pct_lang_en || 0), color: '#38bdf8' },
+    { label: t('country.lang_name_pt'), value: Number(activePieData.pct_lang_pt || 0), color: '#f59e0b' },
+    { label: t('country.lang_name_fr'), value: Number(activePieData.pct_lang_fr || 0), color: '#ec4899' },
+    { label: t('country.lang_name_de'), value: Number(activePieData.pct_lang_de || 0), color: '#10b981' },
+    { label: t('country.lang_name_it'), value: Number(activePieData.pct_lang_it || 0), color: '#6366f1' },
+    { label: t('country.lang_name_other'), value: Number(activePieData.pct_lang_other || 0), color: '#94a3b8' },
   ].filter(item => item.value > 0);
 
   const langPieTrace = [{
@@ -498,7 +498,7 @@ export default function CountryPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: '800' }}>
-            {summary?.country_name || selectedCountry} ({selectedCountry})
+            {countryDisplayName} ({selectedCountry})
           </h2>
           <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
             {t('country.subtitle')}
@@ -516,7 +516,7 @@ export default function CountryPage() {
           >
             {countriesList.map(c => (
               <option key={c.country_code} value={c.country_code}>
-                {c.country_name} ({c.country_code}) — {c.num_journals} {t('common.works')}
+                {t(`country_names.${c.country_code}`) || c.country_name} ({c.country_code}) — {c.num_journals} {t('common.works')}
               </option>
             ))}
           </select>
@@ -570,10 +570,10 @@ export default function CountryPage() {
           value={`${pData?.pct_oa_diamond ?? summary?.full_period?.pct_oa_diamond ?? 0}%`}
           subtitle={t('kpi.diamond_sub')}
           icon={Sparkles}
-          badge="Diamante"
+          badge={t('common.diamond')}
         />
         <KpiCard
-          title="Revistas DOAJ"
+          title={t('kpi.doaj_seal')}
           value={`${pData?.pct_doaj ?? summary?.full_period?.pct_doaj ?? 0}%`}
           subtitle={t('regional.kpi_doaj_sub')}
           icon={ShieldCheck}
@@ -622,7 +622,7 @@ export default function CountryPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Activity size={18} style={{ color: 'var(--primary-color, #3b82f6)' }} />
                     <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)' }}>
-                      📊 Impacto y Citación (Histórico)
+                      📊 {t('country.card_impact_history')}
                     </span>
                   </div>
                   <span className="badge" style={{ fontSize: '11px' }}>0–2026</span>
@@ -668,11 +668,11 @@ export default function CountryPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Sparkles size={18} style={{ color: '#10b981' }} />
                     <span style={{ fontSize: '15px', fontWeight: '800', color: '#10b981' }}>
-                      ⚡ Periodo Reciente: 2021–2025
+                      ⚡ {t('country.card_recent_period')}
                     </span>
                   </div>
                   <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981', fontSize: '11px' }}>
-                    Último Lustro
+                    {t('country.badge_recent_5years')}
                   </span>
                 </div>
 
@@ -728,7 +728,7 @@ export default function CountryPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <ShieldCheck size={18} style={{ color: '#38bdf8' }} />
                     <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)' }}>
-                      🔓 Ciencia Abierta y Visibilidad
+                      🔓 {t('country.card_open_science')}
                     </span>
                   </div>
                   <span className="badge" style={{ fontSize: '11px' }}>{t('country.stat_access_index')}</span>
@@ -774,7 +774,7 @@ export default function CountryPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Globe2 size={18} style={{ color: '#a855f7' }} />
                     <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)' }}>
-                      🌐 Distribución Lingüística de Publicación
+                      🌐 {t('country.card_language_dist')}
                     </span>
                   </div>
                   <span className="badge" style={{ fontSize: '11px' }}>{t('country.stat_languages')}</span>
@@ -818,12 +818,12 @@ export default function CountryPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <TrendingUp size={18} color="var(--accent-primary)" />
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              Gráfico de Eje Dual (Dual-Axis Chart) — Producción Anual vs FWCI Ponderado
+              {t('country.dual_axis_title')}
             </h3>
           </div>
         </div>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Correlación temporal entre el volumen de artículos publicados (barras azules) y el impacto de citación normalizado (línea verde).
+          {t('country.dual_axis_desc')}
         </p>
 
         <PlotlyChart
@@ -831,10 +831,10 @@ export default function CountryPage() {
           layout={{
             height: 380,
             margin: { l: 60, r: 60, t: 20, b: 40 },
-            xaxis: { title: 'Año de Publicación' },
-            yaxis: { title: 'Artículos Publicados', side: 'left', showgrid: true },
+            xaxis: { title: t('country.axis_pub_year') },
+            yaxis: { title: t('country.trace_published_docs'), side: 'left', showgrid: true },
             yaxis2: {
-              title: 'FWCI Promedio',
+              title: t('country.trace_fwci_avg'),
               side: 'right',
               overlaying: 'y',
               showgrid: false,
@@ -849,14 +849,14 @@ export default function CountryPage() {
       <AnnualDataTable 
         data={annualTrends} 
         countryCode={selectedCountry}
-        countryName={summary?.country_name || selectedCountry}
+        countryName={countryDisplayName}
       />
 
       {/* 1. TRAYECTORIA DE DESEMPEÑO (UMAP PAÍS VS LATAM) */}
       {trajectory && Object.keys(trajectory).length > 0 && (
         <UmapTrajectoryViewer
-          title={`📈 Trayectoria de Desempeño: ${summary?.country_name || selectedCountry} vs Región LATAM (2000–2025)`}
-          subtitle="Evolución multidimensional del país proyectada en el espacio UMAP con la referencia regional continua y mapas de calor gaussianos por indicador."
+          title={`📈 ${t('country.trajectory_title', { country: countryDisplayName })}`}
+          subtitle={t('country.trajectory_subtitle')}
           trajectories={trajectory}
           allowTrajectoryFilter={true}
           showGridSection={true}
@@ -868,8 +868,8 @@ export default function CountryPage() {
       {umapJournals && umapJournals.length > 0 && (
         <>
           <UmapTrajectoryViewer
-            title={`🌌 Mapa UMAP de Similitud de Revistas (${summary?.country_name || selectedCountry})`}
-            subtitle={`Distribución topológica 2D de las ${umapJournals.length} revistas científicas del país según sus indicadores de desempeño (FWCI, % Diamante, % Top 10%, % Inglés).`}
+            title={`🌌 ${t('country.umap_similarity_title', { country: countryDisplayName })}`}
+            subtitle={t('country.umap_similarity_subtitle', { count: umapJournals.length })}
             points={umapJournals}
             allowTrajectoryFilter={false}
             showGridSection={true}
@@ -886,7 +886,7 @@ export default function CountryPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FileSpreadsheet size={18} style={{ color: 'var(--primary-color, #3b82f6)' }} />
                 <h4 style={{ fontSize: '15px', fontWeight: '700', margin: 0 }}>
-                  📊 Ver tabla de datos UMAP (Revistas)
+                  📊 {t('country.umap_table_toggle')}
                 </h4>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -894,7 +894,16 @@ export default function CountryPage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!umapJournals || umapJournals.length === 0) return;
-                    const headers = ['Revista', 'Documentos', '% Inglés', '% OA Diamante', 'FWCI Promedio', '% Top 10%', '% Top 1%', 'Percentil Promedio'];
+                    const headers = [
+                      t('country.table_journal'),
+                      t('country.table_docs'),
+                      t('country.stat_lang_en'),
+                      t('country.stat_oa_diamond'),
+                      t('country.stat_fwci_avg'),
+                      t('country.stat_top10'),
+                      t('country.stat_top1'),
+                      t('country.table_percentile')
+                    ];
                     const rows = umapJournals.map(j => [
                       `"${(j.display_name || '').replace(/"/g, '""')}"`,
                       j.num_documents || 0,
@@ -917,7 +926,7 @@ export default function CountryPage() {
                   className="btn-secondary"
                   style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '4px 10px' }}
                 >
-                  <Download size={13} /> Descargar CSV
+                  <Download size={13} /> {t('common.download_csv')}
                 </button>
                 {umapTableOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </div>
@@ -930,7 +939,7 @@ export default function CountryPage() {
                   <input
                     type="text"
                     className="input-search"
-                    placeholder="🔍 Buscar revista..."
+                    placeholder={t('country.search_journal_placeholder')}
                     value={umapTableSearch}
                     onChange={(e) => setUmapTableSearch(e.target.value)}
                     style={{ paddingLeft: '32px', width: '100%', fontSize: '12.5px', borderRadius: '6px' }}
@@ -941,7 +950,7 @@ export default function CountryPage() {
                   <table className="data-table" style={{ fontSize: '12px' }}>
                     <thead>
                       <tr>
-                        {t('country.table_journal')}
+                        <th>{t('country.table_journal')}</th>
                         <th style={{ textAlign: 'right' }}>{t('country.table_docs')}</th>
                         <th style={{ textAlign: 'right' }}>{t('country.stat_lang_en')}</th>
                         <th style={{ textAlign: 'right' }}>{t('country.stat_oa_diamond')}</th>
@@ -992,15 +1001,15 @@ export default function CountryPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Compass size={20} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '17px', fontWeight: '700', margin: 0 }}>
-                🌌 Evolución de {summary?.country_name || selectedCountry} en el Paisaje Científico (LATAM)
+                🌌 {t('country.landscape_title', { country: countryDisplayName })}
               </h3>
             </div>
             <span className="badge" style={{ fontSize: '11px' }}>
-              {countryArts.length} Artículos del País
+              {t('country.landscape_badge', { count: countryArts.length.toLocaleString() })}
             </span>
           </div>
           <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            Mapeo de los artículos de revistas de {summary?.country_name || selectedCountry} sobre el espacio temático global de Latinoamérica. La barra de color ilustra la progresión temporal de las publicaciones.
+            {t('country.landscape_desc', { country: countryDisplayName })}
           </p>
 
           <PlotlyChart
@@ -1015,7 +1024,7 @@ export default function CountryPage() {
           />
 
           <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(2, 132, 199, 0.08)', borderRadius: '8px', borderLeft: '4px solid var(--accent-primary)', fontSize: '12.5px', color: 'var(--text-muted)' }}>
-            💡 <strong>Interpretación Temporal:</strong> Los frentes temáticos ocupados por puntos amarillos y rojos indican las líneas científicas de mayor publicación reciente en {summary?.country_name || selectedCountry}, mientras que los puntos azules/morados representan áreas fundacionales históricas.
+            💡 <strong>{t('country.landscape_note_title')}</strong> {t('country.landscape_note_desc', { country: countryDisplayName })}
           </div>
         </div>
       )}
@@ -1027,11 +1036,11 @@ export default function CountryPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Grid size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-                Mapa de Calor (Heat Map) — Índice de Especialización Científica (RCA)
+                {t('country.rca_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Ventaja Comparativa Revelada (RCA &gt; 1.0 en verde indica especialización relativa respecto a toda Latinoamérica).
+              {t('country.rca_desc')}
             </span>
           </div>
 
@@ -1040,13 +1049,13 @@ export default function CountryPage() {
               className={`segmented-pill-btn ${rcaLevel === 'domain' ? 'active' : ''}`}
               onClick={() => setRcaLevel('domain')}
             >
-              Grandes Dominios (6)
+              {t('country.rca_pill_domains', { count: 6 })}
             </button>
             <button
               className={`segmented-pill-btn ${rcaLevel === 'field' ? 'active' : ''}`}
               onClick={() => setRcaLevel('field')}
             >
-              Campos Disciplinares (28)
+              {t('country.rca_pill_fields', { count: 28 })}
             </button>
           </div>
         </div>
@@ -1057,10 +1066,10 @@ export default function CountryPage() {
               type: 'heatmap',
               z: rcaData.matrix,
               x: rcaData.disciplines,
-              y: rcaData.countries.map(c => c.name),
+              y: rcaData.countries.map(c => t(`country_names.${c.code}`) || c.name),
               colorscale: 'YlGnBu',
-              colorbar: { title: 'Índice RCA' },
-              hovertemplate: '<b>País:</b> %{y}<br><b>Disciplina:</b> %{x}<br><b>RCA:</b> %{z:.2f}<extra></extra>'
+              colorbar: { title: t('country.rca_colorbar') },
+              hovertemplate: `<b>${t('country.rca_hover_country')}:</b> %{y}<br><b>${t('country.rca_hover_discipline')}:</b> %{x}<br><b>RCA:</b> %{z:.2f}<extra></extra>`
             }]}
             layout={{
               height: rcaLevel === 'domain' ? 440 : 540,
@@ -1077,7 +1086,7 @@ export default function CountryPage() {
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '700' }}>
-              🔬 Dispersión de Revistas (Beeswarm / Strip Plot)
+              🔬 {t('country.beeswarm_title')}
             </h3>
             <select
               value={beeswarmMetric}
@@ -1091,7 +1100,7 @@ export default function CountryPage() {
             </select>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
-            Cada punto representa una revista individual del país distribuida según su desempeño cienciométrico.
+            {t('country.beeswarm_desc')}
           </p>
           <PlotlyChart
             data={beeswarmTraces}
@@ -1106,17 +1115,17 @@ export default function CountryPage() {
         {/* Slope Chart */}
         <div className="card">
           <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '4px' }}>
-            📈 Gráfico de Pendientes (Slope Chart) — Movimiento de Rankings
+            📈 {t('country.slope_title')}
           </h3>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
-            Ascenso o descenso en la posición relativa dentro de LATAM (Histórico vs 2021–2025).
+            {t('country.slope_desc')}
           </p>
           <PlotlyChart
             data={slopeTraces}
             layout={{
               height: 340,
               margin: { l: 80, r: 80, t: 20, b: 30 },
-              yaxis: { autorange: 'reversed', title: 'Puesto en el Ranking LATAM' },
+              yaxis: { autorange: 'reversed', title: t('country.slope_yaxis_title') },
               legend: { orientation: 'h', y: -0.15 }
             }}
           />
@@ -1130,11 +1139,11 @@ export default function CountryPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <BarChart2 size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
-                Explorador de Revistas — Scatter Plot Dinámico
+                {t('country.dynamic_scatter_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Visualiza la relación entre diferentes indicadores bibliométricos para las revistas de {summary?.country_name || selectedCountry} ({validScatterRows.length} revistas).
+              {t('country.dynamic_scatter_subtitle', { country: countryDisplayName, count: validScatterRows.length })}
             </span>
           </div>
 
@@ -1144,13 +1153,13 @@ export default function CountryPage() {
               className={`segmented-pill-btn ${scatterPeriod === 'recent' ? 'active' : ''}`}
               onClick={() => setScatterPeriod('recent')}
             >
-              Período Reciente (2021–2025)
+              {t('country.scatter_pill_recent')}
             </button>
             <button
               className={`segmented-pill-btn ${scatterPeriod === 'full' ? 'active' : ''}`}
               onClick={() => setScatterPeriod('full')}
             >
-              Período Completo
+              {t('country.scatter_pill_full')}
             </button>
           </div>
         </div>
@@ -1159,7 +1168,7 @@ export default function CountryPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '14px', padding: '12px 16px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <div>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '4px', color: 'var(--text-main)' }}>
-              Indicador Eje X:
+              {t('country.axis_x_indicator')}
             </label>
             <select
               value={dynScatterX}
@@ -1174,7 +1183,7 @@ export default function CountryPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '4px', color: 'var(--text-main)' }}>
-              Indicador Eje Y:
+              {t('country.axis_y_indicator')}
             </label>
             <select
               value={dynScatterY}
@@ -1219,25 +1228,25 @@ export default function CountryPage() {
           <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
             <div style={{ padding: '12px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
               <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '6px' }}>
-                Estadísticas: {xLabel}
+                {t('country.stats_title', { label: xLabel })}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', color: 'var(--text-muted)' }}>
-                <span>Media: <strong>{statsX.mean.toFixed(2)}</strong></span>
-                <span>Mediana: <strong>{statsX.median.toFixed(2)}</strong></span>
-                <span>Desv. Est.: <strong>{statsX.std.toFixed(2)}</strong></span>
-                <span>Mín / Máx: <strong>{statsX.min.toFixed(2)} / {statsX.max.toFixed(2)}</strong></span>
+                <span>{t('country.stat_mean')}: <strong>{statsX.mean.toFixed(2)}</strong></span>
+                <span>{t('country.stat_median')}: <strong>{statsX.median.toFixed(2)}</strong></span>
+                <span>{t('country.stat_std')}: <strong>{statsX.std.toFixed(2)}</strong></span>
+                <span>{t('country.stat_min_max')}: <strong>{statsX.min.toFixed(2)} / {statsX.max.toFixed(2)}</strong></span>
               </div>
             </div>
 
             <div style={{ padding: '12px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
               <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '6px' }}>
-                Estadísticas: {yLabel}
+                {t('country.stats_title', { label: yLabel })}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', color: 'var(--text-muted)' }}>
-                <span>Media: <strong>{statsY.mean.toFixed(2)}</strong></span>
-                <span>Mediana: <strong>{statsY.median.toFixed(2)}</strong></span>
-                <span>Desv. Est.: <strong>{statsY.std.toFixed(2)}</strong></span>
-                <span>Mín / Máx: <strong>{statsY.min.toFixed(2)} / {statsY.max.toFixed(2)}</strong></span>
+                <span>{t('country.stat_mean')}: <strong>{statsY.mean.toFixed(2)}</strong></span>
+                <span>{t('country.stat_median')}: <strong>{statsY.median.toFixed(2)}</strong></span>
+                <span>{t('country.stat_std')}: <strong>{statsY.std.toFixed(2)}</strong></span>
+                <span>{t('country.stat_min_max')}: <strong>{statsY.min.toFixed(2)} / {statsY.max.toFixed(2)}</strong></span>
               </div>
             </div>
 
@@ -1247,7 +1256,7 @@ export default function CountryPage() {
                 r = {pearsonR != null ? pearsonR.toFixed(3) : '0.000'}
               </div>
               <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {Math.abs(pearsonR) >= 0.7 ? 'Correlación Fuerte' : (Math.abs(pearsonR) >= 0.4 ? 'Correlación Moderada' : 'Correlación Débil / Nula')}
+                {Math.abs(pearsonR) >= 0.7 ? t('country.corr_strong') : (Math.abs(pearsonR) >= 0.4 ? t('country.corr_moderate') : t('country.corr_weak'))}
               </span>
             </div>
           </div>
@@ -1261,11 +1270,11 @@ export default function CountryPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <PieChart size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
-                Distribución y Características de las Publicaciones
+                {t('country.pie_section_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Composición porcentual de modalidades de acceso abierto e idiomas de publicación en revistas de {summary?.country_name || selectedCountry}.
+              {t('country.pie_section_subtitle', { country: countryDisplayName })}
             </span>
           </div>
 
@@ -1274,13 +1283,13 @@ export default function CountryPage() {
               className={`segmented-pill-btn ${piePeriod === 'full' ? 'active' : ''}`}
               onClick={() => setPiePeriod('full')}
             >
-              Período Completo (0–2026)
+              {t('country.pie_period_full')}
             </button>
             <button
               className={`segmented-pill-btn ${piePeriod === 'recent' ? 'active' : ''}`}
               onClick={() => setPiePeriod('recent')}
             >
-              Período Reciente (2021–2025)
+              {t('country.pie_period_recent')}
             </button>
           </div>
         </div>
@@ -1289,7 +1298,7 @@ export default function CountryPage() {
           {/* OA Pie */}
           <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)' }}>
             <h4 style={{ fontSize: '14px', fontWeight: '700', textAlign: 'center', marginBottom: '8px', color: 'var(--text-main)' }}>
-              🔓 Distribución por Acceso Abierto
+              {t('country.pie_oa_title')}
             </h4>
             {oaPieValues.length > 0 ? (
               <PlotlyChart
@@ -1302,7 +1311,7 @@ export default function CountryPage() {
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                Sin datos de acceso abierto disponibles.
+                {t('country.pie_oa_empty')}
               </div>
             )}
           </div>
@@ -1310,7 +1319,7 @@ export default function CountryPage() {
           {/* Language Pie */}
           <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)' }}>
             <h4 style={{ fontSize: '14px', fontWeight: '700', textAlign: 'center', marginBottom: '8px', color: 'var(--text-main)' }}>
-              🌐 Distribución por Idiomas
+              {t('country.pie_lang_title')}
             </h4>
             {langPieValues.length > 0 ? (
               <PlotlyChart
@@ -1323,7 +1332,7 @@ export default function CountryPage() {
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                Sin datos de idioma disponibles.
+                {t('country.pie_lang_empty')}
               </div>
             )}
           </div>
@@ -1335,10 +1344,10 @@ export default function CountryPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              🏵️ Jerarquía Temática Nacional: Dominio → Campo → Subcampo
+              {t('country.hierarchy_title')}
             </h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Especialización temática y masa crítica de artículos del país. Alterna entre la vista radial (Sunburst) y la vista rectangular compacta (Treemap).
+              {t('country.hierarchy_desc')}
             </span>
           </div>
 
@@ -1349,13 +1358,13 @@ export default function CountryPage() {
                 className={`segmented-pill-btn ${thematicViewType === 'sunburst' ? 'active' : ''}`}
                 onClick={() => setThematicViewType('sunburst')}
               >
-                🏵️ Sunburst
+                {t('country.hierarchy_sunburst')}
               </button>
               <button
                 className={`segmented-pill-btn ${thematicViewType === 'treemap' ? 'active' : ''}`}
                 onClick={() => setThematicViewType('treemap')}
               >
-                🌲 Treemap
+                {t('country.hierarchy_treemap')}
               </button>
             </div>
 
@@ -1382,7 +1391,7 @@ export default function CountryPage() {
                 checked={sunburstUnclassified}
                 onChange={(e) => setSunburstUnclassified(e.target.checked)}
               />
-              Sin Clasificación
+              {t('country.hierarchy_unclassified')}
             </label>
           </div>
         </div>
@@ -1397,13 +1406,13 @@ export default function CountryPage() {
       {/* 6. ANÁLISIS DE PERFILES TEMÁTICOS DE REVISTAS DEL PAÍS (DOMINIO, CAMPO, SUBCAMPO) */}
       <CountryThematicProfilesTable 
         countryCode={selectedCountry} 
-        countryName={summary?.country_name || selectedCountry} 
+        countryName={countryDisplayName} 
       />
 
       {/* 7. EVOLUCIÓN HISTÓRICA DE PERFILES DE CONOCIMIENTO DEL PAÍS (DOMINIO, CAMPO, SUBCAMPO, TÓPICO) */}
       <ThematicEvolutionTable 
         countryCode={selectedCountry} 
-        countryName={summary?.country_name || selectedCountry} 
+        countryName={countryDisplayName} 
       />
 
       {/* Journals Catalog Table */}
@@ -1411,10 +1420,10 @@ export default function CountryPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              📚 Catálogo de Revistas de {summary?.country_name || selectedCountry} ({journals.length})
+              📚 {t('country.catalog_title', { country: countryDisplayName, count: journals.length })}
             </h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Detalle de publicaciones científicas registradas para este país.
+              {t('country.catalog_subtitle')}
             </span>
           </div>
 
@@ -1422,7 +1431,7 @@ export default function CountryPage() {
             className="btn-secondary"
             onClick={() => {
               if (!journals || journals.length === 0) return;
-              const headers = ['Revista', 'OpenAlex_ID', 'ISSN_L', 'Editorial_Institucion', 'Articulos', 'Citas', 'FWCI', 'H_Index', 'Pct_OA_Diamante', 'En_DOAJ'];
+              const headers = [t('country.table_journal'), 'OpenAlex_ID', t('tables.issn'), t('tables.publisher'), t('tables.articles'), t('tables.citations'), t('tables.fwci'), t('tables.h_index'), t('tables.pct_diamond'), 'DOAJ'];
               const rows = journals.map(j => [
                 `"${(j.display_name || '').replace(/"/g, '""')}"`,
                 `"${j.id || ''}"`,
@@ -1433,7 +1442,7 @@ export default function CountryPage() {
                 Number(j.fwci_avg || 0).toFixed(2),
                 j.h_index || 0,
                 Number(j.pct_oa_diamond || 0).toFixed(1),
-                j.is_in_doaj ? 'Si' : 'No'
+                j.is_in_doaj ? t('common.yes') : t('common.no')
               ]);
               const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
               const encodedUri = encodeURI(csvContent);
@@ -1445,9 +1454,9 @@ export default function CountryPage() {
               document.body.removeChild(link);
             }}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
-            title="Descargar catálogo de revistas en formato CSV"
+            title={t('country.catalog_csv_tooltip')}
           >
-            <Download size={14} /> Descargar CSV
+            <Download size={14} /> {t('tables.download_csv')}
           </button>
         </div>
 
@@ -1488,7 +1497,7 @@ export default function CountryPage() {
                         setActiveSection('journal');
                       }}
                     >
-                      Ver Detalle
+                      {t('buttons.view_details')}
                     </button>
                   </td>
                 </tr>
@@ -1500,19 +1509,19 @@ export default function CountryPage() {
 
       {/* ── EXPANDER DE DOSSIER DE ESTUDIO Y ENVÍO A CHATGPT (PIE DE PÁGINA) ── */}
       <PageDossierExpander
-        pageTitle={`Perfil y Diagnóstico Cienciométrico: ${summary?.country_name || selectedCountry}`}
-        pageDescription={`Selecciona cualquiera de las gráficas, tablas o indicadores de ${summary?.country_name || selectedCountry} para generar un reporte integral o consultar a ChatGPT.`}
+        pageTitle={t('country.dossier_page_title', { country: countryDisplayName })}
+        pageDescription={t('country.dossier_page_desc', { country: countryDisplayName })}
         sections={[
           {
             id: 'country_kpis',
-            title: `1. Indicadores Clave y Perfil Macro (${summary?.country_name || selectedCountry})`,
-            category: 'KPIs Principales',
+            title: t('country.dossier_sec1_title', { country: countryDisplayName }),
+            category: t('country.dossier_sec1_cat'),
             defaultChecked: true,
             rawData: { summary, pData },
             buildDataText: () => {
               if (!summary && !pData) return 'No hay datos de perfil disponibles.';
               return [
-                `*País:* **${summary?.country_name || selectedCountry} (${selectedCountry})**\n`,
+                `*País:* **${countryDisplayName} (${selectedCountry})**\n`,
                 '| Métrica Cienciométrica | Valor Actual | Contexto Nacional |',
                 '|---|---|---|',
                 `| Revistas Activas en OpenAlex | ${summary?.num_journals?.toLocaleString() || 0} | Publicaciones con sede en el país |`,
@@ -1525,8 +1534,8 @@ export default function CountryPage() {
           },
           {
             id: 'country_performance_panel',
-            title: '2. Panel Consolidado de Desempeño, Impacto y Ciencia Abierta (Histórico vs 2021–2025)',
-            category: 'Indicadores de Desempeño',
+            title: t('country.dossier_sec2_title'),
+            category: t('country.dossier_sec2_cat'),
             defaultChecked: true,
             rawData: { full_period: summary?.full_period, recent_period: summary?.recent_period },
             buildDataText: () => {
@@ -1571,8 +1580,8 @@ export default function CountryPage() {
           },
           {
             id: 'country_annual',
-            title: `3. Gráfico de Eje Dual — Producción Anual vs FWCI Ponderado (1970–2026)`,
-            category: 'Series de Tiempo',
+            title: t('country.dossier_sec3_title'),
+            category: t('country.dossier_sec3_cat'),
             defaultChecked: true,
             rawData: annualTrends,
             buildDataText: () => {
@@ -1589,8 +1598,8 @@ export default function CountryPage() {
           },
           {
             id: 'umap_trajectory_country',
-            title: `4. Trayectoria de Desempeño UMAP (${summary?.country_name || selectedCountry} vs Región LATAM 2000–2025)`,
-            category: 'Variedades Semánticas / UMAP',
+            title: t('country.dossier_sec4_title', { country: countryDisplayName }),
+            category: t('country.dossier_sec4_cat'),
             defaultChecked: false,
             rawData: trajectory,
             buildDataText: () => {
@@ -1611,8 +1620,8 @@ export default function CountryPage() {
           },
           {
             id: 'umap_country_journals',
-            title: `5. Mapa UMAP y Tabla de Similitud de Revistas (${umapJournals.length} revistas)`,
-            category: 'Variedades Semánticas / UMAP',
+            title: t('country.dossier_sec5_title', { count: umapJournals.length }),
+            category: t('country.dossier_sec5_cat'),
             defaultChecked: false,
             rawData: umapJournals,
             buildDataText: () => {
@@ -1632,14 +1641,14 @@ export default function CountryPage() {
           },
           {
             id: 'country_landscape_evolution',
-            title: `6. Evolución en el Paisaje Científico LATAM (${countryArts.length} artículos del país)`,
-            category: 'Variedades Semánticas / UMAP',
+            title: t('country.dossier_sec6_title', { count: countryArts.length }),
+            category: t('country.dossier_sec6_cat'),
             defaultChecked: false,
             rawData: landscapeArticles,
             buildDataText: () => {
               if (!countryArts || countryArts.length === 0) return 'No hay artículos proyectados en el mapa semántico regional.';
               const lines = [
-                `*Muestra:* **${countryArts.length.toLocaleString()} artículos de ${summary?.country_name || selectedCountry}** proyectados sobre el espacio temático latinoamericano.\n`,
+                `*Muestra:* **${countryArts.length.toLocaleString()} artículos de ${countryDisplayName}** proyectados sobre el espacio temático latinoamericano.\n`,
                 '| Título del Artículo | Revista | Año | FWCI | Comunidad Temática | Coordenadas (UMAP-1, UMAP-2) |',
                 '|---|---|---|---|---|---|'
               ];
@@ -1655,8 +1664,8 @@ export default function CountryPage() {
           },
           {
             id: 'thematic_specialization_rca',
-            title: '7. Heatmap de Especialización Temática (Ventajas Comparativas Reveladas - RCA)',
-            category: 'Especialización Temática',
+            title: t('country.dossier_sec7_title'),
+            category: t('country.dossier_sec7_cat'),
             defaultChecked: false,
             rawData: rcaData,
             buildDataText: () => {
@@ -1665,7 +1674,7 @@ export default function CountryPage() {
               if (myCountryIdx === -1) return 'Datos RCA disponibles para la región.';
               const row = rcaData.matrix[myCountryIdx] || [];
               const lines = [
-                `*Nivel:* **${rcaLevel === 'domain' ? 'Grandes Dominios' : 'Campos Disciplinares'}** | *País:* **${summary?.country_name || selectedCountry}**\n`,
+                `*Nivel:* **${rcaLevel === 'domain' ? 'Grandes Dominios' : 'Campos Disciplinares'}** | *País:* **${countryDisplayName}**\n`,
                 '| Disciplina / Área | Índice RCA | Estado de Especialización (RCA > 1.0) |',
                 '|---|---|---|'
               ];
@@ -1678,8 +1687,8 @@ export default function CountryPage() {
           },
           {
             id: 'slope_rankings',
-            title: '8. Gráfico de Pendiente (Slope Chart) — Cambios de Posición en Rankings LATAM',
-            category: 'Evolución de Posicionamiento',
+            title: t('country.dossier_sec8_title'),
+            category: t('country.dossier_sec8_cat'),
             defaultChecked: false,
             rawData: slopeData,
             buildDataText: () => {
@@ -1698,8 +1707,8 @@ export default function CountryPage() {
           },
           {
             id: 'country_dynamic_scatter',
-            title: `9. Explorador de Revistas — Scatter Plot Dinámico y Correlación (${xLabel} vs ${yLabel})`,
-            category: 'Correlaciones Multivariadas',
+            title: t('country.dossier_sec9_title', { x: xLabel, y: yLabel }),
+            category: t('country.dossier_sec9_cat'),
             defaultChecked: false,
             rawData: { validScatterRows, statsX, statsY, pearsonR, scatterPeriod },
             buildDataText: () => {
@@ -1727,8 +1736,8 @@ export default function CountryPage() {
           },
           {
             id: 'country_oa_lang_pies',
-            title: `10. Distribución y Características de las Publicaciones (Pasteles OA e Idiomas - ${piePeriod === 'recent' ? '2021–2025' : '0–2026'})`,
-            category: 'Distribuciones',
+            title: t('country.dossier_sec10_title', { period: piePeriod === 'recent' ? '2021–2025' : '0–2026' }),
+            category: t('country.dossier_sec10_cat'),
             defaultChecked: false,
             rawData: { oaPieValues, langPieValues, piePeriod },
             buildDataText: () => {
@@ -1752,8 +1761,8 @@ export default function CountryPage() {
           },
           {
             id: 'country_thematic_hierarchy',
-            title: `11. Estructura Temática Jerárquica del País (${thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap'})`,
-            category: 'Taxonomía Científica',
+            title: t('country.dossier_sec11_title', { type: thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap' }),
+            category: t('country.dossier_sec11_cat'),
             defaultChecked: false,
             rawData: thematicViewType === 'sunburst' ? countrySunburst : countryTreemap,
             buildDataText: () => {
@@ -1776,8 +1785,8 @@ export default function CountryPage() {
           },
           {
             id: 'journals_distribution',
-            title: `12. Distribución de Revistas por Desempeño (Beeswarm / Jitter - ${beeswarmMetric})`,
-            category: 'Distribuciones',
+            title: t('country.dossier_sec12_title', { ind: beeswarmMetric }),
+            category: t('country.dossier_sec12_cat'),
             defaultChecked: false,
             rawData: journalsDist,
             buildDataText: () => {
@@ -1798,8 +1807,8 @@ export default function CountryPage() {
           },
           {
             id: 'journals_catalog',
-            title: `13. Catálogo Completo de Revistas (${journals.length} revistas)`,
-            category: 'Catálogo de Publicaciones',
+            title: t('country.dossier_sec13_title', { count: journals.length }),
+            category: t('country.dossier_sec13_cat'),
             defaultChecked: false,
             rawData: journals,
             buildDataText: () => {

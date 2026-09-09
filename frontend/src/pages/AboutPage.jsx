@@ -13,17 +13,19 @@ import {
   ShieldCheck, 
   Share2 
 } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export default function AboutPage() {
+  const { t } = useTranslation();
   const repoUrl = 'https://github.com/chilti/revistaslatam';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1050px' }}>
       {/* Page Title */}
       <div>
-        <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Acerca de Revistas LATAM</h2>
+        <h2 style={{ fontSize: '24px', fontWeight: '800' }}>{t('about.title')}</h2>
         <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-          Créditos, grupo de investigación, repositorio oficial de código abierto y arquitectura técnica.
+          {t('about.subtitle')}
         </p>
       </div>
 
@@ -50,10 +52,10 @@ export default function AboutPage() {
             </div>
             <div>
               <h3 style={{ fontSize: '17px', fontWeight: '800', margin: 0 }}>
-                Repositorio Oficial en GitHub
+                {t('about.repo_title')}
               </h3>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Código abierto, pipelines ETL reproducibles y documentación técnica
+                {t('about.repo_subtitle')}
               </span>
             </div>
           </div>
@@ -75,14 +77,14 @@ export default function AboutPage() {
               boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
             }}
           >
-            <span>Ver Repositorio en GitHub</span>
+            <span>{t('about.repo_button')}</span>
             <ExternalLink size={15} />
           </a>
         </div>
 
         <div style={{ fontSize: '13px', color: 'var(--text-main)', lineHeight: 1.6, marginBottom: '16px' }}>
           <p>
-            El proyecto <strong>Revistas LATAM</strong> es un desarrollo de ciencia abierta enfocado en la evaluación cienciométrica de las revistas académicas de América Latina y el Caribe. Todos los scripts de recolección, pipelines de cálculo, modelos de reducción topológica (UMAP) y el código de la plataforma web están disponibles públicamente:
+            {t('about.repo_desc')}
           </p>
         </div>
 
@@ -99,7 +101,7 @@ export default function AboutPage() {
           gap: '6px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>
-            <Terminal size={13} /> Clonación del Repositorio:
+            <Terminal size={13} /> {t('about.clone_label')}
           </div>
           <div style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>
             git clone https://github.com/chilti/revistaslatam.git
@@ -119,7 +121,7 @@ export default function AboutPage() {
           }}>
             <Globe size={18} color="var(--accent-primary)" />
             <div style={{ fontSize: '12px' }}>
-              <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>Servidor Principal:</div>
+              <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>{t('about.main_server')}</div>
               <a 
                 href="https://dinamica1.fciencias.unam.mx/revistaslatam/" 
                 target="_blank" 
@@ -142,7 +144,7 @@ export default function AboutPage() {
           }}>
             <Globe size={18} color="var(--accent-success)" />
             <div style={{ fontSize: '12px' }}>
-              <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>Servidor Espejo:</div>
+              <div style={{ fontWeight: '700', color: 'var(--text-main)' }}>{t('about.mirror_server')}</div>
               <a 
                 href="https://dinamica10.fciencias.unam.mx/revistaslatam/" 
                 target="_blank" 
@@ -160,16 +162,16 @@ export default function AboutPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
           <Users size={18} color="var(--accent-primary)" />
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Grupo de Trabajo</h3>
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('about.team_title')}</h3>
         </div>
         <div style={{ fontSize: '13.5px', color: 'var(--text-main)', lineHeight: 1.6 }}>
           <p style={{ fontWeight: '700', color: 'var(--accent-primary)', marginBottom: '12px' }}>
-            Complejidad, Cienciometría y Ciencia de la Ciencia — Facultad de Ciencias, UNAM
+            {t('about.lab_name')}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <div>
-                <strong>Dr. Humberto Andrés Carrillo Calvet</strong> — <span style={{ color: 'var(--text-muted)' }}>Investigador Titular</span>
+                <strong>Dr. Humberto Andrés Carrillo Calvet</strong> — <span style={{ color: 'var(--text-muted)' }}>{t('about.role_lead_researcher')}</span>
               </div>
               <a
                 href="https://orcid.org/0000-0003-3659-6769"
@@ -184,7 +186,7 @@ export default function AboutPage() {
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <div>
-                <strong>Dr. Ricardo Arencibia Jorge</strong> — <span style={{ color: 'var(--text-muted)' }}>Especialista Cienciométrico</span>
+                <strong>Dr. Ricardo Arencibia Jorge</strong> — <span style={{ color: 'var(--text-muted)' }}>{t('about.role_scientometrics_specialist')}</span>
               </div>
               <a
                 href="https://orcid.org/0000-0001-8907-2454"
@@ -199,7 +201,7 @@ export default function AboutPage() {
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <div>
-                <strong>Dr. José Luis Jiménez Andrade</strong> — <span style={{ color: 'var(--text-muted)' }}>Arquitectura y Modelado Matemático</span>
+                <strong>Dr. José Luis Jiménez Andrade</strong> — <span style={{ color: 'var(--text-muted)' }}>{t('about.role_architecture_math')}</span>
               </div>
               <a
                 href="https://orcid.org/0000-0003-3453-7159"
@@ -219,11 +221,11 @@ export default function AboutPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
           <Code size={18} color="var(--accent-success)" />
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Desarrollo, ETL e Ingeniería de Software</h3>
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('about.dev_title')}</h3>
         </div>
         <ul style={{ marginLeft: '20px', fontSize: '13.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <li><strong>Dr. José Luis Jiménez Andrade</strong> — Arquitectura del Sistema, Pipelines ETL y Modelado Topológico</li>
-          <li><strong>Antigravity con Gemini 3 Pro y Claude Sonnet 4.5</strong> — Pair Programming, Optimización DuckDB, Canvas 2D y WebGL GPU</li>
+          <li><strong>{t('about.dev_lead_name')}</strong> — {t('about.dev_lead_role')}</li>
+          <li><strong>{t('about.dev_ai_name')}</strong> — {t('about.dev_ai_role')}</li>
         </ul>
       </div>
 
@@ -231,7 +233,7 @@ export default function AboutPage() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
           <Cpu size={18} color="#f59e0b" />
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Arquitectura del Sistema Desacoplado (2.0)</h3>
+          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>{t('about.architecture_title')}</h3>
         </div>
         <div style={{
           background: 'var(--bg-input)',
@@ -247,11 +249,11 @@ export default function AboutPage() {
           flexDirection: 'column',
           gap: '6px'
         }}>
-          <div><strong>1. Capa de Datos:</strong> OpenAlex Snapshot Global + PostgreSQL + ClickHouse local (569M trabajos, 337M autores).</div>
-          <div><strong>2. Motor Analítico OLAP:</strong> DuckDB embebido con almacenamiento columnar Parquet (3.63M trabajos LATAM / 7,494 revistas).</div>
-          <div><strong>3. Backend REST:</strong> FastAPI asíncrono con compresión Gzip, endpoints analíticos &lt; 15 ms y servicio de archivos estáticos.</div>
-          <div><strong>4. Frontend SPA:</strong> React 18 + Vite + Plotly.js + Canvas 2D Heatmaps + Shaders WebGL GPU a 60 FPS.</div>
-          <div><strong>5. Inteligencia Artificial:</strong> Exportador estructurado de Dossier de Estudio para integración fluida con ChatGPT / LLMs.</div>
+          <div><strong>{t('about.arch_1_label')}</strong> {t('about.arch_1_desc')}</div>
+          <div><strong>{t('about.arch_2_label')}</strong> {t('about.arch_2_desc')}</div>
+          <div><strong>{t('about.arch_3_label')}</strong> {t('about.arch_3_desc')}</div>
+          <div><strong>{t('about.arch_4_label')}</strong> {t('about.arch_4_desc')}</div>
+          <div><strong>{t('about.arch_5_label')}</strong> {t('about.arch_5_desc')}</div>
         </div>
       </div>
 
@@ -260,15 +262,15 @@ export default function AboutPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
           <BookOpen size={18} color="var(--accent-primary)" />
           <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-            Metodología Cienciométrica y Soberanía Editorial
+            {t('about.methods_title')}
           </h3>
         </div>
         <div style={{ fontSize: '13px', lineHeight: 1.65, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <p>
-            El sistema implementa un pipeline de inteligencia científica para cartografiar el ecosistema de revistas académicas en América Latina. A través de modelos neuronales de lenguaje y reducción topológica no lineal (UMAP), se proyecta la variedad semántica pura del conocimiento regional sin sesgos institucionales ni geopolíticos.
+            {t('about.methods_p1')}
           </p>
           <p>
-            Las métricas de citación e impacto normalizado por campo (<strong>FWCI</strong>), la clasificación en percentiles mundiales (<strong>Top 1%</strong> y <strong>Top 10%</strong>) y el seguimiento exhaustivo de las vías de <strong>Acceso Abierto Diamante y Dorado</strong> permiten una evaluación integral, justa y transparente de las publicaciones académicas latinoamericanas.
+            {t('about.methods_p2')}
           </p>
         </div>
       </div>

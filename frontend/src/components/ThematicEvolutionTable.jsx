@@ -3,17 +3,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { Download, Search, Sparkles, Filter, Layers } from 'lucide-react';
 
-const LEVEL_CONFIG = [
-  { id: 'domain', label: 'Dominio' },
-  { id: 'field', label: 'Campo' },
-  { id: 'subfield', label: 'Subcampo' },
-  { id: 'topic', label: 'Tópico' },
-];
-
 export default function ThematicEvolutionTable({ 
   countryCode = null, 
   countryName = null, 
-  journalId = null,
+  journalId = null, 
   journalName = null,
   title = null, 
   subtitle = null 
@@ -23,6 +16,13 @@ export default function ThematicEvolutionTable({
   const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const levelConfig = [
+    { id: 'domain', label: t('thematic_table.domain') },
+    { id: 'field', label: t('thematic_table.field') },
+    { id: 'subfield', label: t('thematic_table.subfield') },
+    { id: 'topic', label: t('thematic_table.topic') },
+  ];
   const [limit, setLimit] = useState(30);
 
   // Fetch aggregated evolution data on level, countryCode or journalId change
@@ -58,7 +58,7 @@ export default function ThematicEvolutionTable({
 
     rawData.forEach(item => {
       const yr = Number(item.year);
-      const name = item.name || 'Sin Clasificación';
+      const name = (item.name && item.name !== 'Sin Clasificación') ? item.name : t('tables.no_classification');
       const count = Number(item.num_documents || 0);
 
       if (yr >= 1985) {
@@ -105,7 +105,7 @@ export default function ThematicEvolutionTable({
   // Export CSV
   const handleDownloadCsv = () => {
     if (pivotedRows.length === 0) return;
-    const header = [LEVEL_CONFIG.find(l => l.id === level)?.label || 'Área', ...years, 'Total General'];
+    const header = [levelConfig.find(l => l.id === level)?.label || t('thematic_table.thematic_area'), ...years, t('thematic_table.total_general')];
     const rowsCsv = pivotedRows.map(r => {
       const nameClean = `"${r.name.replace(/"/g, '""')}"`;
       const yearVals = years.map(y => r.years[y] || 0);
@@ -130,17 +130,19 @@ export default function ThematicEvolutionTable({
     return `rgba(59, 130, 246, ${ratio.toFixed(3)})`;
   };
 
+  const countryDisplay = (countryCode && t(`country_names.${countryCode}`)) || countryName || countryCode;
+
   const defaultTitle = journalName
-    ? `Evolución Histórica de Perfiles de Conocimiento: ${journalName}`
-    : (countryName 
-      ? `Evolución Histórica de Perfiles de Conocimiento: ${countryName}`
-      : (countryCode ? `Evolución Histórica de Perfiles de Conocimiento: ${countryCode}` : 'Evolución Histórica de Perfiles de Conocimiento: Región'));
+    ? t('thematic_table.title_item', { name: journalName })
+    : (countryDisplay 
+      ? t('thematic_table.title_item', { name: countryDisplay })
+      : t('thematic_table.title_regional'));
 
   const defaultSubtitle = journalName
-    ? `Tendencia temporal de producción de artículos en ${journalName} por área temática (1985–2026).`
-    : (countryName
-      ? `Tendencia temporal de producción de artículos en revistas de ${countryName} por área temática (1985–2026).`
-      : 'Tendencia temporal de producción de artículos en revistas latinoamericanas por área temática (1985–2026).');
+    ? t('thematic_table.subtitle_journal', { name: journalName })
+    : (countryDisplay
+      ? t('thematic_table.subtitle_country', { name: countryDisplay })
+      : t('thematic_table.subtitle_regional'));
 
   return (
     <div className="card" style={{ marginTop: '24px' }}>
@@ -158,8 +160,9 @@ export default function ThematicEvolutionTable({
         </div>
 
         {/* Level Selector Pills */}
+        {/* Level Selector Pills */}
         <div className="segmented-pills">
-          {LEVEL_CONFIG.map(l => (
+          {levelConfig.map(l => (
             <button
               key={l.id}
               className={`segmented-pill-btn ${level === l.id ? 'active' : ''}`}
@@ -179,7 +182,7 @@ export default function ThematicEvolutionTable({
             <input
               type="text"
               className="input-search"
-              placeholder={`🔍 Buscar ${LEVEL_CONFIG.find(l => l.id === level)?.label || 'área'}...`}
+              placeholder={t('thematic_table.search_placeholder', { level: levelConfig.find(l => l.id === level)?.label || '' })}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{ paddingLeft: '36px', width: '100%', borderRadius: '8px' }}
@@ -197,7 +200,7 @@ export default function ThematicEvolutionTable({
               <option value={30}>{t('thematic_table.top_30')}</option>
               <option value={100}>{t('thematic_table.top_100')}</option>
               <option value={500}>{t('thematic_table.top_500')}</option>
-              <option value={0}>Todos ({pivotedRows.length})</option>
+              <option value={0}>{t('thematic_table.all_records', { count: pivotedRows.length })}</option>
             </select>
           </div>
         </div>
@@ -221,7 +224,7 @@ export default function ThematicEvolutionTable({
         </div>
       ) : filteredRows.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-          No se encontraron datos para los filtros seleccionados.
+          {t('thematic_table.no_data')}
         </div>
       ) : (
         <div style={{ overflowX: 'auto', maxHeight: '560px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
@@ -229,10 +232,10 @@ export default function ThematicEvolutionTable({
             <thead style={{ position: 'sticky', top: 0, zIndex: 3, backgroundColor: 'var(--bg-card)' }}>
               <tr>
                 <th style={{ position: 'sticky', left: 0, zIndex: 4, backgroundColor: 'var(--bg-card)', minWidth: '220px', textAlign: 'left', padding: '10px 14px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
-                  {LEVEL_CONFIG.find(l => l.id === level)?.label || 'Área Temática'}
+                  {levelConfig.find(l => l.id === level)?.label || t('thematic_table.thematic_area')}
                 </th>
                 <th style={{ textAlign: 'right', padding: '10px 12px', minWidth: '100px', backgroundColor: 'var(--accent-primary-light)', color: 'var(--accent-primary)', fontWeight: 'bold', borderBottom: '2px solid var(--border-color)' }}>
-                  Total
+                  {t('thematic_table.total_col')}
                 </th>
                 {years.map(y => (
                   <th key={y} style={{ textAlign: 'right', padding: '10px 8px', minWidth: '55px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
@@ -277,7 +280,7 @@ export default function ThematicEvolutionTable({
       )}
 
       <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-        <span>{t('thematic_table.level_label')} {LEVEL_CONFIG.find(l => l.id === level)?.label} &bull; {filteredRows.length}/{pivotedRows.length}</span>
+        <span>{t('thematic_table.level_label')} {levelConfig.find(l => l.id === level)?.label} &bull; {filteredRows.length}/{pivotedRows.length}</span>
         <span>{t('thematic_table.heatmap_note')}</span>
       </div>
     </div>

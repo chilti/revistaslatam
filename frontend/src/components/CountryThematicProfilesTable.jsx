@@ -5,9 +5,9 @@ import { useAppStore } from '../store';
 import { Download, Search, Filter, BookOpen, Layers3 } from 'lucide-react';
 
 const LEVEL_CONFIG = [
-  { id: 'domain', label: 'Dominio' },
-  { id: 'field', label: 'Campo' },
-  { id: 'subfield', label: 'Subcampo' },
+  { id: 'domain', labelKey: 'thematic_table.domain' },
+  { id: 'field', labelKey: 'thematic_table.field' },
+  { id: 'subfield', labelKey: 'thematic_table.subfield' },
 ];
 
 export default function CountryThematicProfilesTable({ countryCode, countryName }) {
@@ -75,6 +75,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
 
   const columns = profilesData.columns || [];
   const thematicCols = columns.filter(c => c !== 'Revista' && c !== 'Total');
+  const countryDisplay = (countryCode && t(`country_names.${countryCode}`)) || countryName || countryCode;
 
   return (
     <div className="card" style={{ marginTop: '20px' }}>
@@ -84,11 +85,11 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Layers3 size={20} style={{ color: 'var(--primary-color, #3b82f6)' }} />
             <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>
-              Análisis de Perfiles Temáticos de Revistas ({countryName || countryCode})
+              {t('thematic_table.profiles_title', { country: countryDisplay })}
             </h3>
           </div>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Distribución de artículos por áreas temáticas en cada una de las revistas del país.
+            {t('thematic_table.profiles_subtitle')}
           </span>
         </div>
 
@@ -100,7 +101,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
               className={`segmented-pill-btn ${level === l.id ? 'active' : ''}`}
               onClick={() => setLevel(l.id)}
             >
-              {l.label}
+              {t(l.labelKey)}
             </button>
           ))}
         </div>
@@ -114,7 +115,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
             <input
               type="text"
               className="input-search"
-              placeholder="🔍 Buscar revista..."
+              placeholder={t('thematic_table.search_journal_placeholder')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{ paddingLeft: '36px', width: '100%', borderRadius: '8px' }}
@@ -132,7 +133,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
               <option value={30}>{t('thematic_table.top_30')}</option>
               <option value={100}>{t('thematic_table.top_100')}</option>
               <option value={500}>{t('thematic_table.top_500')}</option>
-              <option value={0}>Todas ({(profilesData.data || []).length})</option>
+              <option value={0}>{t('thematic_table.all_records', { count: (profilesData.data || []).length })}</option>
             </select>
           </div>
         </div>
@@ -156,7 +157,7 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
         </div>
       ) : filteredData.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-          No se encontraron datos temáticos para esta selección.
+          {t('thematic_table.no_data')}
         </div>
       ) : (
         <div style={{ overflowX: 'auto', maxHeight: '520px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
@@ -164,10 +165,10 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
             <thead style={{ position: 'sticky', top: 0, zIndex: 3, backgroundColor: 'var(--bg-card)' }}>
               <tr>
                 <th style={{ position: 'sticky', left: 0, zIndex: 4, backgroundColor: 'var(--bg-card)', minWidth: '240px', textAlign: 'left', padding: '10px 14px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
-                  Revista
+                  {t('tables.journal')}
                 </th>
                 <th style={{ textAlign: 'right', padding: '10px 12px', minWidth: '90px', backgroundColor: 'var(--accent-primary-light)', color: 'var(--accent-primary)', fontWeight: 'bold', borderBottom: '2px solid var(--border-color)' }}>
-                  Total
+                  {t('thematic_table.total_col')}
                 </th>
                 {thematicCols.map(col => (
                   <th key={col} style={{ textAlign: 'right', padding: '10px 10px', minWidth: '95px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
@@ -209,8 +210,8 @@ export default function CountryThematicProfilesTable({ countryCode, countryName 
       )}
 
       <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-        <span>Mostrando {filteredData.length} de {(profilesData.data || []).length} revistas ordenadas por volumen total.</span>
-        <span>{t('thematic_table.level_label')} {LEVEL_CONFIG.find(l => l.id === level)?.label}</span>
+        <span>{t('thematic_table.showing_journals_order', { filtered: filteredData.length, total: (profilesData.data || []).length })}</span>
+        <span>{t('thematic_table.level_label')} {t(LEVEL_CONFIG.find(l => l.id === level)?.labelKey || 'thematic_table.domain')}</span>
       </div>
     </div>
   );

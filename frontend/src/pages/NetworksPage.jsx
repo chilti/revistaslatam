@@ -39,7 +39,7 @@ export default function NetworksPage() {
       mode: 'markers+text',
       marker: { size: 9, color: '#0284c7' },
       textposition: 'top center',
-      name: t('kpi.countries')
+      name: t('networks.represented_countries')
     });
 
     // Edges
@@ -64,6 +64,47 @@ export default function NetworksPage() {
     });
   }
 
+  const localizeAlluvialNode = (label) => {
+    // Open Access modes (right side)
+    const oaMap = {
+      'OA Diamante': t('networks.oa_diamond'),
+      'OA Gold': t('networks.oa_gold'),
+      'OA Verde': t('networks.oa_green'),
+      'OA Híbrido': t('networks.oa_hybrid'),
+      'OA Bronce': t('networks.oa_bronze'),
+      'Cerrado': t('networks.oa_closed'),
+      'Diamond OA': t('networks.oa_diamond'),
+      'Gold OA': t('networks.oa_gold'),
+      'Green OA': t('networks.oa_green'),
+      'Hybrid OA': t('networks.oa_hybrid'),
+      'Bronze OA': t('networks.oa_bronze'),
+      'Closed': t('networks.oa_closed')
+    };
+    if (oaMap[label]) return oaMap[label];
+
+    // Knowledge domains (left side)
+    const domainMap = {
+      'Health Sciences': t('regional.domain_health'),
+      'Ciencias de la Salud': t('regional.domain_health'),
+      'Ciências da Saúde': t('regional.domain_health'),
+      'Social Sciences': t('regional.domain_social'),
+      'Ciencias Sociales': t('regional.domain_social'),
+      'Ciências Sociais': t('regional.domain_social'),
+      'Physical Sciences': t('regional.domain_physical'),
+      'Ciencias Físicas': t('regional.domain_physical'),
+      'Ciências Físicas': t('regional.domain_physical'),
+      'Life Sciences': t('regional.domain_life'),
+      'Ciencias de la Vida': t('regional.domain_life'),
+      'Ciências da Vida': t('regional.domain_life'),
+      'Arts and Humanities': t('networks.domain_humanities'),
+      'Humanities': t('networks.domain_humanities'),
+      'Humanidades': t('networks.domain_humanities')
+    };
+    if (domainMap[label]) return domainMap[label];
+
+    return label;
+  };
+
   // Sankey Trace
   const sankeyTrace = sankeyData && sankeyData.node_labels ? [{
     type: 'sankey',
@@ -71,7 +112,7 @@ export default function NetworksPage() {
       pad: 15,
       thickness: 20,
       line: { color: 'black', width: 0.5 },
-      label: sankeyData.node_labels,
+      label: sankeyData.node_labels.map(localizeAlluvialNode),
       color: '#0284c7'
     },
     link: {
@@ -89,7 +130,7 @@ export default function NetworksPage() {
       pad: 18,
       thickness: 22,
       line: { color: 'black', width: 0.5 },
-      label: alluvialData.node_labels,
+      label: alluvialData.node_labels.map(localizeAlluvialNode),
       color: '#10b981'
     },
     link: {
@@ -107,8 +148,8 @@ export default function NetworksPage() {
     x: chordData.entities.map(e => e.name),
     y: chordData.entities.map(e => e.name),
     colorscale: 'Blues',
-    colorbar: { title: 'Coautorías' },
-    hovertemplate: '<b>%{y}</b> - <b>%{x}</b><br>Coautorías: %{z:,}<extra></extra>'
+    colorbar: { title: t('networks.coauthorships_colorbar') },
+    hovertemplate: `<b>%{y}</b> - <b>%{x}</b><br>${t('networks.coauthorships_colorbar')}: %{z:,}<extra></extra>`
   }] : [];
 
   return (
@@ -142,7 +183,7 @@ export default function NetworksPage() {
             onClick={() => setActiveTab('alluvial')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <GitFork size={16} /> {t('networks.sankey_title')}
+            <GitFork size={16} /> {t('networks.tab_alluvial')}
           </button>
           <button
             className={`tab-btn ${activeTab === 'sankey' ? 'active' : ''}`}
@@ -158,7 +199,7 @@ export default function NetworksPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="card">
             <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>
-              🌍 Matriz de Coautoría País-País (Connection Map Global)
+              🌍 {t('networks.coauthorship_map_title')}
             </h3>
             <PlotlyChart
               data={geoTraces}
@@ -180,7 +221,7 @@ export default function NetworksPage() {
           {/* Table */}
           <div className="card">
             <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>
-              Top Pares de Colaboración Internacional
+              {t('networks.top_pairs_title')}
             </h3>
             <div className="data-table-container" style={{ maxHeight: '350px' }}>
               <table className="data-table">
@@ -211,11 +252,11 @@ export default function NetworksPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
             <CircleDot size={18} color="var(--accent-primary)" />
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              Matriz Circular de Coautoría Bilateral en América Latina (Cooperación Sur-Sur)
+              {t('networks.matrix_title')}
             </h3>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            Intensidad de artículos científicos co-publicados entre los 10 países con mayor producción en la región.
+            {t('networks.matrix_desc')}
           </p>
           <PlotlyChart
             data={chordHeatmapTrace}
@@ -233,11 +274,11 @@ export default function NetworksPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
             <GitFork size={18} color="var(--accent-primary)" />
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              Diagrama Alluvial — Flujo Dominio del Conocimiento → Vía de Acceso Abierto
+              {t('networks.alluvial_title')}
             </h3>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            Mapea la canalización del conocimiento según el modelo de acceso abierto (Diamante universitario vs Gold con APC).
+            {t('networks.alluvial_desc')}
           </p>
           <PlotlyChart
             data={alluvialTrace}
@@ -248,9 +289,15 @@ export default function NetworksPage() {
 
       {activeTab === 'sankey' && (
         <div className="card">
-          <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>
-            🔀 Flujo de Producción Científica: Dominio → Campo → Subcampo
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <Network size={18} color="var(--accent-primary)" />
+            <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+              🔀 {t('networks.disciplinary_flow_title')}
+            </h3>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+            {t('networks.disciplinary_flow_desc')}
+          </p>
           <PlotlyChart
             data={sankeyTrace}
             layout={{ height: 620, margin: { l: 20, r: 20, t: 20, b: 20 } }}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
 import { useTranslation } from '../i18n';
@@ -61,17 +61,6 @@ const DEFAULT_INITIAL_JOURNALS = [
   { id: 'https://openalex.org/S2737081250', display_name: 'Estudios Demográficos y Urbanos', country_code: 'MX', works_count: 1995 }
 ];
 
-const ARTICLE_SCATTER_INDICATORS = [
-  { id: 'fwci', label: 'FWCI' },
-  { id: 'cited_by_count', label: 'Citas' },
-  { id: 'percentile', label: 'Percentil' },
-  { id: 'publication_year', label: 'Año de Publicación' },
-  { id: 'is_in_top_10_percent', label: 'Top 10% (0/1)' },
-  { id: 'is_in_top_1_percent', label: 'Top 1% (0/1)' },
-  { id: 'is_domestic_author', label: 'Autoría Doméstica (0/1)' },
-  { id: 'is_retracted', label: 'Retractado (0/1)' },
-  { id: 'is_paratext', label: 'Paratexto (0/1)' }
-];
 
 export default function JournalPage() {
   const {
@@ -365,7 +354,7 @@ export default function JournalPage() {
     {
       x: validAnnual.map(d => d.year),
       y: validAnnual.map(d => d.num_documents),
-      name: 'Artículos Publicados',
+      name: t('country.trace_published_docs'),
       type: 'bar',
       marker: { color: 'rgba(2, 132, 199, 0.65)' },
       yaxis: 'y'
@@ -373,7 +362,7 @@ export default function JournalPage() {
     {
       x: validAnnual.map(d => d.year),
       y: validAnnual.map(d => d.fwci_avg),
-      name: 'FWCI Anual',
+      name: t('journal.trace_fwci_annual'),
       type: 'scatter',
       mode: 'lines+markers',
       line: { color: '#10b981', width: 3 },
@@ -383,7 +372,7 @@ export default function JournalPage() {
     {
       x: validAnnual.map(d => d.year),
       y: validAnnual.map(() => 1.0),
-      name: 'Media Mundial (1.0)',
+      name: t('country.trace_world_avg'),
       type: 'scatter',
       mode: 'lines',
       line: { color: '#ef4444', dash: 'dash', width: 1.5 },
@@ -393,9 +382,22 @@ export default function JournalPage() {
 
 
   // Radar Chart Traces
+  const getRadarAxisLabel = (axis) => {
+    switch (axis) {
+      case 'OA Diamante': return t('journal.radar_axis_diamond');
+      case 'Multilingüismo': return t('journal.radar_axis_multilingualism');
+      case 'Internacionalización': return t('journal.radar_axis_internationalization');
+      case 'Indexación': return t('journal.radar_axis_indexing');
+      case 'Top 10%': return t('journal.radar_axis_top10');
+      case 'FWCI': return t('journal.radar_axis_fwci');
+      default: return axis;
+    }
+  };
+
   const radarTraces = [];
   if (radarData && radarData.axes) {
-    const axes = [...radarData.axes, radarData.axes[0]]; // Close polygon
+    const localizedAxes = radarData.axes.map(getRadarAxisLabel);
+    const axes = [...localizedAxes, localizedAxes[0]]; // Close polygon
     
     // Journal
     const jVals = radarData.axes.map(a => radarData.journal[a] || 0);
@@ -405,7 +407,7 @@ export default function JournalPage() {
       r: jVals,
       theta: axes,
       fill: 'toself',
-      name: prof.display_name || 'Esta Revista',
+      name: prof.display_name || t('journal.this_journal'),
       line: { color: '#0284c7', width: 2.5 },
       fillcolor: 'rgba(2, 132, 199, 0.25)'
     });
@@ -418,7 +420,7 @@ export default function JournalPage() {
         type: 'scatterpolar',
         r: cVals,
         theta: axes,
-        name: `Promedio País (${prof.country_code})`,
+        name: t('journal.radar_country_avg', { country: prof.country_code || '' }),
         line: { color: '#f59e0b', width: 1.5, dash: 'dot' }
       });
     }
@@ -431,7 +433,7 @@ export default function JournalPage() {
         type: 'scatterpolar',
         r: lVals,
         theta: axes,
-        name: 'Referencia LATAM',
+        name: t('journal.radar_latam_ref'),
         line: { color: '#10b981', width: 1.5, dash: 'dash' }
       });
     }
@@ -444,7 +446,7 @@ export default function JournalPage() {
     boxpoints: 'outliers',
     marker: { color: '#0284c7', size: 5 },
     line: { color: '#0284c7' },
-    name: 'Citas por Artículo',
+    name: t('journal.trace_citations_per_work'),
     boxmean: true
   }] : [];
 
@@ -452,12 +454,12 @@ export default function JournalPage() {
   const activePieData = piePeriod === 'recent' ? recData : pData;
 
   const oaPieValues = [
-    { label: 'Diamante', value: Number(activePieData.pct_oa_diamond || 0), color: '#38bdf8' },
-    { label: 'Dorado', value: Number(activePieData.pct_oa_gold || 0), color: '#fbbf24' },
-    { label: 'Verde', value: Number(activePieData.pct_oa_green || 0), color: '#4ade80' },
-    { label: 'Híbrido', value: Number(activePieData.pct_oa_hybrid || 0), color: '#a78bfa' },
-    { label: 'Bronce', value: Number(activePieData.pct_oa_bronze || 0), color: '#fb923c' },
-    { label: 'Cerrado', value: Number(activePieData.pct_oa_closed || 0), color: '#f87171' },
+    { label: t('common.diamond'), value: Number(activePieData.pct_oa_diamond || 0), color: '#38bdf8' },
+    { label: t('common.gold'), value: Number(activePieData.pct_oa_gold || 0), color: '#fbbf24' },
+    { label: t('common.green'), value: Number(activePieData.pct_oa_green || 0), color: '#4ade80' },
+    { label: t('common.hybrid'), value: Number(activePieData.pct_oa_hybrid || 0), color: '#a78bfa' },
+    { label: t('common.bronze'), value: Number(activePieData.pct_oa_bronze || 0), color: '#fb923c' },
+    { label: t('common.closed'), value: Number(activePieData.pct_oa_closed || 0), color: '#f87171' },
   ].filter(item => item.value > 0);
 
   const oaPieTrace = [{
@@ -474,13 +476,13 @@ export default function JournalPage() {
   }];
 
   const langPieValues = [
-    { label: 'Español', value: Number(activePieData.pct_lang_es || 0), color: '#a855f7' },
-    { label: 'Inglés', value: Number(activePieData.pct_lang_en || 0), color: '#38bdf8' },
-    { label: 'Portugués', value: Number(activePieData.pct_lang_pt || 0), color: '#f59e0b' },
-    { label: 'Francés', value: Number(activePieData.pct_lang_fr || 0), color: '#ec4899' },
-    { label: 'Alemán', value: Number(activePieData.pct_lang_de || 0), color: '#10b981' },
-    { label: 'Italiano', value: Number(activePieData.pct_lang_it || 0), color: '#6366f1' },
-    { label: 'Otros', value: Number(activePieData.pct_lang_other || 0), color: '#94a3b8' },
+    { label: t('country.lang_name_es'), value: Number(activePieData.pct_lang_es || 0), color: '#a855f7' },
+    { label: t('country.lang_name_en'), value: Number(activePieData.pct_lang_en || 0), color: '#38bdf8' },
+    { label: t('country.lang_name_pt'), value: Number(activePieData.pct_lang_pt || 0), color: '#f59e0b' },
+    { label: t('country.lang_name_fr'), value: Number(activePieData.pct_lang_fr || 0), color: '#ec4899' },
+    { label: t('country.lang_name_de'), value: Number(activePieData.pct_lang_de || 0), color: '#10b981' },
+    { label: t('country.lang_name_it'), value: Number(activePieData.pct_lang_it || 0), color: '#6366f1' },
+    { label: t('country.lang_name_other'), value: Number(activePieData.pct_lang_other || 0), color: '#94a3b8' },
   ].filter(item => item.value > 0);
 
   const langPieTrace = [{
@@ -511,7 +513,7 @@ export default function JournalPage() {
       y: effectiveBgArts.map(a => a.umap_y),
       mode: 'markers',
       type: 'scatter',
-      name: 'Paisaje Regional LATAM',
+      name: t('journal.landscape_regional_ref'),
       marker: {
         size: 3.5,
         color: '#94a3b8',
@@ -527,14 +529,14 @@ export default function JournalPage() {
       y: journalArts.map(a => a.umap_y),
       mode: 'markers',
       type: 'scatter',
-      name: `Artículos de ${prof.display_name || selectedJournalName || 'Revista'}`,
+      name: t('journal.landscape_journal_articles', { name: prof.display_name || selectedJournalName || t('journal.default_journal') }),
       marker: {
         size: 7.5,
         color: journalArts.map(a => a.publication_year),
         colorscale: 'Turbo',
         cmin: minYr,
         cmax: maxYr,
-        colorbar: { title: 'Año de Publ.', x: 1.02 },
+        colorbar: { title: t('country.landscape_colorbar_title'), x: 1.02 },
         opacity: 0.9,
         line: { width: 0.8, color: '#ffffff' }
       },
@@ -544,7 +546,7 @@ export default function JournalPage() {
         a.fwci != null ? Number(a.fwci).toFixed(2) : '—',
         a.community_name || 'General'
       ]),
-      hovertemplate: '<b>%{text}</b><br>Año: %{customdata[0]} | FWCI: %{customdata[1]}<br>Comunidad: %{customdata[2]}<extra></extra>'
+      hovertemplate: `<b>%{text}</b><br>${t('country.landscape_hover_year')}: %{customdata[0]} | FWCI: %{customdata[1]}<br>${t('country.landscape_hover_community')}: %{customdata[2]}<extra></extra>`
     });
   }
 
@@ -591,8 +593,20 @@ export default function JournalPage() {
     pearsonRArt = (denX > 0 && denY > 0) ? num / Math.sqrt(denX * denY) : 0;
   }
 
-  const xLabelArt = ARTICLE_SCATTER_INDICATORS.find(i => i.id === artScatterX)?.label || artScatterX;
-  const yLabelArt = ARTICLE_SCATTER_INDICATORS.find(i => i.id === artScatterY)?.label || artScatterY;
+  const articleScatterIndicators = useMemo(() => [
+    { id: 'fwci', label: t('journal.ind_art_fwci') },
+    { id: 'cited_by_count', label: t('journal.ind_art_citations') },
+    { id: 'percentile', label: t('journal.ind_art_percentile') },
+    { id: 'publication_year', label: t('journal.ind_art_year') },
+    { id: 'is_in_top_10_percent', label: t('journal.ind_art_top10') },
+    { id: 'is_in_top_1_percent', label: t('journal.ind_art_top1') },
+    { id: 'is_domestic_author', label: t('journal.ind_art_domestic') },
+    { id: 'is_retracted', label: t('journal.ind_art_retracted') },
+    { id: 'is_paratext', label: t('journal.ind_art_paratext') }
+  ], [t]);
+
+  const xLabelArt = articleScatterIndicators.find(i => i.id === artScatterX)?.label || artScatterX;
+  const yLabelArt = articleScatterIndicators.find(i => i.id === artScatterY)?.label || artScatterY;
 
   const displayedScatterRows = (showAllArticlesScatter || validArticleScatterRows.length <= 1000)
     ? validArticleScatterRows
@@ -617,7 +631,7 @@ export default function JournalPage() {
       line: { width: 0.5, color: '#ffffff' },
       opacity: 0.75
     },
-    hovertemplate: `<b>%{text}</b><br>Año: %{customdata[0]} | OA: %{customdata[3]}<br>${xLabelArt}: %{x:,.2f}<br>${yLabelArt}: %{y:,.2f}<extra></extra>`
+    hovertemplate: `<b>%{text}</b><br>${t('country.landscape_hover_year')}: %{customdata[0]} | OA: %{customdata[3]}<br>${xLabelArt}: %{x:,.2f}<br>${yLabelArt}: %{y:,.2f}<extra></extra>`
   }];
 
   // Sunburst Trace
@@ -633,7 +647,7 @@ export default function JournalPage() {
       showscale: true
     },
     branchvalues: 'total',
-    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+    hovertemplate: `<b>%{label}</b><br>${t('country.hierarchy_hover_articles')}: %{value:,.0f}<br>${t('thematic_table.color_label')}: %{color:.2f}<extra></extra>`
   }] : [];
 
   // Treemap Trace
@@ -649,7 +663,7 @@ export default function JournalPage() {
       showscale: true
     },
     branchvalues: 'total',
-    hovertemplate: '<b>%{label}</b><br>Artículos: %{value:,.0f}<br>Color: %{color:.2f}<extra></extra>'
+    hovertemplate: `<b>%{label}</b><br>${t('country.hierarchy_hover_articles')}: %{value:,.0f}<br>${t('thematic_table.color_label')}: %{color:.2f}<extra></extra>`
   }] : [];
 
   return (
@@ -669,7 +683,7 @@ export default function JournalPage() {
                 <option value="ALL">{t('journal.all_countries')}</option>
                 {countriesList.map(c => (
                   <option key={c.country_code} value={c.country_code}>
-                    {c.country_name} ({c.country_code})
+                    {(c.country_code && t(`country_names.${c.country_code}`)) || c.country_name} ({c.country_code})
                   </option>
                 ))}
               </select>
@@ -701,7 +715,7 @@ export default function JournalPage() {
               <Search size={16} color="var(--text-muted)" />
               <input
                 type="text"
-                placeholder="Buscar revista o ISSN..."
+                placeholder={t('journal.search_input_placeholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ background: 'transparent', border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
@@ -723,7 +737,7 @@ export default function JournalPage() {
                   >
                     <strong>{j.display_name}</strong>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      {j.publisher || 'Editorial no especificada'} • {j.country_code} • {j.works_count} docs
+                      {j.publisher || t('journal.no_publisher')} • {(j.country_code && t(`country_names.${j.country_code}`)) || j.country_code} • {j.works_count} docs
                     </div>
                   </div>
                 ))}
@@ -741,7 +755,7 @@ export default function JournalPage() {
               {prof.display_name || selectedJournalName}
             </h2>
             <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              {prof.publisher ? `${prof.publisher} • ` : ''}{prof.country_name || prof.country_code} • ISSN-L: <code>{prof.issn_l || 'No disponible'}</code>
+              {prof.publisher ? `${prof.publisher} • ` : ''}{(prof.country_code && t(`country_names.${prof.country_code}`)) || prof.country_name || prof.country_code} • ISSN-L: <code>{prof.issn_l || t('journal.not_available')}</code>
             </p>
           </div>
 
@@ -769,7 +783,7 @@ export default function JournalPage() {
                 className="btn-primary"
                 style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px' }}
               >
-                Sitio Web <ExternalLink size={12} />
+                {t('journal.btn_website')} <ExternalLink size={12} />
               </a>
             )}
             {(prof.id || selectedJournalId) && (
@@ -796,7 +810,7 @@ export default function JournalPage() {
             )}
             <button
               onClick={handleShareJournal}
-              title="Copiar enlace directo para compartir esta revista"
+              title={t('journal.share_tooltip')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -814,7 +828,7 @@ export default function JournalPage() {
               }}
             >
               {copiedLink ? <Check size={14} /> : <Share2 size={14} />}
-              <span>{copiedLink ? '¡Enlace copiado!' : 'Compartir Revista'}</span>
+              <span>{copiedLink ? t('journal.link_copied') : t('journal.share_journal')}</span>
             </button>
           </div>
         </div>
@@ -828,7 +842,7 @@ export default function JournalPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Activity size={18} style={{ color: 'var(--accent-primary)' }} />
               <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)' }}>
-                📊 Impacto, Citación y Red (Histórico)
+                {t('journal.card_impact_network')}
               </span>
             </div>
             <span className="badge" style={{ fontSize: '11px' }}>{t('journal.stat_period_full')}</span>
@@ -916,11 +930,11 @@ export default function JournalPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sparkles size={18} style={{ color: '#10b981' }} />
               <span style={{ fontSize: '15px', fontWeight: '800', color: '#10b981' }}>
-                ⚡ Periodo Reciente: 2021–2025
+                {t('journal.card_recent_period')}
               </span>
             </div>
             <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981', fontSize: '11px' }}>
-              Último Lustro
+              {t('journal.badge_recent_lustrum')}
             </span>
           </div>
 
@@ -1030,11 +1044,11 @@ export default function JournalPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
           <TrendingUp size={18} color="var(--accent-primary)" />
           <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-            Gráfico de Eje Dual (Dual-Axis Chart) — Producción Anual vs FWCI
+            {t('journal.dual_axis_title')}
           </h3>
         </div>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Evolución histórica de artículos publicados (barras) y FWCI alcanzado en cada año (línea verde).
+          {t('journal.dual_axis_desc')}
         </p>
 
         <PlotlyChart
@@ -1042,10 +1056,10 @@ export default function JournalPage() {
           layout={{
             height: 360,
             margin: { l: 60, r: 60, t: 20, b: 40 },
-            xaxis: { title: 'Año de Publicación' },
-            yaxis: { title: 'Artículos Publicados', side: 'left', showgrid: true },
+            xaxis: { title: t('country.axis_pub_year') },
+            yaxis: { title: t('country.trace_published_docs'), side: 'left', showgrid: true },
             yaxis2: {
-              title: 'FWCI Promedio',
+              title: t('country.trace_fwci_avg'),
               side: 'right',
               overlaying: 'y',
               showgrid: false,
@@ -1070,11 +1084,11 @@ export default function JournalPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <PieChart size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
-                Distribución por Idioma y Tipo de Acceso
+                {t('journal.pie_section_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Composición porcentual de modalidades de acceso abierto e idiomas de publicación en {prof.display_name || selectedJournalName || 'la revista'}.
+              {t('journal.pie_section_subtitle', { name: prof.display_name || selectedJournalName || t('journal.the_journal') })}
             </span>
           </div>
 
@@ -1083,13 +1097,13 @@ export default function JournalPage() {
               className={`segmented-pill-btn ${piePeriod === 'full' ? 'active' : ''}`}
               onClick={() => setPiePeriod('full')}
             >
-              Período Completo (0–2026)
+              {t('country.pie_period_full')}
             </button>
             <button
               className={`segmented-pill-btn ${piePeriod === 'recent' ? 'active' : ''}`}
               onClick={() => setPiePeriod('recent')}
             >
-              Período Reciente (2021–2025)
+              {t('country.pie_period_recent')}
             </button>
           </div>
         </div>
@@ -1098,7 +1112,7 @@ export default function JournalPage() {
           {/* OA Pie */}
           <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)' }}>
             <h4 style={{ fontSize: '14px', fontWeight: '700', textAlign: 'center', marginBottom: '8px', color: 'var(--text-main)' }}>
-              🔓 Distribución por Acceso Abierto
+              {t('country.pie_oa_title')}
             </h4>
             {oaPieValues.length > 0 ? (
               <PlotlyChart
@@ -1111,7 +1125,7 @@ export default function JournalPage() {
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                Sin datos de acceso abierto disponibles.
+                {t('country.pie_oa_empty')}
               </div>
             )}
           </div>
@@ -1119,7 +1133,7 @@ export default function JournalPage() {
           {/* Language Pie */}
           <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-color)' }}>
             <h4 style={{ fontSize: '14px', fontWeight: '700', textAlign: 'center', marginBottom: '8px', color: 'var(--text-main)' }}>
-              🌐 Distribución por Idiomas
+              {t('country.pie_lang_title')}
             </h4>
             {langPieValues.length > 0 ? (
               <PlotlyChart
@@ -1132,7 +1146,7 @@ export default function JournalPage() {
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                Sin datos de idioma disponibles.
+                {t('country.pie_lang_empty')}
               </div>
             )}
           </div>
@@ -1146,11 +1160,11 @@ export default function JournalPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <Radar size={18} color="var(--accent-primary)" />
             <h3 style={{ fontSize: '15px', fontWeight: '700' }}>
-              Perfil Hexagonal de Madurez Editorial (Radar Chart)
+              {t('journal.radar_title')}
             </h3>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
-            Evaluación multidimensional de la revista frente al promedio nacional y la referencia regional.
+            {t('journal.radar_desc')}
           </p>
 
           <PlotlyChart
@@ -1172,7 +1186,7 @@ export default function JournalPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <BoxSelect size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '15px', fontWeight: '700' }}>
-                Distribución Real de Citas por Artículo (Box / Violin Plot)
+                {t('journal.box_violin_title')}
               </h3>
             </div>
             <div className="segmented-pills">
@@ -1180,18 +1194,18 @@ export default function JournalPage() {
                 className={`segmented-pill-btn ${distPlotType === 'box' ? 'active' : ''}`}
                 onClick={() => setDistPlotType('box')}
               >
-                Box Plot
+                {t('journal.box_plot_btn')}
               </button>
               <button
                 className={`segmented-pill-btn ${distPlotType === 'violin' ? 'active' : ''}`}
                 onClick={() => setDistPlotType('violin')}
               >
-                Violin Plot
+                {t('journal.violin_plot_btn')}
               </button>
             </div>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
-            Evidencia la asimetría de la Ley de Lotka (mediana, percentiles 25/75 y artículos altamente citados).
+            {t('journal.box_violin_desc')}
           </p>
 
           <PlotlyChart
@@ -1199,7 +1213,7 @@ export default function JournalPage() {
             layout={{
               height: 380,
               margin: { l: 60, r: 20, t: 20, b: 30 },
-              yaxis: { title: 'Número de Citas Recibidas' }
+              yaxis: { title: t('journal.yaxis_citations_received') }
             }}
           />
         </div>
@@ -1208,8 +1222,11 @@ export default function JournalPage() {
       {/* TRAYECTORIA MULTIDIMENSIONAL UMAP (REVISTA VS PAÍS) */}
       {trajectory && Object.keys(trajectory).length > 0 && (
         <UmapTrajectoryViewer
-          title={`📈 Trayectoria Multidimensional UMAP: ${prof.display_name || selectedJournalName || 'Revista'} vs ${prof.country_name || prof.country_code || 'País'}`}
-          subtitle="Evolución temporal continua del perfil cienciométrico en el espacio 2D UMAP frente al promedio de su país."
+          title={t('journal.trajectory_title', {
+            journal: prof.display_name || selectedJournalName || t('journal.default_journal'),
+            country: (prof.country_code && t(`country_names.${prof.country_code}`)) || prof.country_name || prof.country_code || t('journal.default_country')
+          })}
+          subtitle={t('journal.trajectory_subtitle')}
           trajectories={trajectory}
           allowTrajectoryFilter={true}
           showGridSection={true}
@@ -1223,15 +1240,15 @@ export default function JournalPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Compass size={20} color="var(--accent-primary)" />
             <h3 style={{ fontSize: '17px', fontWeight: '700', margin: 0 }}>
-              🌌 Foco Temático y Deriva Temporal: {prof.display_name || selectedJournalName}
+              {t('journal.landscape_focus_title', { name: prof.display_name || selectedJournalName || t('journal.default_journal') })}
             </h3>
           </div>
           <span className="badge" style={{ fontSize: '11px' }}>
-            {journalArts.length > 0 ? `${journalArts.length.toLocaleString()} Artículos en la Muestra` : 'Sin artículos proyectados'}
+            {journalArts.length > 0 ? t('journal.landscape_articles_badge', { count: journalArts.length.toLocaleString() }) : t('journal.landscape_no_articles_badge')}
           </span>
         </div>
         <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Proyección de los artículos de la revista sobre el paisaje semántico regional. La barra de color ilustra la progresión temporal de las publicaciones.
+          {t('journal.landscape_focus_desc')}
         </p>
 
         {journalArts.length > 0 ? (
@@ -1248,16 +1265,16 @@ export default function JournalPage() {
             />
 
             <div style={{ marginTop: '14px', padding: '12px 16px', background: 'rgba(2, 132, 199, 0.08)', borderRadius: '8px', borderLeft: '4px solid var(--accent-primary)', fontSize: '12.5px', color: 'var(--text-main)', lineHeight: '1.6' }}>
-              💡 <strong>Análisis de Foco Temático y Deriva:</strong>
+              {t('journal.drift_analysis_title')}
               <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
-                <li><strong>Dispersión Semántica:</strong> <code>{Number(landscapeData.dispersion || 0).toFixed(2)}</code> (Valores bajos indican una revista altamente especializada en un núcleo temático cerrado; valores altos reflejan una revista multidisciplinar o transversal).</li>
-                <li><strong>Evolución Temporal:</strong> Si los puntos recientes (amarillos/rojos) coinciden espacialmente con los puntos fundacionales (azules/morados), la revista mantiene su identidad temática original. Si los puntos recientes forman nuevos núcleos o se han desplazado, la revista ha experimentado una <strong>deriva temática</strong> o ampliación de su alcance editorial.</li>
+                <li><strong>{t('journal.drift_dispersion_label')}</strong> <code>{Number(landscapeData.dispersion || 0).toFixed(2)}</code> {t('journal.drift_dispersion_desc')}</li>
+                <li><strong>{t('journal.drift_temporal_label')}</strong> {t('journal.drift_temporal_desc')}</li>
               </ul>
             </div>
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--text-muted)' }}>
-            ℹ️ Esta revista cuenta con producción registrada; ejecuta el pipeline con un muestreo mayor para proyectar sus artículos en el paisaje general.
+            {t('journal.landscape_empty_note')}
           </div>
         )}
       </div>
@@ -1267,10 +1284,10 @@ export default function JournalPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              🏵️ Composición Temática de la Revista
+              {t('journal.thematic_comp_title')}
             </h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Especialización disciplinar por Dominio → Campo → Subcampo. Alterna entre la vista radial (Sunburst) y rectangular (Treemap).
+              {t('journal.thematic_comp_desc')}
             </span>
           </div>
 
@@ -1281,13 +1298,13 @@ export default function JournalPage() {
                 className={`segmented-pill-btn ${thematicViewType === 'sunburst' ? 'active' : ''}`}
                 onClick={() => setThematicViewType('sunburst')}
               >
-                🏵️ Sunburst
+                {t('country.hierarchy_sunburst')}
               </button>
               <button
                 className={`segmented-pill-btn ${thematicViewType === 'treemap' ? 'active' : ''}`}
                 onClick={() => setThematicViewType('treemap')}
               >
-                🌲 Treemap
+                {t('country.hierarchy_treemap')}
               </button>
             </div>
 
@@ -1314,7 +1331,7 @@ export default function JournalPage() {
                 checked={sunburstUnclassified}
                 onChange={(e) => setSunburstUnclassified(e.target.checked)}
               />
-              Sin Clasificación
+              {t('country.hierarchy_unclassified')}
             </label>
           </div>
         </div>
@@ -1339,17 +1356,17 @@ export default function JournalPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <TrendingUp size={18} color="var(--accent-primary)" />
               <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
-                Explorador de Artículos - Scatter Plot Dinámico
+                {t('journal.article_scatter_title')}
               </h3>
             </div>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Visualiza la relación entre diferentes indicadores bibliométricos para los artículos de {prof.display_name || selectedJournalName}.
+              {t('journal.article_scatter_desc', { name: prof.display_name || selectedJournalName || t('journal.the_journal') })}
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981', fontSize: '11.5px', fontWeight: '700' }}>
-              ✅ Cargados {scatterArticles.length.toLocaleString()} artículos
+              {t('journal.articles_loaded_badge', { count: scatterArticles.length.toLocaleString() })}
             </span>
           </div>
         </div>
@@ -1364,7 +1381,7 @@ export default function JournalPage() {
                 onChange={(e) => setArtScatterX(e.target.value)}
                 style={{ fontSize: '13px', fontWeight: '600', padding: '6px 12px' }}
               >
-                {ARTICLE_SCATTER_INDICATORS.map(ind => (
+                {articleScatterIndicators.map(ind => (
                   <option key={ind.id} value={ind.id}>{ind.label}</option>
                 ))}
               </select>
@@ -1377,7 +1394,7 @@ export default function JournalPage() {
                 onChange={(e) => setArtScatterY(e.target.value)}
                 style={{ fontSize: '13px', fontWeight: '600', padding: '6px 12px' }}
               >
-                {ARTICLE_SCATTER_INDICATORS.map(ind => (
+                {articleScatterIndicators.map(ind => (
                   <option key={ind.id} value={ind.id}>{ind.label}</option>
                 ))}
               </select>
@@ -1391,7 +1408,7 @@ export default function JournalPage() {
                 checked={showAllArticlesScatter}
                 onChange={(e) => setShowAllArticlesScatter(e.target.checked)}
               />
-              Mostrar todos los artículos ({validArticleScatterRows.length.toLocaleString()})
+              {t('journal.show_all_articles_check', { count: validArticleScatterRows.length.toLocaleString() })}
             </label>
           )}
         </div>
@@ -1413,23 +1430,23 @@ export default function JournalPage() {
             <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
               {/* Eje X Stats */}
               <div style={{ padding: '12px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12.5px' }}>
-                <strong style={{ color: 'var(--accent-primary)' }}>📊 Estadísticas {xLabelArt}</strong>
+                <strong style={{ color: 'var(--accent-primary)' }}>📊 {t('country.stats_title', { label: xLabelArt })}</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', marginTop: '8px', color: 'var(--text-muted)' }}>
-                  <div>Media: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsXArt.mean.toFixed(2)}</span></div>
-                  <div>Mediana: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsXArt.median.toFixed(2)}</span></div>
-                  <div>Desv. Est.: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsXArt.std.toFixed(2)}</span></div>
-                  <div>Rango: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>[{statsXArt.min.toFixed(2)} - {statsXArt.max.toFixed(2)}]</span></div>
+                  <div>{t('country.stat_mean')}: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsXArt.mean.toFixed(2)}</span></div>
+                  <div>{t('country.stat_median')}: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsXArt.median.toFixed(2)}</span></div>
+                  <div>{t('country.stat_std')}: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsXArt.std.toFixed(2)}</span></div>
+                  <div>{t('journal.stat_range')}: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>[{statsXArt.min.toFixed(2)} - {statsXArt.max.toFixed(2)}]</span></div>
                 </div>
               </div>
 
               {/* Eje Y Stats */}
               <div style={{ padding: '12px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12.5px' }}>
-                <strong style={{ color: '#10b981' }}>📊 Estadísticas {yLabelArt}</strong>
+                <strong style={{ color: '#10b981' }}>📊 {t('country.stats_title', { label: yLabelArt })}</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', marginTop: '8px', color: 'var(--text-muted)' }}>
-                  <div>Media: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsYArt.mean.toFixed(2)}</span></div>
-                  <div>Mediana: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsYArt.median.toFixed(2)}</span></div>
-                  <div>Desv. Est.: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsYArt.std.toFixed(2)}</span></div>
-                  <div>Rango: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>[{statsYArt.min.toFixed(2)} - {statsYArt.max.toFixed(2)}]</span></div>
+                  <div>{t('country.stat_mean')}: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsYArt.mean.toFixed(2)}</span></div>
+                  <div>{t('country.stat_median')}: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsYArt.median.toFixed(2)}</span></div>
+                  <div>{t('country.stat_std')}: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{statsYArt.std.toFixed(2)}</span></div>
+                  <div>{t('journal.stat_range')}: <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>[{statsYArt.min.toFixed(2)} - {statsYArt.max.toFixed(2)}]</span></div>
                 </div>
               </div>
 
@@ -1440,7 +1457,7 @@ export default function JournalPage() {
                   r = {pearsonRArt.toFixed(3)}
                 </div>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {Math.abs(pearsonRArt) >= 0.7 ? 'Correlación fuerte' : (Math.abs(pearsonRArt) >= 0.3 ? 'Correlación moderada' : 'Correlación débil o nula')}
+                  {Math.abs(pearsonRArt) >= 0.7 ? t('country.corr_strong') : (Math.abs(pearsonRArt) >= 0.3 ? t('country.corr_moderate') : t('country.corr_weak'))}
                 </span>
               </div>
             </div>
@@ -1457,10 +1474,10 @@ export default function JournalPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
-              📄 Artículos de la Revista ({articles.length} {articleLimit === 0 ? 'de ' + (prof.works_count?.toLocaleString() || 'total') : 'mostrados'})
+              {t('journal.articles_list_title', { count: articles.length, suffix: articleLimit === 0 ? t('journal.articles_of_total', { total: prof.works_count?.toLocaleString() || 'total' }) : t('journal.articles_shown_suffix') })}
             </h3>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Listado detallado con identificador OpenAlex, métricas de citación e impacto normalizado.
+              {t('journal.articles_table_desc')}
             </span>
           </div>
 
@@ -1470,13 +1487,13 @@ export default function JournalPage() {
               value={articleLimit}
               onChange={(e) => setArticleLimit(Number(e.target.value))}
               style={{ fontSize: '12.5px', fontWeight: '600' }}
-              title="Cantidad de artículos a mostrar"
+              title={t('journal.articles_limit_tooltip')}
             >
               <option value={50}>{t('journal.articles_limit_50')}</option>
               <option value={100}>{t('journal.articles_limit_100')}</option>
               <option value={500}>{t('journal.articles_limit_500')}</option>
               <option value={1000}>{t('journal.articles_limit_1000')}</option>
-              <option value={0}>Todos los artículos ({prof.works_count?.toLocaleString() || 'Total'})</option>
+              <option value={0}>{t('journal.articles_all_option', { total: prof.works_count?.toLocaleString() || 'Total' })}</option>
             </select>
 
             {/* Sort Selector */}
@@ -1507,9 +1524,9 @@ export default function JournalPage() {
                 color: '#10b981',
                 fontWeight: '600'
               }}
-              title="Descargar registros completos de OpenAlex en formato JSON comprimido (.json.gz)"
+              title={t('journal.export_json_tooltip')}
             >
-              <Download size={14} /> {exportingFormat === 'json' ? 'Generando JSON (.gz)...' : 'Exportar JSON (.gz)'}
+              <Download size={14} /> {exportingFormat === 'json' ? t('journal.exporting_json') : t('journal.export_json_btn')}
             </button>
 
             <button
@@ -1528,9 +1545,9 @@ export default function JournalPage() {
                 color: '#10b981',
                 fontWeight: '600'
               }}
-              title="Descargar en formato OpenAlex CSV estándar de 88 columnas para knoMap"
+              title={t('journal.export_csv_cols_tooltip')}
             >
-              <Download size={14} /> {exportingFormat === 'csv' ? 'Generando CSV...' : 'Exportar CSV (88 cols)'}
+              <Download size={14} /> {exportingFormat === 'csv' ? t('journal.exporting_csv') : t('journal.export_csv_cols_btn')}
             </button>
 
             {user && (
@@ -1574,7 +1591,7 @@ export default function JournalPage() {
               <tr>
                 <th>{t('tables.title')}</th>
                 <th>{t('tables.openalex_id')}</th>
-                <th>Año</th>
+                <th>{t('tables.year')}</th>
                 <th>{t('tables.citations')}</th>
                 <th>{t('tables.fwci')}</th>
                 <th>{t('tables.percentile')}</th>
@@ -1587,7 +1604,7 @@ export default function JournalPage() {
                 <tr key={idx}>
                   <td style={{ overflow: 'hidden' }}>
                     <strong
-                      title={art.title || 'Sin título'}
+                      title={art.title || t('tables.no_title')}
                       style={{
                         display: 'block',
                         overflow: 'hidden',
@@ -1595,7 +1612,7 @@ export default function JournalPage() {
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {art.title || 'Sin título'}
+                      {art.title || t('tables.no_title')}
                     </strong>
                   </td>
                   <td>
@@ -1613,7 +1630,7 @@ export default function JournalPage() {
                           fontSize: '11px',
                           textDecoration: 'none'
                         }}
-                        title={`Abrir ${art.id} en OpenAlex`}
+                        title={t('journal.open_in_openalex', { id: art.id })}
                       >
                         <code>{art.id.replace('https://openalex.org/', '')}</code>
                         <ExternalLink size={11} />
@@ -1639,6 +1656,7 @@ export default function JournalPage() {
                           textDecoration: 'underline',
                           fontSize: '11.5px'
                         }}
+                        title={t('journal.open_doi', { doi: art.doi })}
                       >
                         DOI <ExternalLink size={11} />
                       </a>
@@ -1653,13 +1671,13 @@ export default function JournalPage() {
 
       {/* ── EXPANDER DE DOSSIER DE ESTUDIO Y ENVÍO A CHATGPT (PIE DE PÁGINA) ── */}
       <PageDossierExpander
-        pageTitle={`Diagnóstico Cienciométrico de Revista: ${details?.display_name || selectedJournalName}`}
-        pageDescription={`Selecciona cualquiera de las gráficas, tablas o indicadores de ${details?.display_name || selectedJournalName} para generar un reporte integral o enviarlo a ChatGPT.`}
+        pageTitle={t('journal.dossier_page_title', { name: details?.display_name || selectedJournalName })}
+        pageDescription={t('journal.dossier_page_desc', { name: details?.display_name || selectedJournalName })}
         sections={[
           {
             id: 'journal_profile',
-            title: `1. Perfil y Métricas Principales (${details?.display_name || selectedJournalName})`,
-            category: 'KPIs Principales',
+            title: t('journal.dossier_sec1_title', { name: details?.display_name || selectedJournalName }),
+            category: t('journal.dossier_sec1_cat'),
             defaultChecked: true,
             rawData: details,
             buildDataText: () => {
@@ -1684,8 +1702,8 @@ export default function JournalPage() {
           },
           {
             id: 'journal_performance_periods',
-            title: '2. Panel Consolidado de Desempeño, Impacto y Red (Histórico vs Reciente 2021–2025)',
-            category: 'Indicadores de Desempeño',
+            title: t('journal.dossier_sec2_title'),
+            category: t('journal.dossier_sec2_cat'),
             defaultChecked: true,
             rawData: { full_period: details?.full_period, recent_period: details?.recent_period, profile: details?.profile },
             buildDataText: () => {
@@ -1709,8 +1727,8 @@ export default function JournalPage() {
           },
           {
             id: 'journal_annual',
-            title: `3. Gráfico de Eje Dual — Producción Anual vs FWCI (${details?.display_name || selectedJournalName})`,
-            category: 'Series de Tiempo',
+            title: t('journal.dossier_sec3_title', { name: details?.display_name || selectedJournalName }),
+            category: t('journal.dossier_sec3_cat'),
             defaultChecked: true,
             rawData: annualTrends,
             buildDataText: () => {
@@ -1727,8 +1745,8 @@ export default function JournalPage() {
           },
           {
             id: 'journal_oa_lang_pies',
-            title: `4. Distribución por Idioma y Tipo de Acceso (Pasteles OA e Idiomas - ${piePeriod === 'recent' ? '2021–2025' : '0–2026'})`,
-            category: 'Distribuciones',
+            title: t('journal.dossier_sec4_title', { period: piePeriod === 'recent' ? '2021–2025' : '0–2026' }),
+            category: t('journal.dossier_sec4_cat'),
             defaultChecked: false,
             rawData: { oaPieValues, langPieValues, piePeriod },
             buildDataText: () => {
@@ -1752,8 +1770,8 @@ export default function JournalPage() {
           },
           {
             id: 'journal_radar',
-            title: '5. Perfil Multidimensional (Radar Chart de Madurez Editorial)',
-            category: 'Perfil Multidimensional',
+            title: t('journal.dossier_sec5_title'),
+            category: t('journal.dossier_sec5_cat'),
             defaultChecked: false,
             rawData: radarData,
             buildDataText: () => {
@@ -1773,8 +1791,8 @@ export default function JournalPage() {
           },
           {
             id: 'citations_distribution',
-            title: `6. Distribución del Impacto de Artículos (${distPlotType === 'box' ? 'Box Plot' : 'Violin Plot'} - Ley de Lotka)`,
-            category: 'Distribuciones de Impacto',
+            title: t('journal.dossier_sec6_title', { plotType: distPlotType === 'box' ? (t('journal.box_plot_btn') || 'Box Plot') : (t('journal.violin_plot_btn') || 'Violin Plot') }),
+            category: t('journal.dossier_sec6_cat'),
             defaultChecked: false,
             rawData: citationsDist,
             buildDataText: () => {
@@ -1800,8 +1818,8 @@ export default function JournalPage() {
           },
           {
             id: 'umap_journal_trajectory',
-            title: `7. Trayectoria Multidimensional UMAP (${details?.display_name || selectedJournalName})`,
-            category: 'Variedades Semánticas / UMAP',
+            title: t('journal.dossier_sec7_title', { name: details?.display_name || selectedJournalName }),
+            category: t('journal.dossier_sec7_cat'),
             defaultChecked: false,
             rawData: trajectory,
             buildDataText: () => {
@@ -1822,8 +1840,8 @@ export default function JournalPage() {
           },
           {
             id: 'semantic_landscape',
-            title: `8. Foco Temático y Deriva Temporal en el Paisaje Semántico (${landscapeData.articles?.length || 0} artículos)`,
-            category: 'Semántica / Procesamiento de Lenguaje Natural',
+            title: t('journal.dossier_sec8_title', { count: landscapeData.articles?.length || 0 }),
+            category: t('journal.dossier_sec8_cat'),
             defaultChecked: false,
             rawData: landscapeData,
             buildDataText: () => {
@@ -1845,8 +1863,8 @@ export default function JournalPage() {
           },
           {
             id: 'journal_thematic_hierarchy',
-            title: `9. Composición Temática de la Revista (${thematicViewType === 'sunburst' ? 'Sunburst Radial' : 'Treemap'})`,
-            category: 'Taxonomía Científica',
+            title: t('journal.dossier_sec9_title', { viewType: thematicViewType === 'sunburst' ? (t('country.hierarchy_sunburst') || 'Sunburst Radial') : (t('country.hierarchy_treemap') || 'Treemap') }),
+            category: t('journal.dossier_sec9_cat'),
             defaultChecked: false,
             rawData: thematicViewType === 'sunburst' ? sunburstData : treemapData,
             buildDataText: () => {
@@ -1869,8 +1887,8 @@ export default function JournalPage() {
           },
           {
             id: 'journal_article_scatter',
-            title: `10. Explorador de Artículos — Scatter Plot Dinámico y Correlación (${xLabelArt} vs ${yLabelArt})`,
-            category: 'Correlaciones Multivariadas',
+            title: t('journal.dossier_sec10_title', { x: xLabelArt, y: yLabelArt }),
+            category: t('journal.dossier_sec10_cat'),
             defaultChecked: false,
             rawData: { validArticleScatterRows, statsXArt, statsYArt, pearsonRArt },
             buildDataText: () => {
@@ -1899,8 +1917,8 @@ export default function JournalPage() {
           },
           {
             id: 'top_articles',
-            title: `11. Listado de Artículos Más Citados de la Revista (Top ${Math.min(articles.length, 15)})`,
-            category: 'Artículos Destacados',
+            title: t('journal.dossier_sec11_title', { top: Math.min(articles.length, 15) }),
+            category: t('journal.dossier_sec11_cat'),
             defaultChecked: false,
             rawData: articles,
             buildDataText: () => {
@@ -1953,7 +1971,7 @@ export default function JournalPage() {
               cursor: 'pointer'
             }}
           >
-            Ver Descargas
+            {t('journal.view_downloads')}
           </button>
         </div>
       )}
