@@ -1,5 +1,8 @@
 # Análisis Bibliométrico y Cienciométrico (Revistas LATAM)
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22679773.svg)](https://doi.org/10.5281/zenodo.22679773)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 Plataforma integral de recolección, procesamiento y visualización de datos bibliométricos a gran escala sobre la ciencia latinoamericana, impulsada por **OpenAlex**, **DuckDB**, **FastAPI** y **React 18 / Vite**.
 
 Su objetivo principal es evaluar el impacto, la soberanía editorial del Acceso Abierto Diamante y la evolución de la producción científica en América Latina e Iberoamérica a través de indicadores cienciométricos avanzados (FWCI, Percentiles, Índice H, Multilingüismo) y representaciones visuales interactivas.
@@ -240,6 +243,28 @@ revistaslatam/
 
 - **Compatibilidad**: Desarrollado con compatibilidad nativa para Windows y Linux.
 - **Rendimiento**: DuckDB ejecuta consultas analíticas en memoria columnar con tiempos de respuesta inferiores a 15 ms.
+
+---
+
+## 📖 Cómo Citar este Software (Citation)
+
+Si utilizas **Revistas LATAM** en tus investigaciones, estudios cienciométricos o desarrollos, por favor cita el software de la siguiente manera:
+
+> **Jiménez Andrade, J. L., Carrillo Calvet, H. A., & Arencibia Jorge, R. (2026). Revistas LATAM: Plataforma de Inteligencia Cienciométrica y Acceso Abierto (Version v2.0.0) [Computer software]. Zenodo. [https://doi.org/10.5281/zenodo.22679773](https://doi.org/10.5281/zenodo.22679773)**
+
+### Formato BibTeX:
+```bibtex
+@software{jimenez_andrade_2026_22679773,
+  author       = {Jiménez Andrade, José Luis and Carrillo Calvet, Humberto Andrés and Arencibia Jorge, Ricardo},
+  title        = {Revistas LATAM: Plataforma de Inteligencia Cienciométrica y Acceso Abierto},
+  month        = sep,
+  year         = 2026,
+  publisher    = {Zenodo},
+  version      = {v2.0.0},
+  doi          = {10.5281/zenodo.22679773},
+  url          = {https://doi.org/10.5281/zenodo.22679773}
+}
+```
 
 ---
 

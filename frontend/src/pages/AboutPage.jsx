@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Users, 
   Code, 
@@ -11,13 +11,17 @@ import {
   Terminal, 
   BookOpen, 
   ShieldCheck, 
-  Share2 
+  Share2,
+  Quote,
+  Copy,
+  Check
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 
 export default function AboutPage() {
   const { t } = useTranslation();
   const repoUrl = 'https://github.com/chilti/revistaslatam';
+  const [copiedCitation, setCopiedCitation] = useState(false);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1050px' }}>
@@ -155,6 +159,103 @@ export default function AboutPage() {
               </a>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ── CITATION CARD (ZENODO DOI) ── */}
+      <div className="card" style={{
+        border: '1px solid var(--border-color)',
+        background: 'var(--bg-card)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
+              background: 'rgba(2, 132, 199, 0.12)',
+              color: 'var(--accent-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Quote size={18} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>
+                {t('about.citation_title')}
+              </h3>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {t('about.citation_subtitle')}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <a
+              href="https://doi.org/10.5281/zenodo.22679773"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                background: 'rgba(2, 132, 199, 0.1)',
+                border: '1px solid rgba(2, 132, 199, 0.3)',
+                color: 'var(--accent-primary)',
+                textDecoration: 'none',
+                fontSize: '12px',
+                fontWeight: '700'
+              }}
+            >
+              <span>DOI: 10.5281/zenodo.22679773</span>
+              <ExternalLink size={13} />
+            </a>
+
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(t('about.citation_text'));
+                setCopiedCitation(true);
+                setTimeout(() => setCopiedCitation(false), 2500);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                borderRadius: '6px',
+                background: copiedCitation ? 'var(--accent-success)' : 'var(--bg-input)',
+                border: '1px solid var(--border-color)',
+                color: copiedCitation ? '#ffffff' : 'var(--text-main)',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {copiedCitation ? <Check size={14} /> : <Copy size={14} />}
+              <span>{copiedCitation ? t('about.citation_copied') : t('about.citation_copy')}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Citation Box */}
+        <div style={{
+          background: 'var(--bg-input)',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          border: '1px solid var(--border-color)',
+          fontSize: '13px',
+          lineHeight: 1.6,
+          color: 'var(--text-main)',
+          fontStyle: 'italic'
+        }}>
+          "{t('about.citation_text')}"
         </div>
       </div>
 
