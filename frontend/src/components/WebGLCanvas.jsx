@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useAppStore } from '../store';
 import { Maximize2, ZoomIn, ZoomOut, RotateCcw, ExternalLink } from 'lucide-react';
 
-export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 'year', sizeMode = 'citations', height = 650 }) {
+export default function WebGLCanvas({ points = [], bgPoints = [], convexHull = [], colorMode = 'year', sizeMode = 'citations', height = 650 }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const { theme } = useAppStore();
@@ -38,7 +38,10 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
   const clearColor = theme === 'oscuro' ? [0.059, 0.090, 0.165] : theme === 'navy' ? [0.027, 0.090, 0.192] : [1.0, 1.0, 1.0];
 
   useEffect(() => {
-    if (!points || points.length === 0) return;
+    const hasPoints = points && points.length > 0;
+    const hasBg = bgPoints && bgPoints.length > 0;
+    if (!hasPoints && !hasBg) return;
+
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
@@ -124,21 +127,34 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    // Normalize coordinates
+    // Normalize coordinates over both active points and regional background points
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    points.forEach((p) => {
+    const updateMinMax = (p) => {
       const x = Number(p.umap_x) || 0;
       const y = Number(p.umap_y) || 0;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
-    });
+    };
+
+    if (hasPoints) points.forEach(updateMinMax);
+    if (hasBg) {
+      bgPoints.forEach(updateMinMax);
+      // Garantizar encuadre global mínimo para coherencia con el mapa completo
+      minX = Math.min(minX, -50.0);
+      maxX = Math.max(maxX, 30.0);
+      minY = Math.min(minY, -52.0);
+      maxY = Math.max(maxY, 35.0);
+    }
 
     const spanX = maxX > minX ? maxX - minX : 1.0;
     const spanY = maxY > minY ? maxY - minY : 1.0;
 
-    const total = points.length;
+    const bgTotal = hasBg ? bgPoints.length : 0;
+    const ptTotal = hasPoints ? points.length : 0;
+    const total = bgTotal + ptTotal;
+
     const posData = new Float32Array(total * 2);
     const colorData = new Float32Array(total * 4);
     const sizeData = new Float32Array(total);
@@ -146,21 +162,42 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
     // Color palettes
     const palette = ["#0284c7", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1", "#14b8a6", "#e11d48", "#a855f7", "#38bdf8", "#22c55e"];
     
-    // ── Size scaling (Estilo SinapsisAI dashboard_v2.py / map.html - P98 + Sqrt) ──
+    // ── 1. Render Background Regional Reference Points (subtle grey dots) ──
+    const bgR = isDark ? 0.38 : 0.58;
+    const bgG = isDark ? 0.45 : 0.64;
+    const bgB = isDark ? 0.55 : 0.72;
+    const bgA = isDark ? 0.25 : 0.22;
+
+    for (let i = 0; i < bgTotal; i++) {
+      const p = bgPoints[i];
+      const ux = Number(p.umap_x) || 0;
+      const uy = Number(p.umap_y) || 0;
+      posData[i * 2] = ((ux - minX) / spanX) * 1.8 - 0.9;
+      posData[i * 2 + 1] = ((uy - minY) / spanY) * 1.8 - 0.9;
+      colorData[i * 4] = bgR;
+      colorData[i * 4 + 1] = bgG;
+      colorData[i * 4 + 2] = bgB;
+      colorData[i * 4 + 3] = bgA;
+      sizeData[i] = 1.6;
+    }
+
+    // ── 2. Size scaling (Estilo SinapsisAI dashboard_v2.py / map.html - P98 + Sqrt) ──
     const rawSizes = [];
-    for (let i = 0; i < total; i++) {
-      const p = points[i];
-      let val = 0;
-      if (sizeMode === 'fwci') {
-        val = Number(p.fwci != null ? p.fwci : p.fwci_avg) || 0;
-      } else if (sizeMode === 'works_count') {
-        val = Number(p.works_count) || 0;
-      } else if (sizeMode === 'uniform') {
-        val = 1.0;
-      } else {
-        val = Number(p.cited_by_count) || 0;
+    if (hasPoints) {
+      for (let j = 0; j < ptTotal; j++) {
+        const p = points[j];
+        let val = 0;
+        if (sizeMode === 'fwci') {
+          val = Number(p.fwci != null ? p.fwci : p.fwci_avg) || 0;
+        } else if (sizeMode === 'works_count') {
+          val = Number(p.works_count) || 0;
+        } else if (sizeMode === 'uniform') {
+          val = 1.0;
+        } else {
+          val = Number(p.cited_by_count) || 0;
+        }
+        if (val > 0) rawSizes.push(val);
       }
-      if (val > 0) rawSizes.push(val);
     }
 
     rawSizes.sort((a, b) => a - b);
@@ -175,10 +212,23 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
     const rMin = 1.8;
     const rMax = 4.5;
 
-    const uniqueComms = Array.from(new Set(points.map(p => p.community_name || 'General')));
+    const uniqueComms = hasPoints ? Array.from(new Set(points.map(p => p.community_name || 'General'))) : [];
 
-    for (let i = 0; i < total; i++) {
-      const p = points[i];
+    // Dynamic Year normalization for Turbo colorscale
+    let minYr = 1990, maxYr = 2026;
+    if (hasPoints) {
+      const validYears = points.map(p => Number(p.publication_year)).filter(y => y && y >= 1950 && y <= 2030);
+      if (validYears.length > 0) {
+        minYr = Math.min(...validYears);
+        maxYr = Math.max(...validYears);
+      }
+    }
+    const spanYr = maxYr > minYr ? maxYr - minYr : 1.0;
+
+    // ── 3. Render Active Points (on top of background) ──
+    for (let j = 0; j < ptTotal; j++) {
+      const i = bgTotal + j;
+      const p = points[j];
       const ux = Number(p.umap_x) || 0;
       const uy = Number(p.umap_y) || 0;
       posData[i * 2] = ((ux - minX) / spanX) * 1.8 - 0.9;
@@ -186,8 +236,8 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
 
       // Color
       if (colorMode === 'year' && p.publication_year) {
-        const y = Number(p.publication_year) || 2000;
-        const normY = Math.max(0, Math.min(1, (y - 1990) / 36.0));
+        const y = Number(p.publication_year) || minYr;
+        const normY = Math.max(0, Math.min(1, (y - minYr) / spanYr));
         // Turbo color approximation
         const r = Math.min(1, Math.max(0, 0.1 + normY * 1.2));
         const g = Math.min(1, Math.max(0, Math.sin(normY * Math.PI) * 0.9 + 0.1));
@@ -195,19 +245,19 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
         colorData[i * 4] = r;
         colorData[i * 4 + 1] = g;
         colorData[i * 4 + 2] = b;
-        colorData[i * 4 + 3] = 0.88;
+        colorData[i * 4 + 3] = 0.92;
       } else if (colorMode === 'community' || p.community_name) {
         const commIdx = Math.max(0, uniqueComms.indexOf(p.community_name || 'General'));
         const hex = palette[commIdx % palette.length];
         colorData[i * 4] = parseInt(hex.slice(1, 3), 16) / 255;
         colorData[i * 4 + 1] = parseInt(hex.slice(3, 5), 16) / 255;
         colorData[i * 4 + 2] = parseInt(hex.slice(5, 7), 16) / 255;
-        colorData[i * 4 + 3] = 0.88;
+        colorData[i * 4 + 3] = 0.92;
       } else {
         colorData[i * 4] = 0.02;
         colorData[i * 4 + 1] = 0.52;
         colorData[i * 4 + 2] = 0.78;
-        colorData[i * 4 + 3] = 0.88;
+        colorData[i * 4 + 3] = 0.92;
       }
 
       // Size calculation (área proporcional con raíz cuadrada estilo Atlantis / Deepscatter)
@@ -265,11 +315,11 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
     stateRef.current.hullPosBuffer = hullPosBuffer;
     stateRef.current.hullCount = hullCount;
     stateRef.current.total = total;
-    stateRef.current.payload = { posData, points };
+    stateRef.current.payload = { posData, points, bgTotal, ptTotal };
     setRenderCount(total);
 
     render();
-  }, [points, convexHull, colorMode, sizeMode, theme]);
+  }, [points, bgPoints, convexHull, colorMode, sizeMode, theme]);
 
   const render = () => {
     const s = stateRef.current;
@@ -386,15 +436,17 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
       let closest = -1;
       let minDist = 0.045 / s.zoom;
 
-      if (s.payload) {
-        const { posData, points } = s.payload;
-        for (let i = 0; i < s.total; i++) {
-          const dx = posData[i * 2] - dataX;
-          const dy = posData[i * 2 + 1] - dataY;
+      if (s.payload && s.payload.points && s.payload.points.length > 0) {
+        const { posData, points, bgTotal = 0, ptTotal = 0 } = s.payload;
+        // Priorizar hit testing en los artículos activos (offset bgTotal)
+        for (let j = 0; j < ptTotal; j++) {
+          const idx = bgTotal + j;
+          const dx = posData[idx * 2] - dataX;
+          const dy = posData[idx * 2 + 1] - dataY;
           const d = Math.sqrt(dx * dx + dy * dy);
           if (d < minDist) {
             minDist = d;
-            closest = i;
+            closest = j;
           }
         }
 
@@ -546,8 +598,13 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
             {tooltipData.display_name || tooltipData.title || 'Elemento'}
           </div>
           {tooltipData.publisher && (
-            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '5px' }}>
               🏛️ {tooltipData.publisher} ({tooltipData.country_code})
+            </div>
+          )}
+          {tooltipData.journal_name && (
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '5px' }}>
+              📖 {tooltipData.journal_name}
             </div>
           )}
           {tooltipData.authors && (
@@ -560,7 +617,9 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
             {tooltipData.publication_year && <span className="badge">📅 {tooltipData.publication_year}</span>}
             {tooltipData.works_count !== undefined && <span className="badge">📄 {Number(tooltipData.works_count).toLocaleString()} arts</span>}
             {tooltipData.cited_by_count !== undefined && <span className="badge">✨ {Number(tooltipData.cited_by_count).toLocaleString()} citas</span>}
-            {tooltipData.fwci_avg !== undefined && <span className="badge">⚡ FWCI: {Number(tooltipData.fwci_avg).toFixed(2)}</span>}
+            {(tooltipData.fwci != null || tooltipData.fwci_avg != null) && (
+              <span className="badge">⚡ FWCI: {Number(tooltipData.fwci != null ? tooltipData.fwci : tooltipData.fwci_avg).toFixed(2)}</span>
+            )}
             {tooltipData.pct_oa_diamond !== undefined && <span className="badge">💎 {Number(tooltipData.pct_oa_diamond).toFixed(1)}% Diamante</span>}
             {tooltipData.is_in_doaj && <span className="badge success">✓ DOAJ</span>}
             {tooltipData.is_in_scielo && <span className="badge success">✓ SciELO</span>}

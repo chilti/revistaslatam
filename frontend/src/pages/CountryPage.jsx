@@ -10,6 +10,7 @@ import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
 import CountryThematicProfilesTable from '../components/CountryThematicProfilesTable';
 import AnnualDataTable from '../components/AnnualDataTable';
 import ConnectionMapViewer from '../components/ConnectionMapViewer';
+import WebGLCanvas from '../components/WebGLCanvas';
 import { 
   BookOpen, 
   FileText, 
@@ -34,7 +35,9 @@ import {
   BarChart2,
   PieChart,
   Share2,
-  Check
+  Check,
+  BarChart3,
+  Cpu
 } from 'lucide-react';
 
 export default function CountryPage() {
@@ -43,6 +46,7 @@ export default function CountryPage() {
   
   const [countriesList, setCountriesList] = useState([]);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [landscapeEngine, setLandscapeEngine] = useState('webgl');
 
   const handleShareCountry = () => {
     const url = `${window.location.origin}${window.location.pathname}?section=country&country=${encodeURIComponent(selectedCountry)}`;
@@ -1036,24 +1040,52 @@ export default function CountryPage() {
                 🌌 {t('country.landscape_title', { country: countryDisplayName })}
               </h3>
             </div>
-            <span className="badge" style={{ fontSize: '11px' }}>
-              {t('country.landscape_badge', { count: countryArts.length.toLocaleString() })}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className="segmented-pills">
+                <button
+                  className={`segmented-pill-btn ${landscapeEngine === 'webgl' ? 'active' : ''}`}
+                  onClick={() => setLandscapeEngine('webgl')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <Cpu size={14} /> ⚡ {t('maps.gpu_badge')}
+                </button>
+                <button
+                  className={`segmented-pill-btn ${landscapeEngine === 'plotly' ? 'active' : ''}`}
+                  onClick={() => setLandscapeEngine('plotly')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <BarChart3 size={14} /> 📊 {t('maps.plotly_badge')}
+                </button>
+              </div>
+              <span className="badge" style={{ fontSize: '11px' }}>
+                {t('country.landscape_badge', { count: countryArts.length.toLocaleString() })}
+              </span>
+            </div>
           </div>
           <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
             {t('country.landscape_desc', { country: countryDisplayName })}
           </p>
 
-          <PlotlyChart
-            data={landscapeTraces}
-            layout={{
-              height: 520,
-              margin: { l: 30, r: 30, t: 20, b: 30 },
-              xaxis: { showgrid: true, zeroline: false },
-              yaxis: { showgrid: true, zeroline: false },
-              legend: { orientation: 'h', y: 1.08, x: 0.1 }
-            }}
-          />
+          {landscapeEngine === 'webgl' ? (
+            <WebGLCanvas
+              points={countryArts}
+              bgPoints={bgArts}
+              colorMode="year"
+              sizeMode="fwci"
+              height={520}
+            />
+          ) : (
+            <PlotlyChart
+              data={landscapeTraces}
+              layout={{
+                height: 520,
+                margin: { l: 30, r: 30, t: 20, b: 30 },
+                xaxis: { showgrid: true, zeroline: false },
+                yaxis: { showgrid: true, zeroline: false, scaleanchor: "x", scaleratio: 1 },
+                legend: { orientation: 'h', y: 1.08, x: 0.1 }
+              }}
+            />
+          )}
 
           <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(2, 132, 199, 0.08)', borderRadius: '8px', borderLeft: '4px solid var(--accent-primary)', fontSize: '12.5px', color: 'var(--text-muted)' }}>
             💡 <strong>{t('country.landscape_note_title')}</strong> {t('country.landscape_note_desc', { country: countryDisplayName })}

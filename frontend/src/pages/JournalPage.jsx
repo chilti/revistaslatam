@@ -9,6 +9,7 @@ import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
 import AnnualDataTable from '../components/AnnualDataTable';
 import PageDossierExpander from '../components/PageDossierExpander';
 import ConnectionMapViewer from '../components/ConnectionMapViewer';
+import WebGLCanvas from '../components/WebGLCanvas';
 import { 
   Search, 
   BookOpen, 
@@ -32,7 +33,8 @@ import {
   Download,
   PieChart,
   Compass,
-  BarChart3
+  BarChart3,
+  Cpu
 } from 'lucide-react';
 
 const DEFAULT_COUNTRIES = [
@@ -147,6 +149,7 @@ export default function JournalPage() {
   
   const [landscapeData, setLandscapeData] = useState({ articles: [], bg_articles: [], dispersion: 0 });
   const [globalBgArts, setGlobalBgArts] = useState([]);
+  const [landscapeEngine, setLandscapeEngine] = useState('webgl');
   const [trajectory, setTrajectory] = useState({});
   const [loading, setLoading] = useState(true);
   const [exportingFormat, setExportingFormat] = useState(null);
@@ -1294,9 +1297,27 @@ export default function JournalPage() {
               {t('journal.landscape_focus_title', { name: prof.display_name || selectedJournalName || t('journal.default_journal') })}
             </h3>
           </div>
-          <span className="badge" style={{ fontSize: '11px' }}>
-            {journalArts.length > 0 ? t('journal.landscape_articles_badge', { count: journalArts.length.toLocaleString() }) : t('journal.landscape_no_articles_badge')}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="segmented-pills">
+              <button
+                className={`segmented-pill-btn ${landscapeEngine === 'webgl' ? 'active' : ''}`}
+                onClick={() => setLandscapeEngine('webgl')}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+              >
+                <Cpu size={14} /> ⚡ {t('maps.gpu_badge')}
+              </button>
+              <button
+                className={`segmented-pill-btn ${landscapeEngine === 'plotly' ? 'active' : ''}`}
+                onClick={() => setLandscapeEngine('plotly')}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+              >
+                <BarChart3 size={14} /> 📊 {t('maps.plotly_badge')}
+              </button>
+            </div>
+            <span className="badge" style={{ fontSize: '11px' }}>
+              {journalArts.length > 0 ? t('journal.landscape_articles_badge', { count: journalArts.length.toLocaleString() }) : t('journal.landscape_no_articles_badge')}
+            </span>
+          </div>
         </div>
         <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
           {t('journal.landscape_focus_desc')}
@@ -1304,16 +1325,26 @@ export default function JournalPage() {
 
         {journalArts.length > 0 ? (
           <>
-            <PlotlyChart
-              data={landscapeTraces}
-              layout={{
-                height: 540,
-                margin: { l: 30, r: 30, t: 20, b: 30 },
-                xaxis: { showgrid: true, zeroline: false },
-                yaxis: { showgrid: true, zeroline: false },
-                legend: { orientation: 'h', y: 1.08, x: 0.1 }
-              }}
-            />
+            {landscapeEngine === 'webgl' ? (
+              <WebGLCanvas
+                points={journalArts}
+                bgPoints={effectiveBgArts}
+                colorMode="year"
+                sizeMode="fwci"
+                height={540}
+              />
+            ) : (
+              <PlotlyChart
+                data={landscapeTraces}
+                layout={{
+                  height: 540,
+                  margin: { l: 30, r: 30, t: 20, b: 30 },
+                  xaxis: { showgrid: true, zeroline: false },
+                  yaxis: { showgrid: true, zeroline: false, scaleanchor: "x", scaleratio: 1 },
+                  legend: { orientation: 'h', y: 1.08, x: 0.1 }
+                }}
+              />
+            )}
 
             <div style={{ marginTop: '14px', padding: '12px 16px', background: 'rgba(2, 132, 199, 0.08)', borderRadius: '8px', borderLeft: '4px solid var(--accent-primary)', fontSize: '12.5px', color: 'var(--text-main)', lineHeight: '1.6' }}>
               {t('journal.drift_analysis_title')}
