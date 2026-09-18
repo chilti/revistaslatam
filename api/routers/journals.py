@@ -39,25 +39,31 @@ def search_journals(
     conditions = []
     params = []
     
-    if country:
-        conditions.append("country_code = ?")
-        params.append(country.upper())
+    country_str = country if isinstance(country, str) else ""
+    q_str = q if isinstance(q, str) else ""
+    limit_val = limit if isinstance(limit, int) else 50
+    
+    if country_str.strip():
+        conditions.append("j.country_code = ?")
+        params.append(country_str.strip().upper())
         
-    if q.strip():
-        tokens = [t.strip() for t in q.strip().split() if t.strip()]
+    if q_str.strip():
+        tokens = [t.strip() for t in q_str.strip().split() if t.strip()]
         for t in tokens:
-            conditions.append("(LOWER(display_name) LIKE ? OR LOWER(issn_l) LIKE ?)")
+            conditions.append("(LOWER(j.display_name) LIKE ? OR LOWER(j.issn_l) LIKE ?)")
             params.extend([f"%{t.lower()}%", f"%{t.lower()}%"])
         
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = f"""
-        SELECT id, display_name, issn_l, country_code, publisher, works_count, cited_by_count, fwci_avg, community_name
-        FROM journals
+        SELECT j.id, j.display_name, j.issn_l, j.country_code, j.publisher, j.works_count, j.cited_by_count,
+               COALESCE(m.fwci_avg, 0) as fwci_avg
+        FROM journals j
+        LEFT JOIN metrics_journal_period m ON j.id = m.journal_id
         {where_clause}
-        ORDER BY works_count DESC
+        ORDER BY j.works_count DESC
         LIMIT ?
     """
-    params.append(limit)
+    params.append(limit_val)
     df = query_df(sql, params)
     return sanitize_records(df)
 

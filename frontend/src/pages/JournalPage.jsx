@@ -67,6 +67,8 @@ export default function JournalPage() {
     selectedJournalId,
     selectedJournalName,
     setSelectedJournal,
+    selectedCountry,
+    setSelectedCountry,
     addDossierItem,
     addExportJob,
     setDownloadsOpen,
@@ -106,7 +108,7 @@ export default function JournalPage() {
   
   // Country & Journal Combo state
   const [countriesList, setCountriesList] = useState(DEFAULT_COUNTRIES);
-  const [filterCountry, setFilterCountry] = useState('ALL');
+  const [filterCountry, setFilterCountry] = useState(selectedCountry || 'MX');
   const [countryJournals, setCountryJournals] = useState(DEFAULT_INITIAL_JOURNALS);
   const [loadingJournals, setLoadingJournals] = useState(false);
   
@@ -192,7 +194,7 @@ export default function JournalPage() {
 
   // Fetch journals whenever filterCountry changes
   useEffect(() => {
-    const code = filterCountry || 'ALL';
+    const code = filterCountry || selectedCountry || 'MX';
     setLoadingJournals(true);
     
     const fetchPromise = code === 'ALL'
@@ -203,8 +205,11 @@ export default function JournalPage() {
       .then(res => {
         const jList = res.data || [];
         setCountryJournals(jList);
-        if (jList.length > 0 && !selectedJournalId) {
-          setSelectedJournal(jList[0].id, jList[0].display_name);
+        if (jList.length > 0) {
+          const currentInList = jList.some(j => j.id === selectedJournalId);
+          if (!currentInList) {
+            setSelectedJournal(jList[0].id, jList[0].display_name);
+          }
         }
       })
       .catch(err => {
@@ -265,8 +270,10 @@ export default function JournalPage() {
       setConnectedTraj(connRes.data || []);
 
       // If details has country_code and filterCountry differs, sync
-      if (detRes.data?.country_code && detRes.data.country_code !== filterCountry && filterCountry !== 'ALL') {
-        setFilterCountry(detRes.data.country_code);
+      const jCountry = detRes.data?.profile?.country_code || detRes.data?.country_code;
+      if (jCountry && jCountry !== filterCountry) {
+        setFilterCountry(jCountry);
+        if (setSelectedCountry) setSelectedCountry(jCountry);
       }
     }).catch(console.error).finally(() => setLoading(false));
   }, [selectedJournalId]);
@@ -677,7 +684,13 @@ export default function JournalPage() {
               <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('journal.country_label')}</span>
               <select
                 value={filterCountry}
-                onChange={(e) => setFilterCountry(e.target.value)}
+                onChange={(e) => {
+                  const newC = e.target.value;
+                  setFilterCountry(newC);
+                  if (newC !== 'ALL' && setSelectedCountry) {
+                    setSelectedCountry(newC);
+                  }
+                }}
                 style={{ fontSize: '13px', fontWeight: '700', padding: '6px 12px' }}
               >
                 <option value="ALL">{t('journal.all_countries')}</option>
@@ -729,6 +742,10 @@ export default function JournalPage() {
                     key={j.id}
                     onClick={() => {
                       setSelectedJournal(j.id, j.display_name);
+                      if (j.country_code) {
+                        setFilterCountry(j.country_code);
+                        if (setSelectedCountry) setSelectedCountry(j.country_code);
+                      }
                       setSearchQuery('');
                       setSearchResults([]);
                     }}

@@ -222,11 +222,15 @@ def get_country_journals(country_code: str):
     """Returns the list of journals from a specific country."""
     c_code = country_code.upper()
     sql = """
-        SELECT id, display_name, issn_l, publisher, works_count, cited_by_count, h_index, 
-               fwci_avg, 2yr_mean_citedness, is_in_doaj, is_in_scielo, is_scopus, pct_oa_diamond
-        FROM journals
-        WHERE country_code = ?
-        ORDER BY works_count DESC
+        SELECT j.id, j.display_name, j.issn_l, j.publisher, j.works_count, j.cited_by_count, j.h_index, 
+               j.citedness_2yr as "2yr_mean_citedness", j.is_in_doaj, j.is_in_scielo,
+               COALESCE(m.is_scopus, false) as is_scopus,
+               COALESCE(m.fwci_avg, 0) as fwci_avg,
+               COALESCE(m.pct_oa_diamond, 0) as pct_oa_diamond
+        FROM journals j
+        LEFT JOIN metrics_journal_period m ON j.id = m.journal_id
+        WHERE j.country_code = ?
+        ORDER BY j.works_count DESC
     """
     df = query_df(sql, [c_code])
     return sanitize_records(df)
@@ -330,8 +334,7 @@ def get_country_journals_scatter(
     df_metrics = pd.read_parquet(period_file)
     df_journals = query_df("""
         SELECT id, display_name, country_code, cited_by_count, h_index, 
-               i10_index, citedness_2yr, is_in_doaj, is_in_scielo, is_scopus,
-               pagerank, eigenfactor
+               i10_index, citedness_2yr, is_in_doaj, is_in_scielo
         FROM journals 
         WHERE country_code = ?
     """, [c_code])
@@ -408,11 +411,16 @@ def get_country_journals_distribution(country_code: str):
     """Returns all journals for a country with metrics for Beeswarm/Strip plot."""
     c_code = country_code.upper()
     df = query_df("""
-        SELECT id, display_name, issn_l, publisher, works_count, cited_by_count, fwci_avg, 
-               h_index, pct_oa_diamond, pct_top_10, community_name, is_in_doaj, is_scopus
-        FROM journals 
-        WHERE country_code = ? 
-        ORDER BY works_count DESC
+        SELECT j.id, j.display_name, j.issn_l, j.publisher, j.works_count, j.cited_by_count,
+               j.h_index, j.is_in_doaj,
+               COALESCE(m.is_scopus, false) as is_scopus,
+               COALESCE(m.fwci_avg, 0) as fwci_avg,
+               COALESCE(m.pct_oa_diamond, 0) as pct_oa_diamond,
+               COALESCE(m.pct_top_10, 0) as pct_top_10
+        FROM journals j
+        LEFT JOIN metrics_journal_period m ON j.id = m.journal_id
+        WHERE j.country_code = ? 
+        ORDER BY j.works_count DESC
     """, [c_code])
     return sanitize_records(df)
 
