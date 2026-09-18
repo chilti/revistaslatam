@@ -10,6 +10,7 @@ import AnnualDataTable from '../components/AnnualDataTable';
 import PageDossierExpander from '../components/PageDossierExpander';
 import ConnectionMapViewer from '../components/ConnectionMapViewer';
 import WebGLCanvas from '../components/WebGLCanvas';
+import KnoMapLogo from '../components/KnoMapLogo';
 import { 
   Search, 
   BookOpen, 
@@ -165,12 +166,17 @@ export default function JournalPage() {
     setExportingFormat(format);
     try {
       const yearVal = (articleYearFilter && !isNaN(parseInt(articleYearFilter))) ? parseInt(articleYearFilter) : null;
+      const formatTitleTag = format === 'metrics'
+        ? 'TlachIA Metrics'
+        : format === 'json'
+        ? 'OpenAlex JSON'
+        : format.toUpperCase();
       const payload = {
         journal_id: cleanJid,
         format: format,
         year_min: yearVal,
         year_max: yearVal,
-        title: `${journalTitle} (${format.toUpperCase()})`
+        title: `${journalTitle} (${formatTitleTag})`
       };
       
       const res = await api.post('/exports/start', payload);
@@ -1600,28 +1606,7 @@ export default function JournalPage() {
               <option value="publication_year">{t('journal.sort_recent')}</option>
             </select>
 
-            {/* Export Buttons */}
-            <button
-              className="btn-secondary"
-              disabled={exportingFormat !== null}
-              onClick={() => handleExportArticles('json')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                padding: '6px 12px',
-                opacity: exportingFormat ? 0.7 : 1,
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.25))',
-                borderColor: 'rgba(16, 185, 129, 0.45)',
-                color: '#10b981',
-                fontWeight: '600'
-              }}
-              title={t('journal.export_json_tooltip')}
-            >
-              <Download size={14} /> {exportingFormat === 'json' ? t('journal.exporting_json') : t('journal.export_json_btn')}
-            </button>
-
+            {/* Export Buttons: 1. CSV, 2. OpenAlex JSON (KnoMap), 3. Métricas TlachIA (KnoMap) */}
             <button
               className="btn-secondary"
               disabled={exportingFormat !== null}
@@ -1633,14 +1618,33 @@ export default function JournalPage() {
                 fontSize: '12px',
                 padding: '6px 12px',
                 opacity: exportingFormat ? 0.7 : 1,
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.25))',
-                borderColor: 'rgba(16, 185, 129, 0.45)',
-                color: '#10b981',
                 fontWeight: '600'
               }}
               title={t('journal.export_csv_cols_tooltip')}
             >
               <Download size={14} /> {exportingFormat === 'csv' ? t('journal.exporting_csv') : t('journal.export_csv_cols_btn')}
+            </button>
+
+            <button
+              className="btn-secondary"
+              disabled={exportingFormat !== null}
+              onClick={() => handleExportArticles('json')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '7px',
+                fontSize: '12px',
+                padding: '6px 13px',
+                opacity: exportingFormat ? 0.7 : 1,
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.16) 0%, rgba(139, 92, 246, 0.26) 100%)',
+                borderColor: 'rgba(99, 102, 241, 0.55)',
+                color: 'var(--text-main)',
+                fontWeight: '700',
+                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.15)'
+              }}
+              title={t('journal.export_json_tooltip')}
+            >
+              <KnoMapLogo size={15} /> {exportingFormat === 'json' ? t('journal.exporting_json') : t('journal.export_json_btn')}
             </button>
 
             {user && (
@@ -1651,18 +1655,19 @@ export default function JournalPage() {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '7px',
                   fontSize: '12px',
-                  padding: '6px 12px',
+                  padding: '6px 13px',
                   opacity: exportingFormat ? 0.7 : 1,
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.25))',
-                  borderColor: 'rgba(16, 185, 129, 0.45)',
-                  color: '#10b981',
-                  fontWeight: '600'
+                  background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.16) 0%, rgba(99, 102, 241, 0.26) 100%)',
+                  borderColor: 'rgba(14, 165, 233, 0.55)',
+                  color: 'var(--text-main)',
+                  fontWeight: '700',
+                  boxShadow: '0 2px 8px rgba(14, 165, 233, 0.15)'
                 }}
-                title={t('journal.export_metrics_title') || "Calcular paquete completo de indicadores cienciométricos en segundo plano (.zip)"}
+                title={t('journal.export_metrics_title')}
               >
-                <BarChart3 size={14} /> {exportingFormat === 'metrics' ? t('journal.exporting_metrics') : t('journal.export_metrics')}
+                <KnoMapLogo size={15} /> {exportingFormat === 'metrics' ? t('journal.exporting_metrics') : t('journal.export_metrics')}
               </button>
             )}
           </div>

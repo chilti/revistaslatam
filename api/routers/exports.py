@@ -169,7 +169,7 @@ def run_export_job(job_id: str, req_data: Dict[str, Any]):
                     rec["progress"] = int((float(pct) / 100.0) * total_works)
                     _save_job_record(rec)
 
-            pkg_name = f"metricas_{safe_title}{year_tag}_{job_id[:8]}"
+            pkg_name = f"TlachIA_Metrics_{safe_title}{year_tag}_{job_id[:8]}"
             out_pkg_dir = EXPORTS_DIR / pkg_name
             
             res_pkg = engine.process_and_export_package(
@@ -236,13 +236,13 @@ def run_export_job(job_id: str, req_data: Dict[str, Any]):
                 for w in works:
                     writer.writerow(map_work_to_openalex_csv_row(w))
         elif fmt == "jsonl":
-            filename = f"openalex_{safe_title}{year_tag}_{job_id[:8]}.jsonl.gz"
+            filename = f"openalex_jsonl_{safe_title}{year_tag}_{job_id[:8]}.jsonl.gz"
             filepath = EXPORTS_DIR / filename
             with gzip.open(filepath, "wt", encoding="utf-8") as f:
                 for w in works:
                     f.write(json.dumps(w, ensure_ascii=False) + "\n")
         else:  # json array compressed with gzip
-            filename = f"openalex_{safe_title}{year_tag}_{job_id[:8]}.json.gz"
+            filename = f"openalex_json_{safe_title}{year_tag}_{job_id[:8]}.json.gz"
             filepath = EXPORTS_DIR / filename
             with gzip.open(filepath, "wt", encoding="utf-8") as f:
                 json.dump(works, f, ensure_ascii=False, indent=2)

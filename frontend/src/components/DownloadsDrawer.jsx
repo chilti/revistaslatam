@@ -2,7 +2,8 @@ import { useTranslation } from '../i18n';
 import React, { useEffect } from 'react';
 import { useAppStore } from '../store';
 import api from '../api';
-import { X, Download, Trash2, CheckCircle2, Clock, AlertCircle, FileSpreadsheet, FileCode, Sparkles, BarChart3 } from 'lucide-react';
+import { X, Download, Trash2, CheckCircle2, Clock, AlertCircle, FileSpreadsheet, FileCode, Sparkles, BarChart3, ExternalLink } from 'lucide-react';
+import KnoMapLogo from './KnoMapLogo';
 
 export default function DownloadsDrawer() {
   const { t } = useTranslation();
@@ -201,8 +202,8 @@ export default function DownloadsDrawer() {
               <h3 style={{ fontSize: '15px', fontWeight: '700', margin: 0, color: 'var(--text-main)' }}>
                 No hay exportaciones activas
               </h3>
-              <p style={{ fontSize: '12.5px', maxWidth: '280px', margin: 0, lineHeight: 1.4 }}>
-                En la vista de cualquier revista, haz clic en <strong>Exportar JSON (Full)</strong> o <strong>Exportar CSV</strong>. Podrás monitorear el progreso y descargarlos aquí.
+              <p style={{ fontSize: '12.5px', maxWidth: '320px', margin: 0, lineHeight: 1.4 }}>
+                En la vista de cualquier revista, haz clic en <strong>Exportar CSV</strong>, <strong>OpenAlex JSON</strong> o <strong>Calcular Métricas TlachIA</strong>. Podrás monitorear el progreso y descargarlos aquí para abrirlos en KnoMap.
               </p>
             </div>
           ) : (
@@ -230,30 +231,40 @@ export default function DownloadsDrawer() {
                         {job.format === 'csv' ? (
                           <FileSpreadsheet size={18} color="#0284c7" />
                         ) : (job.format === 'metrics' || job.format === 'zip') ? (
-                          <BarChart3 size={18} color="#8b5cf6" />
+                          <KnoMapLogo size={18} />
                         ) : (
-                          <FileCode size={18} color="#10b981" />
+                          <KnoMapLogo size={18} />
                         )}
                         <span
                           style={{
                             fontSize: '11px',
                             fontWeight: '700',
-                            textTransform: 'uppercase',
                             padding: '2px 8px',
                             borderRadius: '6px',
                             background: job.format === 'csv'
                               ? 'rgba(2, 132, 199, 0.15)'
                               : (job.format === 'metrics' || job.format === 'zip')
-                              ? 'rgba(139, 92, 246, 0.15)'
-                              : 'rgba(16, 185, 129, 0.15)',
+                              ? 'linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(99, 102, 241, 0.22))'
+                              : 'linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(139, 92, 246, 0.22))',
+                            border: `1px solid ${
+                              job.format === 'csv'
+                                ? 'rgba(2, 132, 199, 0.35)'
+                                : (job.format === 'metrics' || job.format === 'zip')
+                                ? 'rgba(14, 165, 233, 0.45)'
+                                : 'rgba(99, 102, 241, 0.45)'
+                            }`,
                             color: job.format === 'csv'
                               ? '#0284c7'
                               : (job.format === 'metrics' || job.format === 'zip')
-                              ? '#8b5cf6'
-                              : '#10b981'
+                              ? '#38bdf8'
+                              : '#818cf8'
                           }}
                         >
-                          {job.format === 'csv' ? 'CSV (88 cols)' : (job.format === 'metrics' || job.format === 'zip') ? 'Métricas (.zip)' : 'JSON (.gz)'}
+                          {job.format === 'csv'
+                            ? 'CSV (88 cols)'
+                            : (job.format === 'metrics' || job.format === 'zip')
+                            ? (t('downloads.tlachia_metrics_badge') || 'Métricas TlachIA (.zip)')
+                            : (t('downloads.openalex_json_badge') || 'OpenAlex JSON (.gz)')}
                         </span>
                       </div>
 
@@ -272,7 +283,6 @@ export default function DownloadsDrawer() {
                       </button>
                     </div>
 
-                    {/* Title */}
                     <h4
                       style={{
                         fontSize: '13.5px',
@@ -284,6 +294,35 @@ export default function DownloadsDrawer() {
                     >
                       {job.title || 'Exportación OpenAlex'}
                     </h4>
+
+                    {/* Badge KnoMap link for JSON and Metrics */}
+                    {(job.format === 'metrics' || job.format === 'zip' || job.format === 'json' || job.format === 'jsonl') && (
+                      <div style={{ margin: '6px 0 8px 0' }}>
+                        <a
+                          href="https://github.com/chilti/knomap"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: '#818cf8',
+                            textDecoration: 'none',
+                            background: 'rgba(99, 102, 241, 0.10)',
+                            border: '1px solid rgba(99, 102, 241, 0.28)',
+                            padding: '3px 8px',
+                            borderRadius: '5px'
+                          }}
+                          title="Abrir repositorio de KnoMap en GitHub"
+                        >
+                          <KnoMapLogo size={12} />
+                          <span>{t('downloads.open_in_knomap') || 'Para abrir en KnoMap'}</span>
+                          <ExternalLink size={10} />
+                        </a>
+                      </div>
+                    )}
 
                     {/* Progress & States */}
                     {isProcessing && (
