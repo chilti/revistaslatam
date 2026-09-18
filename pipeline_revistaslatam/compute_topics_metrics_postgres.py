@@ -1,384 +1,361 @@
 #!/usr/bin/env python3
 """
-Topic-level metrics calculation for Postgres pipeline.
-Aggregates performance metrics (FWCI, Percentile, OA) at each level 
-of the topic hierarchy (Domain, Field, Subfield).
+Topic-level hierarchical metrics calculation (ClickHouse Native Vectorized Aggregation).
+Aggregates dual-period (Full and Recent 2021-2025) 4-level metrics
+(Domain, Field, Subfield, Topic) for Journals, Countries, and Region (LATAM).
+Uses native physical columns in ClickHouse to eliminate 'Sin Clasificación' gaps
+and avoid external API rate limits.
 """
 import sys
 import os
+import time
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from multiprocessing import Pool, cpu_count
-import time
+from dotenv import load_dotenv
 
-# Add src to path if needed (assuming structure)
-# sys.path.append(str(Path(__file__).parent / 'src'))
+# Cargar variables de entorno (.env)
+load_dotenv()
 
-def calculate_metrics_for_group(group_df):
-    """
-    Calculates the standard suite of metrics for a given subset of works.
-    Matches the logic used in other pipeline scripts.
-    """
-    total = len(group_df)
-    if total == 0:
-        return pd.Series({
-            'count': 0,
-            'fwci_avg': 0.0,
-            'avg_percentile': 0.0,
-            'pct_top_10': 0.0,
-            'pct_top_1': 0.0,
-            'pct_oa_diamond': 0.0,
-            'pct_oa_gold': 0.0,
-            'pct_oa_green': 0.0,
-            'pct_oa_hybrid': 0.0,
-            'pct_oa_bronze': 0.0,
-            'pct_oa_closed': 0.0
-        })
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / 'data'
+CACHE_DIR = DATA_DIR / 'cache'
+JOURNALS_FILE = DATA_DIR / 'latin_american_journals.parquet'
 
-    # Numeric metrics
-    fwci = pd.to_numeric(group_df['fwci'], errors='coerce').mean()
-    percentile = pd.to_numeric(group_df['citation_normalized_percentile'], errors='coerce').mean()
-    
-    # Booleans / Binary counts
-    top10 = (pd.to_numeric(group_df['is_in_top_10_percent'], errors='coerce').fillna(0).astype(bool).sum() / total) * 100
-    top1 = (pd.to_numeric(group_df['is_in_top_1_percent'], errors='coerce').fillna(0).astype(bool).sum() / total) * 100
-    
-    # OA Status
-    oa_counts = group_df['oa_status'].value_counts()
-    
-    return pd.Series({
-        'count': total,
-        'fwci_avg': round(fwci, 3) if pd.notna(fwci) else 0.0,
-        'avg_percentile': round(percentile, 1) if pd.notna(percentile) else 0.0,
-        'pct_top_10': round(top10, 4),
-        'pct_top_1': round(top1, 4),
-        'pct_oa_diamond': round((oa_counts.get('diamond', 0) / total) * 100, 2),
-        'pct_oa_gold': round((oa_counts.get('gold', 0) / total) * 100, 2),
-        'pct_oa_green': round((oa_counts.get('green', 0) / total) * 100, 2),
-        'pct_oa_hybrid': round((oa_counts.get('hybrid', 0) / total) * 100, 2),
-        'pct_oa_bronze': round((oa_counts.get('bronze', 0) / total) * 100, 2),
-        'pct_oa_closed': round((oa_counts.get('closed', 0) / total) * 100, 2)
-    })
+# ClickHouse connection params
+CH_HOST = os.environ.get('CH_HOST', 'localhost')
+CH_PORT = int(os.environ.get('CH_PORT', 8124))
+CH_USER = os.environ.get('CH_USER', 'default')
+CH_PASSWORD = os.environ.get('CH_PASSWORD', '')
+CH_DATABASE = os.environ.get('CH_DATABASE', 'rag')
 
-    
-def calculate_from_agg(df):
-    total_docs = df['count'].sum()
-    if total_docs == 0:
-        return pd.Series({
-            'count': 0, 'fwci_avg': 0.0, 'avg_percentile': 0.0,
-            'pct_top_10': 0.0, 'pct_top_1': 0.0, 'pct_oa_gold': 0.0,
-            'pct_oa_green': 0.0, 'pct_oa_hybrid': 0.0, 'pct_oa_bronze': 0.0,
-            'pct_oa_closed': 0.0
-        })
-    
-    # Weighted averages for FWCI and Percentile
-    fwci = (df['fwci_avg'] * df['count']).sum() / total_docs
-    perc = (df['avg_percentile'] * df['count']).sum() / total_docs
-    
-    # Weighted averages for percentages
-    res = {
-        'count': total_docs,
-        'fwci_avg': round(fwci, 3),
-        'avg_percentile': round(perc, 1)
-    }
-    for col in ['pct_top_10', 'pct_top_1', 'pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed']:
-        res[col] = round((df[col] * df['count']).sum() / total_docs, 4 if 'top' in col else 2)
-        
-    return pd.Series(res)
-
-def compute_thematic_evolution_legacy(works_df, topics_df, output_path):
-    """
-    Calcula la evolución anual de indicadores a nivel de LATAM y por tema.
-    Asegura que los totales no se inflen y que, si hay mapeo granular, se use.
-    """
-    print("\n📈 Computing LATAM Thematic Evolution...")
-    
-    data_dir = Path(output_path).parent.parent
-    mapping_file = data_dir / 'works_topics_mapping.parquet'
-    
-    if mapping_file.exists():
-        print("  → Usando mapeo granular para la evolución histórica (Precisión Máxima)")
-        mapping_df = pd.read_parquet(mapping_file)
-        mapping_df['work_id'] = mapping_df['work_id'].str.replace('https://openalex.org/', '', regex=False)
-        
-        # Merge works with their specific topics
-        # Eliminar journal_id del mapeo para evitar colisión
-        m_cols = [c for c in mapping_df.columns if c != 'journal_id']
-        merged_evo = pd.merge(works_df, mapping_df[m_cols], left_on='id', right_on='work_id')
-        
-        # Agrupar por revista, año y jerarquía
-        group_cols = ['journal_id', 'publication_year', 'domain', 'field', 'subfield', 'topic_name']
-        try:
-            df_evo = merged_evo.groupby(group_cols).apply(calculate_metrics_for_group, include_groups=False).reset_index()
-        except TypeError:
-            df_evo = merged_evo.groupby(group_cols).apply(calculate_metrics_for_group).reset_index()
-        
-        df_evo = df_evo.rename(columns={'topic_name': 'topic', 'publication_year': 'year', 'count': 'num_documents'})
-    else:
-        print("  ⚠️ Usando método uniforme con 'share' para evitar inflación (Legacy Mode)")
-        # 1. Agrupar por revista y año
-        try:
-            j_year_metrics = works_df.groupby(['journal_id', 'publication_year']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
-        except TypeError:
-            j_year_metrics = works_df.groupby(['journal_id', 'publication_year']).apply(calculate_metrics_for_group).reset_index()
-        
-        j_year_metrics = j_year_metrics.rename(columns={'count': 'num_documents', 'publication_year': 'year'})
-        
-        # 2. Unir con los tópicos de las revistas pero aplicando el share
-        df_evo = pd.merge(j_year_metrics, topics_df[['journal_id', 'topic_name', 'subfield', 'field', 'domain', 'share']], on='journal_id')
-        
-        # CORRECCIÓN DE INFLACIÓN: Multiplicar conteos por el share del tema
-        df_evo['num_documents'] = df_evo['num_documents'] * df_evo['share']
-        df_evo = df_evo.rename(columns={'topic_name': 'topic'})
-
-    # 3. Calcular pct_oa_total (Suma de todas las vías OA) para compatibilidad
-    oa_cols = ['pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze']
-    for col in oa_cols:
-        if col not in df_evo.columns: df_evo[col] = 0
-    df_evo['pct_oa_total'] = df_evo[oa_cols].sum(axis=1).clip(0, 100)
-    
-    # Save base evolution
-    df_evo.to_parquet(output_path, index=False)
-    print(f"  ✓ Saved evolution with {len(df_evo)} records.")
-
-def aggregate_granular(works_df, mapping_df, group_cols, suffix=""):
-    """
-    Agregación granular usando el mapeo de tópicos por artículo.
-    Permite que cada tema tenga sus propios indicadores.
-    """
-    if len(works_df) == 0:
-        return pd.DataFrame()
-
-    print(f"  → Agregando datos granulares para {len(works_df)} artículos ({suffix})...")
-    
-    # Unir trabajos con sus tópicos
-    # Eliminar journal_id del mapeo si existe para evitar colisión con el de works_df
-    mapping_cols = mapping_df.columns.tolist()
-    if 'journal_id' in mapping_cols:
-        mapping_cols.remove('journal_id')
-    
-    merged = pd.merge(
-        works_df, 
-        mapping_df[mapping_cols], 
-        left_on='id', 
-        right_on='work_id', 
-        how='left'
+def get_client():
+    """Establece conexión nativa con ClickHouse con soporte para consultas grandes."""
+    import clickhouse_connect
+    return clickhouse_connect.get_client(
+        host=CH_HOST, port=CH_PORT,
+        username=CH_USER, password=CH_PASSWORD,
+        database=CH_DATABASE,
+        settings={'max_query_size': 10485760}
     )
-    
-    # Manejar artículos sin tópicos (Data Integrity)
-    hierarchy_cols = ['domain', 'field', 'subfield', 'topic_name']
-    for col in hierarchy_cols:
-        merged[col] = merged[col].fillna('Sin Clasificación')
-    
-    if merged.empty:
-        return pd.DataFrame()
 
-    results_list = []
-    levels = ['domain', 'field', 'subfield', 'topic_name']
+def format_in_clause(id_list):
+    """Devuelve un formato seguro para la cláusula IN de ClickHouse."""
+    if not id_list:
+        return "('')"
+    if len(id_list) == 1:
+        return f"('{id_list[0]}')"
+    return str(tuple(id_list))
+
+def query_rollup_hierarchy(client, group_col, group_ids, where_extra="", chunk_size=500):
+    """
+    Ejecuta agregación jerárquica con ROLLUP en ClickHouse.
+    Soporta chunks para evitar saturar memoria en lotes muy grandes.
+    """
+    dfs = []
+    ids_list = list(group_ids)
     
-    for i, level_col in enumerate(levels):
-        current_hierarchy = levels[:i+1]
-        grouping = group_cols + current_hierarchy
+    id_select = f"{group_col}," if group_col else ""
+    group_by = f"{group_col}, " if group_col else ""
+    
+    total_chunks = max(1, (len(ids_list) + chunk_size - 1) // chunk_size) if group_col else 1
+    
+    for i in range(0, max(1, len(ids_list)), chunk_size):
+        chunk = ids_list[i:i+chunk_size] if group_col else []
+        chunk_filter = f"AND source_id IN {format_in_clause(chunk)}" if chunk else ""
         
-        # Agrupar y calcular
-        try:
-            agg = merged.groupby(grouping).apply(calculate_metrics_for_group, include_groups=False).reset_index()
-        except TypeError:
-            agg = merged.groupby(grouping).apply(calculate_metrics_for_group).reset_index()
+        query = f"""
+        SELECT 
+            {id_select}
+            if(domain = '', 'Sin Clasificación', domain) as domain,
+            if(field = '', 'Sin Clasificación', field) as field,
+            if(subfield = '', 'Sin Clasificación', subfield) as subfield,
+            if(topic = '', 'Sin Clasificación', topic) as topic,
+            count() as count,
+            avg(fwci) as fwci_avg,
+            avg(percentile) as avg_percentile,
+            (sum(is_top_10) / count()) * 100 as pct_top_10,
+            (sum(is_top_1) / count()) * 100 as pct_top_1,
+            (countIf(oa_status = 'diamond') / count()) * 100 as pct_oa_diamond,
+            (countIf(oa_status = 'gold') / count()) * 100 as pct_oa_gold,
+            (countIf(oa_status = 'green') / count()) * 100 as pct_oa_green,
+            (countIf(oa_status = 'hybrid') / count()) * 100 as pct_oa_hybrid,
+            (countIf(oa_status = 'bronze') / count()) * 100 as pct_oa_bronze,
+            (countIf(oa_status = 'closed') / count()) * 100 as pct_oa_closed
+        FROM works
+        WHERE 1=1 {chunk_filter} {where_extra}
+        GROUP BY {group_by}domain, field, subfield, topic WITH ROLLUP
+        """
+        
+        chunk_df = client.query_df(query)
+        if not chunk_df.empty:
+            dfs.append(chunk_df)
             
-        # Renombrar columna actual a 'topic'
-        agg['level'] = level_col.replace('_name', '')
-        agg['topic'] = agg[level_col]
+        if total_chunks > 1 and ((i // chunk_size) + 1) % 5 == 0:
+            print(f"    ... procesado chunk {(i // chunk_size) + 1}/{total_chunks}")
+            
+    if not dfs:
+        return pd.DataFrame()
         
-        # Rellenar jerarquía faltante con 'ALL' para compatibilidad
-        for l_name in ['domain', 'field', 'subfield', 'topic']:
-            if l_name not in agg.columns:
-                agg[l_name] = 'ALL'
+    full_df = pd.concat(dfs, ignore_index=True)
+    return full_df
+
+def process_rollup_dataframe(df_raw, id_col='journal_id'):
+    """
+    Asigna niveles ('domain', 'field', 'subfield', 'topic') y estandariza
+    las columnas jerárquicas según el contrato esperado por la API/Frontend.
+    """
+    if df_raw.empty:
+        return pd.DataFrame()
         
-        results_list.append(agg)
-        
-    final_df = pd.concat(results_list, ignore_index=True)
+    # Eliminar filas totales del ROLLUP (donde domain queda vacío)
+    mask_valid = (df_raw['domain'] != '')
+    if id_col and id_col in df_raw.columns:
+        mask_valid = mask_valid & (df_raw[id_col] != '')
+    df = df_raw[mask_valid].copy()
     
-    # Limpiar columnas de entrada que ya no necesitamos (usamos 'topic')
-    for col_to_drop in ['topic_name', 'domain_name', 'field_name', 'subfield_name']:
-        if col_to_drop in final_df.columns:
-            final_df = final_df.drop(columns=[col_to_drop])
-    
-    # Renombrar columnas para el dashboard
-    # Suffix ya incluye el guion bajo si es necesario (ej: _recent)
-    metric_cols = [c for c in final_df.columns if c not in (group_cols + levels + ['topic', 'level'])]
-    rename_cols = {col: f"{col}{suffix}" for col in metric_cols}
-    final_df = final_df.rename(columns=rename_cols)
-    
-    # Normalizar nombres de columnas de jerarquía para el merge final
-    # (Ya eliminados arriba)
+    # Determinar nivel jerárquico según las columnas vacías generadas por ROLLUP
+    def get_level(r):
+        if r['topic'] != '': return 'topic'
+        if r['subfield'] != '': return 'subfield'
+        if r['field'] != '': return 'field'
+        return 'domain'
         
+    df['level'] = df.apply(get_level, axis=1)
+    
+    # Formatear la jerarquía según el contrato de la API:
+    # Cuando level == 'domain', field='ALL', subfield='ALL', topic=domain
+    # Cuando level == 'field', subfield='ALL', topic=field
+    # Cuando level == 'subfield', topic=subfield
+    # Cuando level == 'topic', topic=topic_name
+    df['topic'] = df.apply(lambda r: r[r['level']], axis=1)
+    df['field'] = df.apply(lambda r: 'ALL' if r['level'] == 'domain' else r['field'], axis=1)
+    df['subfield'] = df.apply(lambda r: 'ALL' if r['level'] in ('domain', 'field') else r['subfield'], axis=1)
+    
+    # Redondear métricas
+    df['fwci_avg'] = df['fwci_avg'].round(3)
+    df['avg_percentile'] = df['avg_percentile'].round(1)
+    for col in ['pct_top_10', 'pct_top_1', 'pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze', 'pct_oa_closed']:
+        df[col] = df[col].round(2)
+        
+    return df
+
+def build_dual_period_sunburst(client, group_col, group_ids, id_rename=None, chunk_size=500):
+    """Calcula periodos Full y Recent (2021-2025) y los combina con sufijos."""
+    print(f"  → Calculando Periodo FULL (Historico completo)...")
+    df_full_raw = query_rollup_hierarchy(client, group_col, group_ids, where_extra="", chunk_size=chunk_size)
+    if id_rename and group_col in df_full_raw.columns:
+        df_full_raw = df_full_raw.rename(columns={group_col: id_rename})
+    target_id_col = id_rename or group_col
+    df_full = process_rollup_dataframe(df_full_raw, id_col=target_id_col)
+    
+    print(f"  → Calculando Periodo RECENT (2021-2025)...")
+    df_rec_raw = query_rollup_hierarchy(client, group_col, group_ids, where_extra="AND publication_year >= 2021", chunk_size=chunk_size)
+    if id_rename and group_col in df_rec_raw.columns:
+        df_rec_raw = df_rec_raw.rename(columns={group_col: id_rename})
+    df_recent = process_rollup_dataframe(df_rec_raw, id_col=target_id_col)
+    
+    merge_keys = ([target_id_col] if target_id_col else []) + ['domain', 'field', 'subfield', 'topic', 'level']
+    metric_cols = [c for c in df_full.columns if c not in merge_keys]
+    
+    df_full_renamed = df_full.rename(columns={c: f"{c}_full" for c in metric_cols})
+    df_recent_renamed = df_recent.rename(columns={c: f"{c}_recent" for c in metric_cols})
+    
+    final_df = pd.merge(df_full_renamed, df_recent_renamed, on=merge_keys, how='outer').fillna(0)
     return final_df
 
-def aggregate_hierarchy_from_agg(df, group_cols, suffix=""):
-    """Fallback: Agregación basada en perfiles de revista (uniforme)"""
-    levels = ['domain', 'field', 'subfield', 'topic']
-    all_results = []
+def compute_thematic_evolution(client, all_jids, output_path, chunk_size=500):
+    """Calcula la evolución anual de producción y desempeño por tema (1970-2026)."""
+    print("\n📈 Calculando Evolución Temática Anual (thematic_evolution_latam)...")
+    t0 = time.time()
     
-    # Helper for modern pandas compatibility
-    def apply_with_groups_fix(obj, func):
-        try:
-            return obj.apply(func, include_groups=False)
-        except TypeError:
-            return obj.apply(func)
-
-    print(f"  → Aggregating level: Topic ({suffix})...")
-    res_topic = apply_with_groups_fix(df.groupby(group_cols + levels), calculate_from_agg).reset_index()
-    res_topic['level'] = 'topic'
-    all_results.append(res_topic)
-
-    print(f"  → Aggregating level: Subfield ({suffix})...")
-    res_sub = apply_with_groups_fix(df.groupby(group_cols + ['domain', 'field', 'subfield']), calculate_from_agg).reset_index()
-    res_sub['topic'] = 'ALL'
-    res_sub['level'] = 'subfield'
-    all_results.append(res_sub)
+    dfs = []
+    ids_list = list(all_jids)
+    total_chunks = max(1, (len(ids_list) + chunk_size - 1) // chunk_size)
     
-    print(f"  → Aggregating level: Field ({suffix})...")
-    res_field = apply_with_groups_fix(df.groupby(group_cols + ['domain', 'field']), calculate_from_agg).reset_index()
-    res_field['subfield'] = 'ALL'
-    res_field['topic'] = 'ALL'
-    res_field['level'] = 'field'
-    all_results.append(res_field)
-    
-    print(f"  → Aggregating level: Domain ({suffix})...")
-    res_domain = apply_with_groups_fix(df.groupby(group_cols + ['domain']), calculate_from_agg).reset_index()
-    res_domain['field'] = 'ALL'
-    res_domain['subfield'] = 'ALL'
-    res_domain['topic'] = 'ALL'
-    res_domain['level'] = 'domain'
-    all_results.append(res_domain)
-
-    final_df = pd.concat(all_results, ignore_index=True)
-    
-    # Apply suffix to metric columns
-    if suffix:
-        metric_cols = [c for c in final_df.columns if c not in (group_cols + levels + ['level'])]
-        rename_cols = {col: f"{col}{suffix}" for col in metric_cols}
-        final_df = final_df.rename(columns=rename_cols)
-    
-    return final_df
+    for i in range(0, len(ids_list), chunk_size):
+        chunk = ids_list[i:i+chunk_size]
+        chunk_filter = f"source_id IN {format_in_clause(chunk)}"
+        
+        q = f"""
+        SELECT 
+            source_id as journal_id,
+            publication_year as year,
+            if(domain = '', 'Sin Clasificación', domain) as domain,
+            if(field = '', 'Sin Clasificación', field) as field,
+            if(subfield = '', 'Sin Clasificación', subfield) as subfield,
+            if(topic = '', 'Sin Clasificación', topic) as topic,
+            count() as num_documents,
+            round(avg(fwci), 3) as fwci_avg,
+            round(avg(percentile), 1) as avg_percentile,
+            round((sum(is_top_10) / count()) * 100, 2) as pct_top_10,
+            round((sum(is_top_1) / count()) * 100, 2) as pct_top_1,
+            round((countIf(oa_status = 'diamond') / count()) * 100, 2) as pct_oa_diamond,
+            round((countIf(oa_status = 'gold') / count()) * 100, 2) as pct_oa_gold,
+            round((countIf(oa_status = 'green') / count()) * 100, 2) as pct_oa_green,
+            round((countIf(oa_status = 'hybrid') / count()) * 100, 2) as pct_oa_hybrid,
+            round((countIf(oa_status = 'bronze') / count()) * 100, 2) as pct_oa_bronze,
+            round((countIf(oa_status = 'closed') / count()) * 100, 2) as pct_oa_closed
+        FROM works
+        WHERE {chunk_filter} AND publication_year >= 1970
+        GROUP BY source_id, publication_year, domain, field, subfield, topic
+        """
+        
+        c_df = client.query_df(q)
+        if not c_df.empty:
+            dfs.append(c_df)
+            
+        if ((i // chunk_size) + 1) % 5 == 0:
+            print(f"    ... procesado chunk {(i // chunk_size) + 1}/{total_chunks}")
+            
+    if dfs:
+        evo_df = pd.concat(dfs, ignore_index=True)
+        oa_cols = ['pct_oa_diamond', 'pct_oa_gold', 'pct_oa_green', 'pct_oa_hybrid', 'pct_oa_bronze']
+        evo_df['pct_oa_total'] = evo_df[oa_cols].sum(axis=1).clip(0, 100).round(2)
+        evo_df.to_parquet(output_path, index=False)
+        print(f"  ✓ Guardada evolución temática ({len(evo_df):,} registros) en {output_path.name} ({time.time() - t0:.1f}s)")
+    else:
+        print("  ⚠️ No se pudieron generar datos de evolución temática.")
 
 def main():
-    data_dir = Path(__file__).parent.parent / 'data'
-    works_file = data_dir / 'latin_american_works.parquet'
-    topics_file = data_dir / 'journals_topics_sunburst.parquet'
-    journals_file = data_dir / 'latin_american_journals.parquet'
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
     
-    output_dir = data_dir / 'cache'
-    output_dir.mkdir(exist_ok=True)
-
-    print("=" * 70)
-    print("POSTGRES TOPIC METRICS ENGINE (PANDAS) - DUAL PERIOD")
-    print("=" * 70)
-
-    # 1. Load Data
-    print("\n⚙️  Loading data...")
-    works_df = pd.read_parquet(works_file, columns=[
-        'id', 'journal_id', 'fwci', 'citation_normalized_percentile', 
-        'is_in_top_10_percent', 'is_in_top_1_percent', 'oa_status', 'publication_year'
-    ])
+    print("=" * 80)
+    print("🚀 MOTOR CIENCIOMÉTRICO TEMÁTICO DE ALTO RENDIMIENTO (CLICKHOUSE NATIVO)")
+    print("=" * 80)
     
-    # Normalizar IDs (quitar prefijo https://openalex.org/)
-    works_df['id'] = works_df['id'].str.replace('https://openalex.org/', '', regex=False)
+    t_start = time.time()
     
-    topics_df = pd.read_parquet(topics_file)
-    journals_df = pd.read_parquet(journals_file, columns=['id', 'country_code'])
-    
-    print(f"  ✓ {len(works_df):,} works loaded")
-    
-    # Merge with journals to get country_code
-    print("  → Merging works with journals...")
-    # Renombrar id de revista para evitar colisión con id de artículo (KeyError: 'id')
-    journals_df = journals_df.rename(columns={'id': 'journal_id_check'})
-    works_df = pd.merge(works_df, journals_df, left_on='journal_id', right_on='journal_id_check')
-    # Eliminar columna auxiliar
-    if 'journal_id_check' in works_df.columns:
-        works_df = works_df.drop(columns=['journal_id_check'])
-    
-    # Cargar mapeo de tópicos si existe
-    mapping_file = data_dir / 'works_topics_mapping.parquet'
-    mapping_df = None
-    if mapping_file.exists():
-        print(f"📖 Cargando mapeo de tópicos granular: {mapping_file}")
-        mapping_df = pd.read_parquet(mapping_file)
-        # Normalizar IDs en el mapeo también
-        mapping_df['work_id'] = mapping_df['work_id'].str.replace('https://openalex.org/', '', regex=False)
-
-    # Function to process a specific dataframe subset
-    def process_period(df_subset, period_suffix):
-        print(f"\n📑 Processing Period: {period_suffix.upper()}...")
+    # 1. Cargar catálogo maestro de revistas
+    if not JOURNALS_FILE.exists():
+        print(f"❌ ERROR: No se encontró el catálogo de revistas: {JOURNALS_FILE}")
+        sys.exit(1)
         
-        if mapping_df is not None:
-            # MÉTODO A: Granular (Variación real por tema)
-            c_m = aggregate_granular(df_subset, mapping_df, ['country_code'], period_suffix)
-            l_m = aggregate_granular(df_subset, mapping_df, [], period_suffix)
-            if not l_m.empty: l_m['country_code'] = 'LATAM'
-            j_m = aggregate_granular(df_subset, mapping_df, ['journal_id'], period_suffix)
-        else:
-            # MÉTODO B: Fallback (Uniforme por revista)
-            print("⚠️ No hay mapeo granular. Los indicadores por tema serán uniformes a la revista.")
-            # Aggregation at journal level
-            try:
-                j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group, include_groups=False).reset_index()
-            except TypeError:
-                j_agg = df_subset.groupby(['journal_id', 'country_code']).apply(calculate_metrics_for_group).reset_index()
-                
-            # Topic hierarchy metadata
-            j_h = topics_df[['journal_id', 'domain', 'field', 'subfield', 'topic_name', 'share']].copy()
-            j_h = j_h.rename(columns={'topic_name': 'topic'})
-            j_h['share'] = pd.to_numeric(j_h['share'], errors='coerce').fillna(0.0).astype(float)
+    journals_df = pd.read_parquet(JOURNALS_FILE)
+    all_jids = journals_df['id'].tolist()
+    print(f"📖 Catálogo cargado: {len(all_jids):,} revistas activas.")
+    
+    client = get_client()
+    
+    # =========================================================================
+    # 2. SUNBURST REVISTAS (sunburst_metrics_journal.parquet)
+    # =========================================================================
+    print("\n📦 [1/4] Generando Sunburst Jerárquico por Revista...")
+    t0 = time.time()
+    df_journals = build_dual_period_sunburst(
+        client, 
+        group_col="source_id", 
+        group_ids=all_jids, 
+        id_rename="journal_id", 
+        chunk_size=1000
+    )
+    j_out = CACHE_DIR / 'sunburst_metrics_journal.parquet'
+    df_journals.to_parquet(j_out, index=False)
+    print(f"  ✓ Sunburst de revistas guardado: {j_out.name} ({len(df_journals):,} filas, {time.time() - t0:.1f}s)")
+    
+    # =========================================================================
+    # 3. SUNBURST PAÍSES (sunburst_metrics_country.parquet)
+    # =========================================================================
+    print("\n🌎 [2/4] Generando Sunburst Jerárquico por País...")
+    t0 = time.time()
+    
+    # Agrupar revistas por país para consultar cada país en bloque
+    countries = [c for c in journals_df['country_code'].dropna().unique() if c]
+    country_dfs_full = []
+    country_dfs_rec = []
+    
+    for c_code in countries:
+        c_jids = journals_df[journals_df['country_code'] == c_code]['id'].tolist()
+        if not c_jids:
+            continue
             
-            # Share normalization
-            s_sum = j_h.groupby('journal_id')['share'].transform('sum')
-            mask_z = (s_sum <= 0)
-            if mask_z.any():
-                t_counts = j_h.groupby('journal_id')['journal_id'].transform('count')
-                j_h.loc[mask_z, 'share'] = 1.0 / t_counts[mask_z]
-            s_sum = j_h.groupby('journal_id')['share'].transform('sum')
-            j_h['share'] = j_h['share'] / s_sum
+        in_str = format_in_clause(c_jids)
+        # Full
+        df_cf = query_rollup_hierarchy(client, group_col="", group_ids=[], where_extra=f"AND source_id IN {in_str}")
+        if not df_cf.empty:
+            df_cf['country_code'] = c_code
+            df_cf_proc = process_rollup_dataframe(df_cf, id_col='country_code')
+            country_dfs_full.append(df_cf_proc)
             
-            # Merge metrics + topic hierarchy
-            enr = pd.merge(j_agg, j_h, on='journal_id')
-            enr['count'] = enr['count'] * enr['share']
+        # Recent
+        df_cr = query_rollup_hierarchy(client, group_col="", group_ids=[], where_extra=f"AND source_id IN {in_str} AND publication_year >= 2021")
+        if not df_cr.empty:
+            df_cr['country_code'] = c_code
+            df_cr_proc = process_rollup_dataframe(df_cr, id_col='country_code')
+            country_dfs_rec.append(df_cr_proc)
             
-            # Aggregate at hierarchy levels
-            c_m = aggregate_hierarchy_from_agg(enr, ['country_code'], period_suffix)
-            l_m = aggregate_hierarchy_from_agg(enr, [], period_suffix)
-            l_m['country_code'] = 'LATAM'
-            j_m = aggregate_hierarchy_from_agg(enr, ['journal_id'], period_suffix)
+    if country_dfs_full and country_dfs_rec:
+        c_full = pd.concat(country_dfs_full, ignore_index=True)
+        c_rec = pd.concat(country_dfs_rec, ignore_index=True)
         
-        return c_m, l_m, j_m
-
-    # PERIOD 1: Full
-    c_full, l_full, j_full = process_period(works_df, "_full")
+        merge_keys = ['country_code', 'domain', 'field', 'subfield', 'topic', 'level']
+        metric_cols = [c for c in c_full.columns if c not in merge_keys]
+        
+        c_full = c_full.rename(columns={c: f"{c}_full" for c in metric_cols})
+        c_rec = c_rec.rename(columns={c: f"{c}_recent" for c in metric_cols})
+        
+        df_country = pd.merge(c_full, c_rec, on=merge_keys, how='outer').fillna(0)
+        c_out = CACHE_DIR / 'sunburst_metrics_country.parquet'
+        df_country.to_parquet(c_out, index=False)
+        print(f"  ✓ Sunburst de países guardado: {c_out.name} ({len(df_country):,} filas, {time.time() - t0:.1f}s)")
     
-    # PERIOD 2: Recent (2021-2025)
-    recent_mask = (works_df['publication_year'] >= 2021)
-    c_recent, l_recent, j_recent = process_period(works_df[recent_mask], "_recent")
-
-    # Combine results
-    merge_cols = ['country_code', 'domain', 'field', 'subfield', 'topic', 'level']
-    final_country = pd.merge(c_full, c_recent, on=merge_cols, how='outer').fillna(0)
-    final_latam = pd.merge(l_full, l_recent, on=merge_cols, how='outer').fillna(0)
+    # =========================================================================
+    # 4. SUNBURST REGIONAL LATAM (sunburst_metrics_latam.parquet)
+    # =========================================================================
+    print("\n🌐 [3/4] Generando Sunburst Regional LATAM...")
+    t0 = time.time()
     
-    merge_cols_j = ['journal_id', 'domain', 'field', 'subfield', 'topic', 'level']
-    final_journal = pd.merge(j_full, j_recent, on=merge_cols_j, how='outer').fillna(0)
+    latam_in_str = format_in_clause(all_jids)
+    
+    # Full LATAM
+    df_lf = query_rollup_hierarchy(client, group_col="", group_ids=[], where_extra=f"AND source_id IN {latam_in_str}")
+    df_lf['country_code'] = 'LATAM'
+    df_lf_proc = process_rollup_dataframe(df_lf, id_col='country_code')
+    
+    # Recent LATAM
+    df_lr = query_rollup_hierarchy(client, group_col="", group_ids=[], where_extra=f"AND source_id IN {latam_in_str} AND publication_year >= 2021")
+    df_lr['country_code'] = 'LATAM'
+    df_lr_proc = process_rollup_dataframe(df_lr, id_col='country_code')
+    
+    merge_keys = ['country_code', 'domain', 'field', 'subfield', 'topic', 'level']
+    metric_cols = [c for c in df_lf_proc.columns if c not in merge_keys]
+    
+    df_lf_proc = df_lf_proc.rename(columns={c: f"{c}_full" for c in metric_cols})
+    df_lr_proc = df_lr_proc.rename(columns={c: f"{c}_recent" for c in metric_cols})
+    
+    df_latam = pd.merge(df_lf_proc, df_lr_proc, on=merge_keys, how='outer').fillna(0)
+    l_out = CACHE_DIR / 'sunburst_metrics_latam.parquet'
+    df_latam.to_parquet(l_out, index=False)
+    print(f"  ✓ Sunburst regional LATAM guardado: {l_out.name} ({len(df_latam):,} filas, {time.time() - t0:.1f}s)")
+    
+    # =========================================================================
+    # 5. EVOLUCIÓN TEMÁTICA ANUAL (thematic_evolution_latam.parquet)
+    # =========================================================================
+    print("\n📊 [4/4] Generando Evolución Temática Anual...")
+    evo_out = CACHE_DIR / 'thematic_evolution_latam.parquet'
+    compute_thematic_evolution(client, all_jids, evo_out, chunk_size=1000)
+    
+    # =========================================================================
+    # 6. TABLA CROSSTAB PAÍSES-TÓPICOS (countries_topics_sunburst.parquet)
+    # =========================================================================
+    print("\n🗺️ Generando Tabla Temática País-Tópicos (Thematic Profiles)...")
+    if 'df_country' in locals() and not df_country.empty:
+        ct_df = df_country[df_country['level'] == 'topic'][['country_code', 'domain', 'field', 'subfield', 'topic', 'count_full']].copy()
+        ct_df = ct_df.rename(columns={'count_full': 'count'})
+        
+        c_totals = ct_df.groupby('country_code')['count'].transform('sum')
+        ct_df['share'] = np.where(c_totals > 0, ct_df['count'] / c_totals, 0.0)
+        
+        ct_out1 = DATA_DIR / 'countries_topics_sunburst.parquet'
+        ct_out2 = CACHE_DIR / 'countries_topics_metrics.parquet'
+        ct_df.to_parquet(ct_out1, index=False)
+        ct_df.to_parquet(ct_out2, index=False)
+        print(f"  ✓ Guardado perfil de temas por país ({len(ct_df):,} registros) en {ct_out1.name} y {ct_out2.name}")
+        
+    elapsed = time.time() - t_start
+    print("\n" + "=" * 80)
+    print(f"🎉 ¡CÁLCULO JERÁRQUICO TEMÁTICO FINALIZADO EXITOSAMENTE EN {elapsed:.1f}s ({elapsed/60:.2f} min)!")
+    print("=" * 80)
 
-    # Save
-    final_country.to_parquet(output_dir / 'sunburst_metrics_country.parquet', index=False)
-    final_latam.to_parquet(output_dir / 'sunburst_metrics_latam.parquet', index=False)
-    final_journal.to_parquet(output_dir / 'sunburst_metrics_journal.parquet', index=False)
-
-    # NEW: Evolutionary thematic data
-    compute_thematic_evolution_legacy(works_df, topics_df, output_dir / 'thematic_evolution_latam.parquet')
-
-    print(f"\n✅ Topic Metrics (Dual Period) Saved to {output_dir}")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

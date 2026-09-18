@@ -125,17 +125,10 @@ def fetch_works_batch(client, journal_id_to_country, batch_num):
     print(f"📦 Procesando lote {batch_num} ({len(journal_ids)} revistas)...")
     
     # Construir un CASE statement para la domesticidad según el país de cada revista del lote
-    # Esto es mucho más rápido que hacerlo en el loop de Python
+    # Optimizado: Usa has(all_country_codes, country) directamente sin subconsultas ni joins
     domestic_cases = []
     for jid, country in journal_id_to_country.items():
-        # Lógica: Si el jid coincide, ver si algún ROR de la institución del autor es de ese país
-        # O usar institution_ids cruzados con la tabla institutions
-        case_line = f"""
-        WHEN source_id = '{jid}' THEN arrayExists(
-            inst_id -> inst_id IN (SELECT id FROM institutions WHERE country_code = '{country}'), 
-            institution_ids
-        )
-        """
+        case_line = f"WHEN source_id = '{jid}' THEN has(all_country_codes, '{country}')"
         domestic_cases.append(case_line)
     
     query = """
@@ -149,27 +142,20 @@ def fetch_works_batch(client, journal_id_to_country, batch_num):
         argMax(cited_by_count, updated_date) as cited_by_count,
         argMax(JSONExtractBool(raw_data, 'is_retracted'), updated_date) as is_retracted,
         argMax(JSONExtractBool(raw_data, 'is_paratext'), updated_date) as is_paratext,
-        argMax(JSONExtractString(raw_data, 'language'), updated_date) as language,
-        argMax(JSONExtractFloat(raw_data, 'fwci'), updated_date) as fwci,
-        argMax(JSONExtractFloat(raw_data, 'citation_normalized_percentile', 'value'), updated_date) as percentile,
-        -- FALLBACK ROBUSTO: Usamos Nullable para que coalesce funcione si la ruta no existe
-        argMax(
-            coalesce(
-                JSONExtract(raw_data, 'citation_normalized_percentile', 'is_in_top_10_percent', 'Nullable(Bool)'),
-                JSONExtract(raw_data, 'is_in_top_10_percent', 'Nullable(Bool)')
-            ), 
-            updated_date
-        ) as is_in_top_10_percent,
-        argMax(
-            coalesce(
-                JSONExtract(raw_data, 'citation_normalized_percentile', 'is_in_top_1_percent', 'Nullable(Bool)'),
-                JSONExtract(raw_data, 'is_in_top_1_percent', 'Nullable(Bool)')
-            ), 
-            updated_date
-        ) as is_in_top_1_percent,
+        argMax(language, updated_date) as language,
+        argMax(fwci, updated_date) as fwci,
+        argMax(percentile, updated_date) as percentile,
+        argMax(is_top_10, updated_date) as is_in_top_10_percent,
+        argMax(is_top_1, updated_date) as is_in_top_1_percent,
         argMax(source_id, updated_date) as journal_id,
-        argMax(JSONExtractString(raw_data, 'open_access', 'oa_status'), updated_date) as oa_status,
-        -- Cálculo NATIVO de domesticidad
+        argMax(oa_status, updated_date) as oa_status,
+        -- Columnas físicas de jerarquía temática de ClickHouse
+        argMax(primary_topic_id, updated_date) as primary_topic_id,
+        argMax(topic, updated_date) as topic,
+        argMax(subfield, updated_date) as subfield,
+        argMax(field, updated_date) as field,
+        argMax(domain, updated_date) as domain,
+        -- Cálculo NATIVO de domesticidad (sin JOINs ni subqueries)
         argMax(
             CASE 
                 {cases}
@@ -192,6 +178,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Extractor ClickHouse Optimizado (V2 Materializado)')
     parser.add_argument('--force', action='store_true', help='Forzar descarga de todos los artículos')
+    parser.add_argument('--journal', type=str, help='ID específico de revista a extraer (ej: S2737081250)')
     args = parser.parse_args()
 
     # Directorios
@@ -204,7 +191,11 @@ def main():
     journals_df.to_parquet(JOURNALS_FILE, index=False)
     
     # 2. Determinar qué journals descargar
-    if args.force:
+    if args.journal:
+        clean_jid = args.journal.replace('https://openalex.org/', '')
+        print(f"🎯 Modo SINGLE JOURNAL activo para: {clean_jid}")
+        journals_to_process = journals_df[journals_df['id'].str.contains(clean_jid)]
+    elif args.force:
         print("🔥 Modo FORCE activo: Se procesarán todas las revistas.")
         journals_to_process = journals_df
     else:

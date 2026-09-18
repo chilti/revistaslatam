@@ -8,6 +8,7 @@ import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
 import PageDossierExpander from '../components/PageDossierExpander';
 import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
 import AnnualDataTable from '../components/AnnualDataTable';
+import CountryRadarViewer from '../components/CountryRadarViewer';
 import { 
   BookOpen, 
   FileText, 
@@ -76,6 +77,7 @@ export default function RegionalPage() {
   const [scatterData, setScatterData] = useState([]);
   const [scatterX, setScatterX] = useState('num_documents');
   const [scatterY, setScatterY] = useState('fwci_avg');
+  const [radarProfilesData, setRadarProfilesData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const MAP_INDICATORS = [
@@ -124,7 +126,7 @@ export default function RegionalPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const [kpiRes, choroRes, periodsRes, distRes, annualRes, rankRes, trajRes, gapsRes, stackRes, streamRes, umapCRes] = await Promise.all([
+        const [kpiRes, choroRes, periodsRes, distRes, annualRes, rankRes, trajRes, gapsRes, stackRes, streamRes, umapCRes, radarRes] = await Promise.all([
           api.get('/regional/kpis'),
           api.get(`/regional/choropleth?indicator=${selectedMapIndicator}`),
           api.get('/regional/periods-comparison'),
@@ -135,7 +137,8 @@ export default function RegionalPage() {
           api.get('/regional/period-gaps'),
           api.get('/regional/stacked-oa-languages'),
           api.get('/regional/thematic-stream'),
-          api.get('/regional/umap-countries')
+          api.get('/regional/umap-countries'),
+          api.get('/regional/radar-profiles')
         ]);
 
         setKpis(kpiRes.data);
@@ -149,6 +152,7 @@ export default function RegionalPage() {
         setStackedData(stackRes.data);
         setStreamData(streamRes.data);
         setUmapCountries(umapCRes.data);
+        setRadarProfilesData(radarRes.data);
       } catch (err) {
         console.error('Error loading regional data:', err);
       } finally {
@@ -1084,6 +1088,11 @@ export default function RegionalPage() {
       {/* TABLA DE DATOS ANUALES DE LATINOAMÉRICA (1970–2026) */}
       <AnnualDataTable data={annualTrends} />
 
+      {/* RADARES DE PERFILES DE DESEMPEÑO DE PAÍSES (Full vs Recent) */}
+      {radarProfilesData && (
+        <CountryRadarViewer radarData={radarProfilesData} initialCountry="MX" />
+      )}
+
       {/* 1. Espacio UMAP Multidimensional de Países Reciente (umap_countries_recent) */}
       {umapCountries && umapCountries.length > 0 && (
         <UmapTrajectoryViewer
@@ -1498,6 +1507,25 @@ export default function RegionalPage() {
               ];
               annualTrends.slice(-15).forEach(a => {
                 lines.push(`| ${a.year} | ${a.works_count?.toLocaleString() || a.num_documents?.toLocaleString() || 0} | ${Number(a.fwci_avg || 0).toFixed(2)} | ${Number(a.pct_oa_diamond || 0).toFixed(1)}% | ${Number(a.pct_lang_en || 0).toFixed(1)}% |`);
+              });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'radar_profiles',
+            title: t('regional.dossier_sec_radar_title'),
+            category: t('regional.dossier_sec_radar_cat'),
+            defaultChecked: false,
+            rawData: radarProfilesData,
+            buildDataText: () => {
+              if (!radarProfilesData?.profiles) return 'No hay perfiles de radar disponibles.';
+              const lines = [
+                '| País | Código | FWCI (Rec.) | % Diamante (Rec.) | % Top 10% (Rec.) | % Inglés (Rec.) | Percentil Norm. |',
+                '|---|---|---|---|---|---|---|'
+              ];
+              Object.values(radarProfilesData.profiles).forEach(p => {
+                const r = p.raw_recent || {};
+                lines.push(`| ${p.country_name} | ${p.country_code} | ${r.fwci_avg ?? '—'} | ${r.pct_oa_diamond ?? '—'}% | ${r.pct_top_10 ?? '—'}% | ${r.pct_lang_en ?? '—'}% | ${r.avg_percentile ?? '—'} |`);
               });
               return lines.join('\n');
             }

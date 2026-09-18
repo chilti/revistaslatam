@@ -120,18 +120,16 @@ if __name__ == "__main__":
         print("⏭️ Omitiendo Fase de Infraestructura/Postgres (usando archivos Parquet locales)")
 
     # --- FASE 2: ENRIQUECIMIENTO Y MÉTRICAS BASE ---
-
+    # NOTA: La jerarquía de tópicos (Domain, Field, Subfield, Topic) ahora se extrae y calcula
+    # directamente desde las columnas materializadas de ClickHouse de forma nativa en Fase 3.
     if run_enrich:
-        # 3. Enriquecimiento API (Tópicos de Revistas - Estructura)
+        # Enriquecimiento opcional de metadatos adicionales de revistas
         enrich_args = []
         if email:
             enrich_args = ["--email", email]
         
-        run_step(f"{PIPELINE_DIR}/enrich_journals_api.py", "Enriquecimiento Temático de Revistas (Estructura Sunburst)", args=enrich_args)
-
-        # 4. Enriquecimiento Granular (Artículos -> Tópicos)
-        # Este paso es vital para la variación de indicadores por tema
-        run_step(f"{PIPELINE_DIR}/enrich_works_topics.py", "Mapeo Granular de Artículos (API Local / Tópicos)")
+        # run_step(f"{PIPELINE_DIR}/enrich_journals_api.py", "Enriquecimiento Temático de Revistas (Estructura Sunburst)", args=enrich_args)
+        print("✓ Tópicos por artículo integrados nativamente desde ClickHouse (omitiendo scraper HTTP externo).")
     else:
         print("⏭️ Omitiendo Fase de Enriquecimiento API")
 

@@ -355,39 +355,91 @@ def get_global_trajectories():
 
 @router.get("/radar-profiles")
 def get_country_radar_profiles():
-    """Returns normalized [0,1] radar profiles for all countries (Full vs Recent)."""
+    """Returns normalized [0,1] radar profiles for all countries (Full vs Recent) and LATAM baseline."""
     df_full = query_df("SELECT * FROM metrics_country_period")
     rec_file = get_recent_cache_file('metrics_country_period')
     df_rec = pd.read_parquet(rec_file) if rec_file.exists() else df_full
     
     if df_full.empty:
-        return {}
+        return {"axes": [], "profiles": {}, "latam": {}}
         
-    vars_to_norm = ['fwci_avg', 'avg_percentile', 'pct_top_10', 'pct_top_1', 'pct_oa_diamond']
+    axes_def = [
+        {"key": "fwci_avg", "label": "FWCI", "unit": ""},
+        {"key": "pct_oa_diamond", "label": "% OA Diamante", "unit": "%"},
+        {"key": "pct_top_10", "label": "% Top 10%", "unit": "%"},
+        {"key": "pct_top_1", "label": "% Top 1%", "unit": "%"},
+        {"key": "pct_lang_en", "label": "% Inglés", "unit": "%"},
+        {"key": "avg_percentile", "label": "Percentil Norm.", "unit": ""}
+    ]
+    vars_to_norm = [a["key"] for a in axes_def]
     
-    # Normalize by max
-    def norm_df(df_in):
-        df_out = df_in.copy()
-        for v in vars_to_norm:
-            if v in df_out.columns:
-                m = df_out[v].max()
-                df_out[f"{v}_norm"] = (df_out[v] / m) if m > 0 else 0
-        return df_out
+    # Regional max across full and recent periods to ensure consistent radial scale
+    max_vals = {}
+    for v in vars_to_norm:
+        mf = float(df_full[v].max()) if v in df_full.columns else 0.0
+        mr = float(df_rec[v].max()) if v in df_rec.columns else 0.0
+        max_vals[v] = max(mf, mr)
         
-    n_full = norm_df(df_full)
-    n_rec = norm_df(df_rec)
+    # Process LATAM reference
+    latam_full_file = CACHE_DIR / 'metrics_latam_period.parquet'
+    latam_rec_file = get_recent_cache_file('metrics_latam_period')
+    df_latam_full = pd.read_parquet(latam_full_file) if latam_full_file.exists() else pd.DataFrame()
+    df_latam_rec = pd.read_parquet(latam_rec_file) if latam_rec_file.exists() else pd.DataFrame()
     
-    result = {}
-    for c_code in sorted(df_full['country_code'].dropna().unique()):
-        r_f = n_full[n_full['country_code'] == c_code]
-        r_r = n_rec[n_rec['country_code'] == c_code]
-        
-        result[c_code] = {
-            "country_name": COUNTRY_NAMES.get(c_code, c_code),
-            "full": {v: float(r_f[f"{v}_norm"].iloc[0]) if not r_f.empty and f"{v}_norm" in r_f else 0 for v in vars_to_norm},
-            "recent": {v: float(r_r[f"{v}_norm"].iloc[0]) if not r_r.empty and f"{v}_norm" in r_r else 0 for v in vars_to_norm}
+    latam_profile = {}
+    if not df_latam_full.empty and not df_latam_rec.empty:
+        latam_profile = {
+            "country_code": "LATAM",
+            "country_name": "Latinoamérica (Regional)",
+            "full": {v: round(float(df_latam_full[v].iloc[0]) / max_vals[v], 3) if max_vals.get(v, 0) > 0 and v in df_latam_full else 0.0 for v in vars_to_norm},
+            "recent": {v: round(float(df_latam_rec[v].iloc[0]) / max_vals[v], 3) if max_vals.get(v, 0) > 0 and v in df_latam_rec else 0.0 for v in vars_to_norm},
+            "raw_full": {v: round(float(df_latam_full[v].iloc[0]), 3) if v in df_latam_full else 0.0 for v in vars_to_norm},
+            "raw_recent": {v: round(float(df_latam_rec[v].iloc[0]), 3) if v in df_latam_rec else 0.0 for v in vars_to_norm}
         }
-    return result
+        
+    profiles = {}
+    for c_code in sorted(df_full['country_code'].dropna().unique()):
+        r_f = df_full[df_full['country_code'] == c_code]
+        r_r = df_rec[df_rec['country_code'] == c_code]
+        
+        full_norm = {}
+        rec_norm = {}
+        raw_full = {}
+        raw_rec = {}
+        
+        for v in vars_to_norm:
+            vf = float(r_f[v].iloc[0]) if not r_f.empty and v in r_f.columns and pd.notnull(r_f[v].iloc[0]) else 0.0
+            vr = float(r_r[v].iloc[0]) if not r_r.empty and v in r_r.columns and pd.notnull(r_r[v].iloc[0]) else 0.0
+            
+            raw_full[v] = round(vf, 3)
+            raw_rec[v] = round(vr, 3)
+            
+            m = max_vals.get(v, 0.0)
+            full_norm[v] = round(vf / m, 3) if m > 0 else 0.0
+            rec_norm[v] = round(vr / m, 3) if m > 0 else 0.0
+            
+        profiles[c_code] = {
+            "country_code": c_code,
+            "country_name": COUNTRY_NAMES.get(c_code, c_code),
+            "num_journals": int(r_f['num_journals'].iloc[0]) if not r_f.empty and 'num_journals' in r_f.columns and pd.notnull(r_f['num_journals'].iloc[0]) else 0,
+            "num_documents": int(r_f['num_documents'].iloc[0]) if not r_f.empty and 'num_documents' in r_f.columns and pd.notnull(r_f['num_documents'].iloc[0]) else 0,
+            "full": full_norm,
+            "recent": rec_norm,
+            "raw_full": raw_full,
+            "raw_recent": raw_rec
+        }
+        
+    res = {
+        "axes": axes_def,
+        "max_values": {k: round(v, 3) for k, v in max_vals.items()},
+        "profiles": profiles,
+        "latam": latam_profile
+    }
+    # Backward compatibility
+    for c_code, prof in profiles.items():
+        res[c_code] = prof
+    return res
+
 
 @router.get("/umap-similarity")
 def get_country_umap_similarity():

@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from pathlib import Path
 import os
 import time
@@ -13,9 +14,27 @@ def generate_country_sunburst():
     print("=" * 70)
     
     data_dir = Path(__file__).parent.parent / 'data'
+    cache_dir = data_dir / 'cache'
+    output_file = data_dir / 'countries_topics_sunburst.parquet'
+    cache_output_file = cache_dir / 'countries_topics_metrics.parquet'
+    sunburst_country_file = cache_dir / 'sunburst_metrics_country.parquet'
+    
+    if sunburst_country_file.exists():
+        print(f"  → Derivando perfiles de temas desde {sunburst_country_file.name}...")
+        df_c = pd.read_parquet(sunburst_country_file)
+        ct_df = df_c[df_c['level'] == 'topic'][['country_code', 'domain', 'field', 'subfield', 'topic', 'count_full']].copy()
+        ct_df = ct_df.rename(columns={'count_full': 'count'})
+        
+        c_totals = ct_df.groupby('country_code')['count'].transform('sum')
+        ct_df['share'] = np.where(c_totals > 0, ct_df['count'] / c_totals, 0.0)
+        
+        ct_df.to_parquet(output_file, index=False)
+        ct_df.to_parquet(cache_output_file, index=False)
+        print(f"  ✓ Guardado {len(ct_df):,} registros en {output_file.name} y {cache_output_file.name}")
+        return
+        
     journals_file = data_dir / 'latin_american_journals.parquet'
     topics_file = data_dir / 'journals_topics_sunburst.parquet'
-    output_file = data_dir / 'countries_topics_sunburst.parquet'
     
     if not journals_file.exists():
         print(f"❌ Error: No se encontró el archivo de revistas: {journals_file}")
