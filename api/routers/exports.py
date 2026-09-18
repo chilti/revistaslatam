@@ -107,6 +107,7 @@ class ExportRequest(BaseModel):
     format: str = "json"  # "json", "csv", "jsonl", "metrics"
     limit: Optional[int] = None
     title: Optional[str] = None
+    selected_entities: Optional[List[str]] = None
 
 
 def run_export_job(job_id: str, req_data: Dict[str, Any]):
@@ -126,6 +127,7 @@ def run_export_job(job_id: str, req_data: Dict[str, Any]):
         fmt = req_data.get("format", "json").lower()
         limit = req_data.get("limit")
         title_hint = req_data.get("title") or "articulos"
+        selected_entities = req_data.get("selected_entities") or ["all"]
 
         # 1. Obtain Work IDs from database
         work_ids = get_work_ids_from_db(
@@ -176,6 +178,7 @@ def run_export_job(job_id: str, req_data: Dict[str, Any]):
                 output_dir=out_pkg_dir,
                 export_parquet=True,
                 export_json=True,
+                selected_entities=selected_entities,
                 progress_callback=progress_cb
             )
 
