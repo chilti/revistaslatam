@@ -516,7 +516,7 @@ export default function CountryPage() {
           >
             {countriesList.map(c => (
               <option key={c.country_code} value={c.country_code}>
-                {t(`country_names.${c.country_code}`) || c.country_name} ({c.country_code}) — {c.num_journals} {t('common.works')}
+                {t(`country_names.${c.country_code}`) || c.country_name} ({c.country_code}) — {c.num_journals} {t('common.journals')}
               </option>
             ))}
           </select>

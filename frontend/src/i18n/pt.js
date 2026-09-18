@@ -960,6 +960,7 @@ export default {
   common: {
     yes: "Sim",
     no: "Não",
+    journals: "Revistas",
     works: "Artigos",
     citations: "Citações",
     fwci: "FWCI",
