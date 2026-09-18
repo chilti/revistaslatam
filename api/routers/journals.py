@@ -613,4 +613,13 @@ def export_journal_articles_openalex(
     )
 
 
-
+@router.get("/{journal_id}/collaboration")
+def get_journal_collaboration_network_endpoint(
+    journal_id: str = Path(..., description="OpenAlex journal ID, e.g. S2737081250 or full URI")
+):
+    """
+    Returns country-to-country co-authorship matrix (connection map)
+    for articles published in this journal.
+    """
+    from api.services.collaboration_service import get_journal_collaboration
+    return get_journal_collaboration(journal_id)

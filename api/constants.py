@@ -53,7 +53,39 @@ COUNTRY_NAMES = {
     'VI': 'Islas Vírgenes de EE.UU.',
     # Referencias globales
     'ES': 'España',
-    'PT': 'Portugal'
+    'PT': 'Portugal',
+    'US': 'Estados Unidos',
+    'GB': 'Reino Unido',
+    'DE': 'Alemania',
+    'FR': 'Francia',
+    'CA': 'Canadá',
+    'CN': 'China',
+    'IT': 'Italia',
+    'NL': 'Países Bajos',
+    'AU': 'Australia',
+    'CH': 'Suiza',
+    'BE': 'Bélgica',
+    'SE': 'Suecia',
+    'NO': 'Noruega',
+    'DK': 'Dinamarca',
+    'FI': 'Finlandia',
+    'PL': 'Polonia',
+    'AT': 'Austria',
+    'IE': 'Irlanda',
+    'CZ': 'República Checa',
+    'GR': 'Grecia',
+    'RU': 'Rusia',
+    'JP': 'Japón',
+    'KR': 'Corea del Sur',
+    'IN': 'India',
+    'ZA': 'Sudáfrica',
+    'NZ': 'Nueva Zelanda',
+    'IL': 'Israel',
+    'SG': 'Singapur',
+    'TR': 'Turquía',
+    'SA': 'Arabia Saudita',
+    'EG': 'Egipto',
+    'MA': 'Marruecos'
 }
 
 ISO2_TO_ISO3 = {
@@ -66,7 +98,13 @@ ISO2_TO_ISO3 = {
     'GD': 'GRD', 'KN': 'KNA', 'LC': 'LCA', 'VC': 'VCT', 'AW': 'ABW',
     'CW': 'CUW', 'GP': 'GLP', 'MQ': 'MTQ', 'SX': 'SXM', 'KY': 'CYM',
     'BM': 'BMU', 'TC': 'TCA', 'VG': 'VGB', 'VI': 'VIR', 'GF': 'GUF',
-    'ES': 'ESP', 'PT': 'PRT'
+    'ES': 'ESP', 'PT': 'PRT', 'US': 'USA', 'GB': 'GBR', 'DE': 'DEU',
+    'FR': 'FRA', 'CA': 'CAN', 'CN': 'CHN', 'IT': 'ITA', 'NL': 'NLD',
+    'AU': 'AUS', 'CH': 'CHE', 'BE': 'BEL', 'SE': 'SWE', 'NO': 'NOR',
+    'DK': 'DNK', 'FI': 'FIN', 'PL': 'POL', 'AT': 'AUT', 'IE': 'IRL',
+    'CZ': 'CZE', 'GR': 'GRC', 'RU': 'RUS', 'JP': 'JPN', 'KR': 'KOR',
+    'IN': 'IND', 'ZA': 'ZAF', 'NZ': 'NZL', 'IL': 'ISR', 'SG': 'SGP',
+    'TR': 'TUR', 'SA': 'SAU', 'EG': 'EGY', 'MA': 'MAR'
 }
 
 COUNTRY_COORDS = {
@@ -126,7 +164,30 @@ COUNTRY_COORDS = {
     'CN': (35.8617, 104.1954),
     'IT': (41.8719, 12.5674),
     'NL': (52.1326, 5.2913),
-    'AU': (-25.2744, 133.7751)
+    'AU': (-25.2744, 133.7751),
+    'CH': (46.8182, 8.2275),
+    'BE': (50.5039, 4.4699),
+    'SE': (60.1282, 18.6435),
+    'NO': (60.4720, 8.4689),
+    'DK': (56.2639, 9.5018),
+    'FI': (61.9241, 25.7482),
+    'PL': (51.9194, 19.1451),
+    'AT': (47.5162, 14.5501),
+    'IE': (53.1424, -7.6921),
+    'CZ': (49.8175, 15.4730),
+    'GR': (39.0742, 21.8243),
+    'RU': (61.5240, 105.3188),
+    'JP': (36.2048, 138.2529),
+    'KR': (35.9078, 127.7669),
+    'IN': (20.5937, 78.9629),
+    'ZA': (-30.5595, 22.9375),
+    'NZ': (-40.9006, 174.8860),
+    'IL': (31.0461, 34.8516),
+    'SG': (1.3521, 103.8198),
+    'TR': (38.9637, 35.2433),
+    'SA': (23.8859, 45.0792),
+    'EG': (26.8206, 30.8025),
+    'MA': (31.7917, -7.0926)
 }
 
 COMMUNITY_PALETTE = [

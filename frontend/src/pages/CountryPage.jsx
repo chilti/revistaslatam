@@ -9,6 +9,7 @@ import PageDossierExpander from '../components/PageDossierExpander';
 import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
 import CountryThematicProfilesTable from '../components/CountryThematicProfilesTable';
 import AnnualDataTable from '../components/AnnualDataTable';
+import ConnectionMapViewer from '../components/ConnectionMapViewer';
 import { 
   BookOpen, 
   FileText, 
@@ -97,6 +98,9 @@ export default function CountryPage() {
   const [scatterX, setScatterX] = useState('works_count');
   const [scatterY, setScatterY] = useState('fwci_avg');
   
+  const [collabData, setCollabData] = useState(null);
+  const [collabLoading, setCollabLoading] = useState(false);
+  
   const [loading, setLoading] = useState(true);
 
   const localizedCountry = t(`country_names.${selectedCountry}`);
@@ -174,6 +178,19 @@ export default function CountryPage() {
       setSlopeData(slopeRes.data);
       setJournalsDist(distRes.data);
     }).catch(console.error).finally(() => setLoading(false));
+  }, [selectedCountry]);
+
+  // Load country collaboration network
+  useEffect(() => {
+    if (!selectedCountry) return;
+    setCollabLoading(true);
+    api.get(`/countries/${selectedCountry}/collaboration`)
+      .then(res => setCollabData(res.data))
+      .catch(err => {
+        console.error('Error fetching country collaboration:', err);
+        setCollabData(null);
+      })
+      .finally(() => setCollabLoading(false));
   }, [selectedCountry]);
 
   // Load sunburst / treemap
@@ -1413,6 +1430,17 @@ export default function CountryPage() {
       <ThematicEvolutionTable 
         countryCode={selectedCountry} 
         countryName={countryDisplayName} 
+      />
+
+      {/* 8. MATRIZ DE COAUTORÍA PAÍS-PAÍS (CONNECTION MAP GLOBAL) */}
+      <ConnectionMapViewer
+        collabData={collabData}
+        loading={collabLoading}
+        title={`${t('connection_map.title')} — ${countryDisplayName}`}
+        subtitle={t('connection_map.subtitle_country')}
+        anchorName={countryDisplayName}
+        anchorCode={selectedCountry}
+        scopeType="country"
       />
 
       {/* Journals Catalog Table */}

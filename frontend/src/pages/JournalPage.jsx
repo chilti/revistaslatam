@@ -8,6 +8,7 @@ import UmapTrajectoryViewer from '../components/UmapTrajectoryViewer';
 import ThematicEvolutionTable from '../components/ThematicEvolutionTable';
 import AnnualDataTable from '../components/AnnualDataTable';
 import PageDossierExpander from '../components/PageDossierExpander';
+import ConnectionMapViewer from '../components/ConnectionMapViewer';
 import { 
   Search, 
   BookOpen, 
@@ -138,6 +139,10 @@ export default function JournalPage() {
   const [articleSort, setArticleSort] = useState('cited_by_count');
   const [articleYearFilter, setArticleYearFilter] = useState('');
   const [articleLimit, setArticleLimit] = useState(100);
+
+  // Coauthorship connection map state
+  const [collabData, setCollabData] = useState(null);
+  const [collabLoading, setCollabLoading] = useState(false);
   const [loadingArticles, setLoadingArticles] = useState(false);
   
   const [landscapeData, setLandscapeData] = useState({ articles: [], bg_articles: [], dispersion: 0 });
@@ -276,6 +281,20 @@ export default function JournalPage() {
         if (setSelectedCountry) setSelectedCountry(jCountry);
       }
     }).catch(console.error).finally(() => setLoading(false));
+  }, [selectedJournalId]);
+
+  // Load journal collaboration network
+  useEffect(() => {
+    if (!selectedJournalId) return;
+    const cleanJid = selectedJournalId.includes('/') ? selectedJournalId.split('/').pop() : selectedJournalId;
+    setCollabLoading(true);
+    api.get(`/journals/${encodeURIComponent(cleanJid)}/collaboration`)
+      .then(res => setCollabData(res.data))
+      .catch(err => {
+        console.error('Error fetching journal collaboration:', err);
+        setCollabData(null);
+      })
+      .finally(() => setCollabLoading(false));
   }, [selectedJournalId]);
 
   // Reload articles on sort/year/limit change
@@ -1364,6 +1383,17 @@ export default function JournalPage() {
       <ThematicEvolutionTable
         journalId={selectedJournalId}
         journalName={prof.display_name || selectedJournalName}
+      />
+
+      {/* MATRIZ DE COAUTORÍA PAÍS-PAÍS (CONNECTION MAP GLOBAL) */}
+      <ConnectionMapViewer
+        collabData={collabData}
+        loading={collabLoading}
+        title={`${t('connection_map.title')} — ${prof.display_name || selectedJournalName || ''}`}
+        subtitle={t('connection_map.subtitle_journal')}
+        anchorName={prof.display_name || selectedJournalName}
+        anchorCode={prof.country_code}
+        scopeType="journal"
       />
 
       {/* EXPLORADOR DE ARTÍCULOS - SCATTER PLOT DINÁMICO */}

@@ -513,3 +513,14 @@ def get_country_thematic_profiles(
         "data": sanitize_records(pivot_reset[columns])
     }
 
+
+@router.get("/{country_code}/collaboration")
+def get_country_collaboration_network_endpoint(
+    country_code: str = Path(..., description="2-letter country code, e.g. MX, BR, AR")
+):
+    """
+    Returns country-to-country co-authorship matrix (connection map)
+    for articles published in journals edited in this country.
+    """
+    from api.services.collaboration_service import get_country_collaboration
+    return get_country_collaboration(country_code)

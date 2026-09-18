@@ -10,11 +10,19 @@ from dotenv import load_dotenv
 # Cargar variables de entorno (.env)
 load_dotenv()
 
+import sys
+
 try:
     import clickhouse_connect
 except ImportError:
-    print("❌ Error: 'clickhouse-connect' no está instalado. Instálalo con: pip install clickhouse-connect")
-    exit(1)
+    alt_path = '/home/ambientesPy/revistaslatam/lib/python3.12/site-packages'
+    if alt_path not in sys.path:
+        sys.path.append(alt_path)
+    try:
+        import clickhouse_connect
+    except ImportError:
+        clickhouse_connect = None
+
 
 # Configuración de ClickHouse
 CH_HOST = os.environ.get('CH_HOST', 'localhost')

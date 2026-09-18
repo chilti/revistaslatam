@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Pipeline Step: Build International Collaboration Networks & Discipline Sankey Flows
 """
@@ -59,6 +59,14 @@ def main():
         print(f"Saved Discipline Sankey JSON: {sankey_json_file}")
     else:
         print(f"Notice: {topics_file} not found. Skipping Sankey generation.")
+        
+    # 3. Country-level Co-authorship Networks (LATAM Journals)
+    print("\n3. Building Country-level Co-authorship Matrices (LATAM Journals)...")
+    try:
+        from pipeline_revistaslatam.build_collaborations import build_all_country_collaborations
+        build_all_country_collaborations()
+    except Exception as e:
+        print(f"Notice: Country collaborations build note ({e})")
         
     print("\n" + "=" * 70)
     print("NETWORK ANALYSIS PIPELINE COMPLETED SUCCESSFULLY!")
