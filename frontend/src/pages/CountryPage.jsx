@@ -376,6 +376,21 @@ export default function CountryPage() {
     });
   }
 
+  // Escalamiento P98 estilo SinapsisAI dashboard_v2.py / map.html
+  const countryArtSizes = useMemo(() => {
+    if (!countryArts || countryArts.length === 0) return 5.5;
+    const raw = countryArts.map(a => Number(a.fwci != null ? a.fwci : (a.cited_by_count || 0)));
+    const nonZeros = raw.filter(v => v > 0).sort((a, b) => a - b);
+    const p98 = nonZeros.length > 5 ? nonZeros[Math.floor(nonZeros.length * 0.98)] : (nonZeros[nonZeros.length - 1] || 1.0);
+    const cap = Math.max(p98, 0.1);
+    const rMin = 4.0;
+    const rMax = 16.0;
+    return raw.map(v => {
+      const norm = Math.min(1.0, Math.max(0.0, v / cap));
+      return rMin + (rMax - rMin) * Math.sqrt(norm);
+    });
+  }, [countryArts]);
+
   if (countryArts.length > 0) {
     const years = countryArts.map(a => Number(a.publication_year || 0)).filter(y => y > 0);
     const minYr = years.length ? Math.min(...years) : 1990;
@@ -388,7 +403,7 @@ export default function CountryPage() {
       type: 'scatter',
       name: t('country.landscape_trace_country', { country: countryDisplayName }),
       marker: {
-        size: 5.5,
+        size: countryArtSizes,
         color: countryArts.map(a => a.publication_year),
         colorscale: 'Turbo',
         cmin: minYr,

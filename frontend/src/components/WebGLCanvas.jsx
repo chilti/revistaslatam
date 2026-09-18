@@ -146,12 +146,34 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
     // Color palettes
     const palette = ["#0284c7", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1", "#14b8a6", "#e11d48", "#a855f7", "#38bdf8", "#22c55e"];
     
-    // Size max
-    let maxCit = 1;
-    points.forEach(p => {
-      const c = Number(p.cited_by_count) || 0;
-      if (c > maxCit) maxCit = c;
-    });
+    // ── Size scaling (Estilo SinapsisAI dashboard_v2.py / map.html - P98 + Sqrt) ──
+    const rawSizes = [];
+    for (let i = 0; i < total; i++) {
+      const p = points[i];
+      let val = 0;
+      if (sizeMode === 'fwci') {
+        val = Number(p.fwci != null ? p.fwci : p.fwci_avg) || 0;
+      } else if (sizeMode === 'works_count') {
+        val = Number(p.works_count) || 0;
+      } else if (sizeMode === 'uniform') {
+        val = 1.0;
+      } else {
+        val = Number(p.cited_by_count) || 0;
+      }
+      if (val > 0) rawSizes.push(val);
+    }
+
+    rawSizes.sort((a, b) => a - b);
+    let p98 = 1.0;
+    if (rawSizes.length > 5) {
+      p98 = rawSizes[Math.floor(rawSizes.length * 0.98)] || 1.0;
+    } else if (rawSizes.length > 0) {
+      p98 = rawSizes[rawSizes.length - 1] || 1.0;
+    }
+    const cap = Math.max(p98, 0.1);
+
+    const rMin = 3.5;
+    const rMax = 18.0;
 
     const uniqueComms = Array.from(new Set(points.map(p => p.community_name || 'General')));
 
@@ -188,9 +210,21 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
         colorData[i * 4 + 3] = 0.88;
       }
 
-      // Size
-      const cit = Number(p.cited_by_count) || 0;
-      sizeData[i] = 4.0 + 12.0 * Math.sqrt(Math.min(1, cit / (maxCit || 1)));
+      // Size calculation (área proporcional con raíz cuadrada estilo Atlantis / Deepscatter)
+      if (sizeMode === 'uniform') {
+        sizeData[i] = 5.0;
+      } else {
+        let val = 0;
+        if (sizeMode === 'fwci') {
+          val = Number(p.fwci != null ? p.fwci : p.fwci_avg) || 0;
+        } else if (sizeMode === 'works_count') {
+          val = Number(p.works_count) || 0;
+        } else {
+          val = Number(p.cited_by_count) || 0;
+        }
+        const norm = Math.min(1.0, Math.max(0.0, val / cap));
+        sizeData[i] = rMin + (rMax - rMin) * Math.sqrt(norm);
+      }
     }
 
     const posBuffer = gl.createBuffer();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api';
 import { useAppStore } from '../store';
 import { useTranslation } from '../i18n';
@@ -25,6 +25,7 @@ export default function SemanticMapsPage() {
   // Articles state
   const [articlePoints, setArticlePoints] = useState([]);
   const [artColorMode, setArtColorMode] = useState('year');
+  const [artSizeMode, setArtSizeMode] = useState('fwci');
   const [artCountryFilter, setArtCountryFilter] = useState('');
   const [artCommFilter, setArtCommFilter] = useState('');
   const [artSampleLimit, setArtSampleLimit] = useState(50000);
@@ -34,6 +35,7 @@ export default function SemanticMapsPage() {
   // Journals state
   const [journalPoints, setJournalPoints] = useState([]);
   const [journalColorMode, setJournalColorMode] = useState('community');
+  const [journalSizeMode, setJournalSizeMode] = useState('works_count');
   const [journalCountryFilter, setJournalCountryFilter] = useState('');
   const [journalCommFilter, setJournalCommFilter] = useState('');
 
@@ -93,13 +95,53 @@ export default function SemanticMapsPage() {
   const commPalette = ["#0284c7", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1", "#14b8a6", "#e11d48", "#a855f7", "#38bdf8", "#22c55e"];
   const uniqueComms = Array.from(new Set(articlePoints.map(p => p.community_name || 'General')));
 
+  // Escalamiento P98 estilo SinapsisAI dashboard_v2.py / map.html
+  const articleSizes = useMemo(() => {
+    if (!articlePoints || articlePoints.length === 0) return 5;
+    if (artSizeMode === 'uniform') return 5;
+    const raw = articlePoints.map(p => {
+      const v = artSizeMode === 'fwci' ? Number(p.fwci) || 0 : Number(p.cited_by_count) || 0;
+      return v > 0 ? v : 0;
+    });
+    const nonZeros = raw.filter(v => v > 0).sort((a, b) => a - b);
+    const p98 = nonZeros.length > 5 ? nonZeros[Math.floor(nonZeros.length * 0.98)] : (nonZeros[nonZeros.length - 1] || 1.0);
+    const cap = Math.max(p98, 0.1);
+    const rMin = 4.0;
+    const rMax = 18.0;
+    return raw.map(v => {
+      const norm = Math.min(1.0, Math.max(0.0, v / cap));
+      return rMin + (rMax - rMin) * Math.sqrt(norm);
+    });
+  }, [articlePoints, artSizeMode]);
+
+  const journalSizes = useMemo(() => {
+    if (!journalPoints || journalPoints.length === 0) return 8;
+    if (journalSizeMode === 'uniform') return 8;
+    const raw = journalPoints.map(p => {
+      let v = 0;
+      if (journalSizeMode === 'works_count') v = Number(p.works_count) || 0;
+      else if (journalSizeMode === 'fwci') v = Number(p.fwci_avg) || 0;
+      else v = Number(p.cited_by_count) || 0;
+      return v > 0 ? v : 0;
+    });
+    const nonZeros = raw.filter(v => v > 0).sort((a, b) => a - b);
+    const p98 = nonZeros.length > 5 ? nonZeros[Math.floor(nonZeros.length * 0.98)] : (nonZeros[nonZeros.length - 1] || 1.0);
+    const cap = Math.max(p98, 0.1);
+    const rMin = 5.0;
+    const rMax = 22.0;
+    return raw.map(v => {
+      const norm = Math.min(1.0, Math.max(0.0, v / cap));
+      return rMin + (rMax - rMin) * Math.sqrt(norm);
+    });
+  }, [journalPoints, journalSizeMode]);
+
   const articleTraces = [
     {
       x: articlePoints.map(p => p.umap_x),
       y: articlePoints.map(p => p.umap_y),
       mode: 'markers',
       marker: {
-        size: 5,
+        size: articleSizes,
         color: artColorMode === 'year'
           ? articlePoints.map(p => p.publication_year || 2020)
           : artColorMode === 'community'
@@ -200,6 +242,18 @@ export default function SemanticMapsPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.size_label')}</span>
+              <select
+                value={artSizeMode}
+                onChange={(e) => setArtSizeMode(e.target.value)}
+              >
+                <option value="fwci">{t('maps.size_fwci')}</option>
+                <option value="citations">{t('maps.size_citations')}</option>
+                <option value="uniform">{t('maps.size_uniform')}</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.country_label')}</span>
               <select
                 value={artCountryFilter}
@@ -257,7 +311,7 @@ export default function SemanticMapsPage() {
               points={articlePoints}
               convexHull={showConvexHull ? convexHullPoints : []}
               colorMode={artColorMode}
-              sizeMode="citations"
+              sizeMode={artSizeMode}
               height={700}
             />
           ) : (
@@ -307,6 +361,19 @@ export default function SemanticMapsPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.size_label')}</span>
+              <select
+                value={journalSizeMode}
+                onChange={(e) => setJournalSizeMode(e.target.value)}
+              >
+                <option value="works_count">{t('maps.size_works')}</option>
+                <option value="citations">{t('maps.size_citations')}</option>
+                <option value="fwci">{t('maps.size_fwci')}</option>
+                <option value="uniform">{t('maps.size_uniform')}</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>{t('maps.community_label')}</span>
               <select
                 value={journalCommFilter}
@@ -338,7 +405,7 @@ export default function SemanticMapsPage() {
             <WebGLCanvas
               points={journalPoints}
               colorMode={journalColorMode}
-              sizeMode="citations"
+              sizeMode={journalSizeMode}
               height={700}
             />
           ) : (
@@ -349,7 +416,7 @@ export default function SemanticMapsPage() {
                   y: journalPoints.map(p => p.umap_y),
                   mode: 'markers',
                   marker: {
-                    size: 8,
+                    size: journalSizes,
                     color: journalPoints.map(p => p.fwci_avg || 0.5),
                     colorscale: 'Viridis',
                     showscale: true,
