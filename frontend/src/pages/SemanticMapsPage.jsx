@@ -97,8 +97,8 @@ export default function SemanticMapsPage() {
 
   // Escalamiento P98 estilo SinapsisAI dashboard_v2.py / map.html
   const articleSizes = useMemo(() => {
-    if (!articlePoints || articlePoints.length === 0) return 5;
-    if (artSizeMode === 'uniform') return 5;
+    if (!articlePoints || articlePoints.length === 0) return 2.2;
+    if (artSizeMode === 'uniform') return 2.2;
     const raw = articlePoints.map(p => {
       const v = artSizeMode === 'fwci' ? Number(p.fwci) || 0 : Number(p.cited_by_count) || 0;
       return v > 0 ? v : 0;
@@ -106,8 +106,8 @@ export default function SemanticMapsPage() {
     const nonZeros = raw.filter(v => v > 0).sort((a, b) => a - b);
     const p98 = nonZeros.length > 5 ? nonZeros[Math.floor(nonZeros.length * 0.98)] : (nonZeros[nonZeros.length - 1] || 1.0);
     const cap = Math.max(p98, 0.1);
-    const rMin = 4.0;
-    const rMax = 18.0;
+    const rMin = 2.0;
+    const rMax = 5.0;
     return raw.map(v => {
       const norm = Math.min(1.0, Math.max(0.0, v / cap));
       return rMin + (rMax - rMin) * Math.sqrt(norm);
@@ -115,8 +115,8 @@ export default function SemanticMapsPage() {
   }, [articlePoints, artSizeMode]);
 
   const journalSizes = useMemo(() => {
-    if (!journalPoints || journalPoints.length === 0) return 8;
-    if (journalSizeMode === 'uniform') return 8;
+    if (!journalPoints || journalPoints.length === 0) return 4.0;
+    if (journalSizeMode === 'uniform') return 4.0;
     const raw = journalPoints.map(p => {
       let v = 0;
       if (journalSizeMode === 'works_count') v = Number(p.works_count) || 0;
@@ -127,8 +127,8 @@ export default function SemanticMapsPage() {
     const nonZeros = raw.filter(v => v > 0).sort((a, b) => a - b);
     const p98 = nonZeros.length > 5 ? nonZeros[Math.floor(nonZeros.length * 0.98)] : (nonZeros[nonZeros.length - 1] || 1.0);
     const cap = Math.max(p98, 0.1);
-    const rMin = 5.0;
-    const rMax = 22.0;
+    const rMin = 3.5;
+    const rMax = 8.5;
     return raw.map(v => {
       const norm = Math.min(1.0, Math.max(0.0, v / cap));
       return rMin + (rMax - rMin) * Math.sqrt(norm);

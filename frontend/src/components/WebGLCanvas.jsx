@@ -61,7 +61,7 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
           float aspect = u_resolution.x / u_resolution.y;
           vec2 clipSpace = vec2(pos.x / aspect, pos.y);
           gl_Position = vec4(clipSpace, 0.0, 1.0);
-          gl_PointSize = clamp(a_size * sqrt(u_zoom), 2.5, 36.0);
+          gl_PointSize = clamp(a_size * sqrt(u_zoom), 1.2, 12.0);
           v_color = a_color;
       }
     `;
@@ -172,8 +172,8 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
     }
     const cap = Math.max(p98, 0.1);
 
-    const rMin = 3.5;
-    const rMax = 18.0;
+    const rMin = 1.8;
+    const rMax = 4.5;
 
     const uniqueComms = Array.from(new Set(points.map(p => p.community_name || 'General')));
 
@@ -212,7 +212,7 @@ export default function WebGLCanvas({ points = [], convexHull = [], colorMode = 
 
       // Size calculation (área proporcional con raíz cuadrada estilo Atlantis / Deepscatter)
       if (sizeMode === 'uniform') {
-        sizeData[i] = 5.0;
+        sizeData[i] = 2.2;
       } else {
         let val = 0;
         if (sizeMode === 'fwci') {
