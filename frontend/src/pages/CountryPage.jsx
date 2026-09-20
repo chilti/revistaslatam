@@ -104,6 +104,8 @@ export default function CountryPage() {
   
   const [collabData, setCollabData] = useState(null);
   const [collabLoading, setCollabLoading] = useState(false);
+  const [thematicProfilesData, setThematicProfilesData] = useState(null);
+  const [thematicEvolutionData, setThematicEvolutionData] = useState([]);
   
   const [loading, setLoading] = useState(true);
 
@@ -184,7 +186,7 @@ export default function CountryPage() {
     }).catch(console.error).finally(() => setLoading(false));
   }, [selectedCountry]);
 
-  // Load country collaboration network
+  // Load country collaboration network, thematic profiles and evolution
   useEffect(() => {
     if (!selectedCountry) return;
     setCollabLoading(true);
@@ -195,6 +197,14 @@ export default function CountryPage() {
         setCollabData(null);
       })
       .finally(() => setCollabLoading(false));
+
+    api.get(`/countries/${selectedCountry}/thematic-profiles?level=domain`)
+      .then(res => setThematicProfilesData(res.data))
+      .catch(() => setThematicProfilesData(null));
+
+    api.get(`/countries/${selectedCountry}/thematic-evolution?level=domain`)
+      .then(res => setThematicEvolutionData(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setThematicEvolutionData([]));
   }, [selectedCountry]);
 
   // Load sunburst / treemap
@@ -1897,6 +1907,89 @@ export default function CountryPage() {
               });
               if (journals.length > 25) {
                 lines.push(`\n_... y ${journals.length - 25} revistas adicionales en el catálogo nacional._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'country_international_collaboration',
+            title: t('country.dossier_sec14_title', { country: countryDisplayName }),
+            category: t('country.dossier_sec14_cat'),
+            defaultChecked: false,
+            rawData: collabData,
+            buildDataText: () => {
+              if (!collabData || !collabData.edges || collabData.edges.length === 0) return 'No hay datos de red de colaboración internacional disponibles.';
+              const totalCoauth = collabData.total_coauthored || collabData.edges.reduce((acc, e) => acc + (e.weight || 1), 0);
+              const topPartners = collabData.top_partners || [];
+              const lines = [
+                `*País:* **${countryDisplayName} (${selectedCountry})** | *Total Artículos en Coautoría:* **${totalCoauth.toLocaleString()}** | *Países Colaboradores:* **${collabData.nodes?.length || 0}**\n`,
+                '**Principales Países Socios en Coautoría Internacional:**\n',
+                '| Pos | País Socio | Código ISO | Artículos en Coautoría | % de la Colaboración |',
+                '|---|---|---|---|---|'
+              ];
+              
+              const partnersList = topPartners.length > 0 
+                ? topPartners 
+                : collabData.edges
+                    .map(e => ({
+                      code: e.source === selectedCountry ? e.target : e.source,
+                      name: e.source === selectedCountry ? e.target_name : e.source_name,
+                      count: e.weight || 0,
+                      pct: totalCoauth > 0 ? ((e.weight || 0) / totalCoauth * 100) : 0
+                    }))
+                    .sort((a, b) => b.count - a.count);
+
+              partnersList.slice(0, 20).forEach((p, idx) => {
+                lines.push(`| ${idx + 1} | ${p.name || p.country_name || p.code} | ${p.code || p.country_code} | ${p.count?.toLocaleString() || 0} | ${Number(p.pct || 0).toFixed(1)}% |`);
+              });
+              
+              if (partnersList.length > 20) {
+                lines.push(`\n_... y ${partnersList.length - 20} países socios más en la red global._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'country_thematic_profiles',
+            title: t('country.dossier_sec15_title'),
+            category: t('country.dossier_sec15_cat'),
+            defaultChecked: false,
+            rawData: thematicProfilesData,
+            buildDataText: () => {
+              if (!thematicProfilesData || !thematicProfilesData.data || thematicProfilesData.data.length === 0) return 'No hay datos de perfiles temáticos disponibles.';
+              const cols = thematicProfilesData.columns || Object.keys(thematicProfilesData.data[0] || {});
+              const lines = [
+                `*Perfiles Temáticos de Revistas por Disciplina (Dominio / Gran Área)*\n`,
+                `| ${cols.join(' | ')} |`,
+                `| ${cols.map(() => '---').join(' | ')} |`
+              ];
+              thematicProfilesData.data.slice(0, 25).forEach(row => {
+                const vals = cols.map(c => typeof row[c] === 'number' ? row[c].toLocaleString() : (row[c] ?? '—'));
+                lines.push(`| ${vals.join(' | ')} |`);
+              });
+              if (thematicProfilesData.data.length > 25) {
+                lines.push(`\n_... y ${thematicProfilesData.data.length - 25} revistas más._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'country_thematic_evolution',
+            title: t('country.dossier_sec16_title'),
+            category: t('country.dossier_sec16_cat'),
+            defaultChecked: false,
+            rawData: thematicEvolutionData,
+            buildDataText: () => {
+              if (!thematicEvolutionData || thematicEvolutionData.length === 0) return 'No hay datos de evolución temática histórica disponibles.';
+              const lines = [
+                '| Año | Área / Campo Disciplinar | Artículos | % del Año |',
+                '|---|---|---|---|'
+              ];
+              thematicEvolutionData.slice(-25).forEach(item => {
+                lines.push(`| ${item.year} | ${item.name || item.domain_name || item.field_name || 'Área'} | ${item.num_documents?.toLocaleString() || 0} | ${Number(item.pct || item.share || 0).toFixed(1)}% |`);
+              });
+              if (thematicEvolutionData.length > 25) {
+                lines.push(`\n_... y ${thematicEvolutionData.length - 25} registros históricos más._`);
               }
               return lines.join('\n');
             }

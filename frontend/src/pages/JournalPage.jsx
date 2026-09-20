@@ -146,6 +146,7 @@ export default function JournalPage() {
   // Coauthorship connection map state
   const [collabData, setCollabData] = useState(null);
   const [collabLoading, setCollabLoading] = useState(false);
+  const [thematicEvolutionData, setThematicEvolutionData] = useState([]);
   const [loadingArticles, setLoadingArticles] = useState(false);
   
   const [landscapeData, setLandscapeData] = useState({ articles: [], bg_articles: [], dispersion: 0 });
@@ -292,7 +293,7 @@ export default function JournalPage() {
     }).catch(console.error).finally(() => setLoading(false));
   }, [selectedJournalId]);
 
-  // Load journal collaboration network
+  // Load journal collaboration network & thematic evolution
   useEffect(() => {
     if (!selectedJournalId) return;
     const cleanJid = selectedJournalId.includes('/') ? selectedJournalId.split('/').pop() : selectedJournalId;
@@ -304,6 +305,10 @@ export default function JournalPage() {
         setCollabData(null);
       })
       .finally(() => setCollabLoading(false));
+
+    api.get(`/journals/${encodeURIComponent(cleanJid)}/thematic-evolution?level=topic`)
+      .then(res => setThematicEvolutionData(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setThematicEvolutionData([]));
   }, [selectedJournalId]);
 
   // Reload articles on sort/year/limit change
@@ -2029,6 +2034,66 @@ export default function JournalPage() {
                 const titleClean = (art.title || 'Sin título').replace(/\|/g, '-');
                 lines.push(`| ${titleClean.slice(0, 70)}... | ${art.publication_year || '—'} | ${art.cited_by_count?.toLocaleString() || 0} | ${Number(art.fwci || 0).toFixed(2)} | ${Number(art.percentile || 0).toFixed(1)} | ${art.oa_status || 'closed'} |`);
               });
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'journal_international_collaboration',
+            title: t('journal.dossier_sec12_title', { name: details?.display_name || selectedJournalName }),
+            category: t('journal.dossier_sec12_cat'),
+            defaultChecked: false,
+            rawData: collabData,
+            buildDataText: () => {
+              if (!collabData || !collabData.edges || collabData.edges.length === 0) return 'No hay datos de red de coautoría internacional disponibles.';
+              const totalCoauth = collabData.total_coauthored || collabData.edges.reduce((acc, e) => acc + (e.weight || 1), 0);
+              const topPartners = collabData.top_partners || [];
+              const anchorCode = collabData.anchor_country || details?.profile?.country_code || details?.country_code;
+              const lines = [
+                `*Revista:* **${details?.display_name || selectedJournalName}** | *Total Artículos en Coautoría:* **${totalCoauth.toLocaleString()}** | *Países en la Red:* **${collabData.nodes?.length || 0}**\n`,
+                '**Principales Países con Autorías Colaborativas en la Revista:**\n',
+                '| Pos | País Colaborador | Código ISO | Artículos en Coautoría | % de la Colaboración |',
+                '|---|---|---|---|---|'
+              ];
+              
+              const partnersList = topPartners.length > 0 
+                ? topPartners 
+                : collabData.edges
+                    .map(e => ({
+                      code: (anchorCode && e.source === anchorCode) ? e.target : e.source,
+                      name: (anchorCode && e.source === anchorCode) ? e.target_name : e.source_name,
+                      count: e.weight || 0,
+                      pct: totalCoauth > 0 ? ((e.weight || 0) / totalCoauth * 100) : 0
+                    }))
+                    .sort((a, b) => b.count - a.count);
+
+              partnersList.slice(0, 20).forEach((p, idx) => {
+                lines.push(`| ${idx + 1} | ${p.name || p.country_name || p.code} | ${p.code || p.country_code} | ${p.count?.toLocaleString() || 0} | ${Number(p.pct || 0).toFixed(1)}% |`);
+              });
+              
+              if (partnersList.length > 20) {
+                lines.push(`\n_... y ${partnersList.length - 20} países colaboradores más en la red._`);
+              }
+              return lines.join('\n');
+            }
+          },
+          {
+            id: 'journal_thematic_evolution',
+            title: t('journal.dossier_sec13_title'),
+            category: t('journal.dossier_sec13_cat'),
+            defaultChecked: false,
+            rawData: thematicEvolutionData,
+            buildDataText: () => {
+              if (!thematicEvolutionData || thematicEvolutionData.length === 0) return 'No hay datos de evolución temática histórica disponibles.';
+              const lines = [
+                '| Año | Tópico / Subcampo Disciplinar | Artículos | % del Año |',
+                '|---|---|---|---|'
+              ];
+              thematicEvolutionData.slice(-25).forEach(item => {
+                lines.push(`| ${item.year} | ${item.name || item.topic_name || item.subfield_name || 'Tópico'} | ${item.num_documents?.toLocaleString() || 0} | ${Number(item.pct || item.share || 0).toFixed(1)}% |`);
+              });
+              if (thematicEvolutionData.length > 25) {
+                lines.push(`\n_... y ${thematicEvolutionData.length - 25} registros de tópicos históricos más._`);
+              }
               return lines.join('\n');
             }
           }

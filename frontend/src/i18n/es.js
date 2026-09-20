@@ -425,7 +425,13 @@ export default {
     dossier_sec12_title: "12. Distribución de Revistas por Desempeño (Beeswarm / Jitter - {ind})",
     dossier_sec12_cat: "Distribuciones",
     dossier_sec13_title: "13. Catálogo Completo de Revistas ({count} revistas)",
-    dossier_sec13_cat: "Catálogo de Publicaciones"
+    dossier_sec13_cat: "Catálogo de Publicaciones",
+    dossier_sec14_title: "14. Red Global de Colaboración Internacional y Coautoría País-País ({country})",
+    dossier_sec14_cat: "Colaboración Internacional",
+    dossier_sec15_title: "15. Perfiles Temáticos de Revistas por Disciplina (Dominio/Campo/Subcampo)",
+    dossier_sec15_cat: "Estructura Disciplinar",
+    dossier_sec16_title: "16. Evolución Histórica de Perfiles de Conocimiento (1985–2025)",
+    dossier_sec16_cat: "Dinámica Temática"
   },
   journal: {
     title: "Ficha Analítica de la Revista",
@@ -593,6 +599,10 @@ export default {
     dossier_sec10_cat: "Correlaciones Multivariadas",
     dossier_sec11_title: "11. Listado de Artículos Más Citados de la Revista (Top {top})",
     dossier_sec11_cat: "Artículos Destacados",
+    dossier_sec12_title: "12. Red Global de Coautoría y Colaboración Internacional ({name})",
+    dossier_sec12_cat: "Colaboración Internacional",
+    dossier_sec13_title: "13. Evolución Histórica de Tópicos y Áreas Disciplinares (1985–2025)",
+    dossier_sec13_cat: "Dinámica Temática",
     view_downloads: "Ver Descargas"
   },
   maps: {
