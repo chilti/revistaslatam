@@ -118,7 +118,7 @@ export default function UmapTrajectoryViewer({
     if (localized && localized !== `country_names.${entityId}`) {
       return localized;
     }
-    if (entityId === 'LATAM' || fallbackName === 'Iberoamérica (Ref.)') {
+    if (entityId === 'LATAM' || fallbackName === 'Iberoamérica (Ref.)' || fallbackName === 'Latinoamérica (Ref.)' || fallbackName === 'Iberoamérica' || fallbackName === 'Latinoamérica') {
       return t('country_names.LATAM');
     }
     return fallbackName || entityId;

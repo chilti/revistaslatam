@@ -287,7 +287,7 @@ def get_country_trajectory(country_code: str):
     for entity_id in df['id'].unique():
         sub = df[df['id'] == entity_id].sort_values('year')
         result[str(entity_id)] = {
-            "name": "Iberoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(str(entity_id), str(entity_id)),
+            "name": "Latinoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(str(entity_id), str(entity_id)),
             "is_ref": entity_id == "LATAM",
             "points": sanitize_records(sub[cols_to_keep])
         }

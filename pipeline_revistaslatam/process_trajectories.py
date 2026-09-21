@@ -155,7 +155,7 @@ def load_and_prep_data():
         df_l = pd.read_parquet(l_path)
         df_l['type'] = 'region'
         df_l['id'] = 'LATAM'
-        df_l['name'] = 'Iberoamérica'
+        df_l['name'] = 'Latinoamérica'
         df_l['country_code'] = 'LATAM'
     else:
         df_l = pd.DataFrame()

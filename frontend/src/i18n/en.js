@@ -1076,6 +1076,6 @@ export default {
     SR: "Suriname",
     HT: "Haiti",
     GF: "French Guiana",
-    LATAM: "Ibero-America (Ref.)"
+    LATAM: "Latin America (Ref.)"
   }
 };

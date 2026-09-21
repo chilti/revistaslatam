@@ -1191,7 +1191,7 @@ if level == "Region (Latinoamérica)":
                             line_width = 5
                             marker_size = 6
                             opacity = 1.0
-                            name = 'Iberoamérica (Ref.)'
+                            name = 'Latinoamérica (Ref.)'
                             visible_status = True # Always visible
                         else:
                             line_color = None # Auto
@@ -1225,7 +1225,7 @@ if level == "Region (Latinoamérica)":
                     
                     render_plotly_chart(fig_traj_global, use_container_width=True)
                     
-                    st.info("💡 Cada línea representa la evolución del perfil bibliométrico a lo largo del tiempo. La línea verde gruesa representa a Iberoamérica como conjunto de referencia.")
+                    st.info("💡 Cada línea representa la evolución del perfil bibliométrico a lo largo del tiempo. La línea verde gruesa representa a Latinoamérica como conjunto de referencia.")
                     
                     with st.expander("📊 Ver datos de trayectorias (Global)"):
                         # Attempt to load original metrics to show instead of just coordinates
@@ -2070,7 +2070,7 @@ elif level == "País":
                             
                             # Colors/Names Mapping
                             colors = {selected_country: '#1f77b4', 'LATAM': '#2ca02c'}
-                            names = {selected_country: f'País: {selected_country}', 'LATAM': 'Iberoamérica (Ref.)'}
+                            names = {selected_country: f'País: {selected_country}', 'LATAM': 'Latinoamérica (Ref.)'}
                             
                             for entity_id in subset_df['id'].unique():
                                 entity_data = subset_df[subset_df['id'] == entity_id].sort_values('year')

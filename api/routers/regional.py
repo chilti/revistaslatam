@@ -345,7 +345,7 @@ def get_global_trajectories():
     for entity_id in df['id'].unique():
         sub = df[df['id'] == entity_id].sort_values('year')
         entities[str(entity_id)] = {
-            "name": "Iberoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(str(entity_id), str(entity_id)),
+            "name": "Latinoamérica (Ref.)" if entity_id == "LATAM" else COUNTRY_NAMES.get(str(entity_id), str(entity_id)),
             "is_ref": entity_id == "LATAM",
             "points": sanitize_records(sub[cols_to_keep])
         }
@@ -582,7 +582,7 @@ def get_thematic_treemap(
     # Add root
     nodes.append({
         "id": "LATAM_ROOT",
-        "label": "Iberoamérica",
+        "label": "Latinoamérica",
         "parent": "",
         "value": float(df[df['level'] == 'domain'][size_col].sum()),
         "color_val": 1.0,
