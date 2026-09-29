@@ -6,6 +6,9 @@ export default defineConfig({
   base: './',
   publicDir: false,
   plugins: [react()],
+  resolve: {
+    dedupe: ['react', 'react-dom']
+  },
   server: {
     port: 3000,
     proxy: {

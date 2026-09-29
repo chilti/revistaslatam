@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useAppStore } from './store';
 import api from './api';
+import SuiteBar from './components/SuiteBar';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import DossierDrawer from './components/DossierDrawer';
@@ -118,19 +119,22 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
-      <Sidebar />
-      <div className="main-content">
-        <Navbar />
-        <main className="page-body">
-          <ErrorBoundary>
-            {renderSection()}
-          </ErrorBoundary>
-        </main>
+    <div className="app-root-layout" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <SuiteBar />
+      <div className="app-container" style={{ flex: 1 }}>
+        <Sidebar />
+        <div className="main-content">
+          <Navbar />
+          <main className="page-body">
+            <ErrorBoundary>
+              {renderSection()}
+            </ErrorBoundary>
+          </main>
+        </div>
+        <DossierDrawer />
+        <DownloadsDrawer />
+        <OrcidLoginModal />
       </div>
-      <DossierDrawer />
-      <DownloadsDrawer />
-      <OrcidLoginModal />
     </div>
   );
 }

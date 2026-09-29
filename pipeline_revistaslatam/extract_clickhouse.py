@@ -58,7 +58,7 @@ def get_ch_client():
         )
         return client
     except Exception as e:
-        print(f"❌ Error conectando a ClickHouse: {e}")
+        print(f"[ERROR] Error conectando a ClickHouse: {e}")
         raise
 
 def fetch_journals_clickhouse(client):

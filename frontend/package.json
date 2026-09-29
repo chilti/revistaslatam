@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "node node_modules/vite/bin/vite.js",
-    "build": "node node_modules/vite/bin/vite.js build && cp public/favicon.svg dist/favicon.svg",
+    "build": "node node_modules/vite/bin/vite.js build && node -e \"fs.copyFileSync('public/favicon.svg', 'dist/favicon.svg')\"",
     "lint": "oxlint",
     "preview": "node node_modules/vite/bin/vite.js preview"
   },
   "dependencies": {
+    "@tlachia/ecosystem-bar": "file:../packages/ecosystem-bar",
     "axios": "^1.20.0",
     "chroma-js": "^3.2.0",
     "clsx": "^2.1.1",
