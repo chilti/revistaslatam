@@ -825,11 +825,6 @@ export default function JournalPage() {
           </div>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {prof.is_in_doaj && (
-              <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981' }}>
-                ✓ DOAJ Seal
-              </span>
-            )}
             {prof.is_scopus && (
               <span className="badge" style={{ background: 'rgba(2, 132, 199, 0.15)', color: '#0284c7', border: '1px solid #0284c7' }}>
                 ✓ Scopus
@@ -1797,7 +1792,6 @@ export default function JournalPage() {
                 `| Total Citas Recibidas | ${details.cited_by_count?.toLocaleString() || 0} | Impacto acumulado |`,
                 `| FWCI Ponderado Promedio | ${Number(details.fwci_avg || 0).toFixed(2)} | Impacto normalizado por campo (Base=1.0) |`,
                 `| % Acceso Abierto Diamante | ${Number(details.pct_oa_diamond || 0).toFixed(1)}% | Sin cobro por APC |`,
-                `| Sello DOAJ | ${details.is_in_doaj ? '✅ Indexada con Sello' : '❌ No'} | Calidad de acceso abierto |`,
                 `| Scopus | ${details.is_scopus ? '✅ Indexada' : '❌ No'} | Cobertura en Scopus |`,
                 `| SciELO | ${details.is_in_scielo ? '✅ Indexada' : '❌ No'} | Cobertura en SciELO |`
               ].join('\n');

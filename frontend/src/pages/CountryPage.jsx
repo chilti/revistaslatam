@@ -618,13 +618,6 @@ export default function CountryPage() {
           icon={Sparkles}
           badge={t('common.diamond')}
         />
-        <KpiCard
-          title={t('kpi.doaj_seal')}
-          value={`${pData?.pct_doaj ?? summary?.full_period?.pct_doaj ?? 0}%`}
-          subtitle={t('regional.kpi_doaj_sub')}
-          icon={ShieldCheck}
-          badge="DOAJ"
-        />
       </div>
 
       {/* ── CONSOLIDATED PERFORMANCE INDICATORS PANEL FOR COUNTRY ── */}
@@ -803,12 +796,6 @@ export default function CountryPage() {
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_scopus')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {Number(fullP.pct_scopus || 0).toFixed(1)}%
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_doaj')}</div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#10b981', marginTop: '2px' }}>
-                      {Number(fullP.pct_doaj || 0).toFixed(1)}%
                     </div>
                   </div>
                 </div>
@@ -1516,7 +1503,7 @@ export default function CountryPage() {
             className="btn-secondary"
             onClick={() => {
               if (!journals || journals.length === 0) return;
-              const headers = [t('country.table_journal'), 'OpenAlex_ID', t('tables.issn'), t('tables.publisher'), t('tables.articles'), t('tables.citations'), t('tables.fwci'), t('tables.h_index'), t('tables.pct_diamond'), 'DOAJ'];
+              const headers = [t('country.table_journal'), 'OpenAlex_ID', t('tables.issn'), t('tables.publisher'), t('tables.articles'), t('tables.citations'), t('tables.fwci'), t('tables.h_index'), t('tables.pct_diamond')];
               const rows = journals.map(j => [
                 `"${(j.display_name || '').replace(/"/g, '""')}"`,
                 `"${j.id || ''}"`,
@@ -1526,8 +1513,7 @@ export default function CountryPage() {
                 j.cited_by_count || 0,
                 Number(j.fwci_avg || 0).toFixed(2),
                 j.h_index || 0,
-                Number(j.pct_oa_diamond || 0).toFixed(1),
-                j.is_in_doaj ? t('common.yes') : t('common.no')
+                Number(j.pct_oa_diamond || 0).toFixed(1)
               ]);
               const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
               const encodedUri = encodeURI(csvContent);
@@ -1557,7 +1543,6 @@ export default function CountryPage() {
                 <th>{t('tables.fwci')}</th>
                 <th>{t('tables.h_index')}</th>
                 <th>{t('tables.pct_diamond')}</th>
-                <th>DOAJ</th>
                 <th>{t('tables.action')}</th>
               </tr>
             </thead>
@@ -1572,7 +1557,6 @@ export default function CountryPage() {
                   <td>{Number(j.fwci_avg || 0).toFixed(2)}</td>
                   <td>{j.h_index || '—'}</td>
                   <td>{Number(j.pct_oa_diamond || 0).toFixed(1)}%</td>
-                  <td>{j.is_in_doaj ? '✅' : '—'}</td>
                   <td>
                     <button
                       className="btn-primary"
@@ -1612,8 +1596,7 @@ export default function CountryPage() {
                 `| Revistas Activas en OpenAlex | ${summary?.num_journals?.toLocaleString() || 0} | Publicaciones con sede en el país |`,
                 `| Producción Histórica de Artículos | ${summary?.total_works?.toLocaleString() || summary?.full_period?.num_documents?.toLocaleString() || 0} | Volumen acumulado indexado |`,
                 `| FWCI Ponderado Promedio | ${pData?.fwci_avg != null ? Number(pData.fwci_avg).toFixed(2) : '—'} | Citas ponderadas por campo (Base mundial=1.0) |`,
-                `| % Acceso Abierto Diamante | ${pData?.pct_oa_diamond ?? summary?.full_period?.pct_oa_diamond ?? 0}% | Revistas sin APC para autores |`,
-                `| % Revistas con Sello DOAJ | ${pData?.pct_doaj ?? summary?.full_period?.pct_doaj ?? 0}% | Estándares de calidad y visibilidad abierta |`
+                `| % Acceso Abierto Diamante | ${pData?.pct_oa_diamond ?? summary?.full_period?.pct_oa_diamond ?? 0}% | Revistas sin APC para autores |`
               ].join('\n');
             }
           },
@@ -1656,7 +1639,6 @@ export default function CountryPage() {
                 `| % Acceso Abierto Gold | ${Number(f.pct_oa_gold || 0).toFixed(1)}% |`,
                 `| % Acceso Abierto Verde (Repositorio) | ${Number(f.pct_oa_green || 0).toFixed(1)}% |`,
                 `| % Revistas en Scopus | ${Number(f.pct_scopus || 0).toFixed(1)}% |`,
-                `| % Revistas en DOAJ | ${Number(f.pct_doaj || 0).toFixed(1)}% |`,
                 `| % Artículos en Español | ${Number(f.pct_lang_es || 0).toFixed(1)}% |`,
                 `| % Artículos en Inglés | ${Number(f.pct_lang_en || 0).toFixed(1)}% |`,
                 `| % Artículos en Portugués | ${Number(f.pct_lang_pt || 0).toFixed(1)}% |`
@@ -1899,11 +1881,11 @@ export default function CountryPage() {
             buildDataText: () => {
               if (!journals || journals.length === 0) return 'No hay catálogo de revistas disponible.';
               const lines = [
-                '| Revista | ISSN-L | Editorial / Institución | Artículos | FWCI | % Diamante | DOAJ |',
-                '|---|---|---|---|---|---|---|'
+                '| Revista | ISSN-L | Editorial / Institución | Artículos | FWCI | % Diamante |',
+                '|---|---|---|---|---|---|'
               ];
               journals.slice(0, 25).forEach(j => {
-                lines.push(`| ${j.display_name} | ${j.issn_l || '—'} | ${j.publisher || '—'} | ${j.works_count?.toLocaleString() || 0} | ${Number(j.fwci_avg || 0).toFixed(2)} | ${Number(j.pct_oa_diamond || 0).toFixed(1)}% | ${j.is_in_doaj ? 'Sí' : 'No'} |`);
+                lines.push(`| ${j.display_name} | ${j.issn_l || '—'} | ${j.publisher || '—'} | ${j.works_count?.toLocaleString() || 0} | ${Number(j.fwci_avg || 0).toFixed(2)} | ${Number(j.pct_oa_diamond || 0).toFixed(1)}% |`);
               });
               if (journals.length > 25) {
                 lines.push(`\n_... y ${journals.length - 25} revistas adicionales en el catálogo nacional._`);

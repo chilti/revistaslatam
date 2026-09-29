@@ -621,7 +621,6 @@ export default function WebGLCanvas({ points = [], bgPoints = [], convexHull = [
               <span className="badge">⚡ FWCI: {Number(tooltipData.fwci != null ? tooltipData.fwci : tooltipData.fwci_avg).toFixed(2)}</span>
             )}
             {tooltipData.pct_oa_diamond !== undefined && <span className="badge">💎 {Number(tooltipData.pct_oa_diamond).toFixed(1)}% Diamante</span>}
-            {tooltipData.is_in_doaj && <span className="badge success">✓ DOAJ</span>}
             {tooltipData.is_in_scielo && <span className="badge success">✓ SciELO</span>}
             {tooltipData.is_scopus && <span className="badge success">✓ Scopus</span>}
           </div>

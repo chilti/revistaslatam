@@ -28,7 +28,6 @@ import {
   Layers3,
   Download,
   FileSpreadsheet,
-  ShieldCheck,
   Award
 } from 'lucide-react';
 
@@ -469,13 +468,6 @@ export default function RegionalPage() {
           subtitle={t('kpi.diamond_sub')}
           icon={Sparkles}
           badge={t('common.diamond')}
-        />
-        <KpiCard
-          title={t('kpi.doaj_seal')}
-          value={`${kpis?.pct_doaj || 34.2}%`}
-          subtitle={t('regional.kpi_doaj_sub')}
-          icon={ShieldCheck}
-          badge="DOAJ"
         />
         <KpiCard
           title={t('kpi.oa_total')}
@@ -1278,7 +1270,6 @@ export default function RegionalPage() {
                 `| Producción Total de Artículos | ${kpis.total_works?.toLocaleString() || 0} | Registro histórico acumulado |`,
                 `| FWCI Ponderado Promedio | ${kpis.fwci_avg ?? '—'} | Impacto normalizado mundial (Base=1.0) |`,
                 `| % Acceso Abierto Diamante | ${kpis.pct_oa_diamond || 0}% | Sin cobro por procesamiento de artículo (APC) |`,
-                `| % Revistas en DOAJ | ${kpis.pct_doaj || 0}% | Publicaciones con sello de calidad abierta |`,
                 `| % Artículos en Idioma Inglés | ${kpis.pct_lang_en || 0}% | Nivel de internacionalización lingüística |`,
                 `| % Artículos en Top 10% Más Citados | ${kpis.pct_top_10 || 0}% | Excelencia e impacto de citación |`
               ].join('\n');
