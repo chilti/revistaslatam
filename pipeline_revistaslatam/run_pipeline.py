@@ -56,6 +56,64 @@ def run_step(script_name, description, args=None):
         print(f"\n❌ ERROR INESPERADO: {e}")
         return False
 
+def save_pipeline_metadata(data_dir):
+    """Guarda metadatos de la corrida del pipeline y snapshot utilizado."""
+    import json
+    
+    print("\n" + "-"*80)
+    print("📋 GENERANDO METADATOS DEL PIPELINE Y SNAPSHOT")
+    print("-" * 80)
+    
+    snapshot_date = "2026-09-23"
+    try:
+        from pipeline_revistaslatam.extract_clickhouse import get_ch_client
+        client = get_ch_client()
+        res = client.query("SELECT max(updated_date) FROM works").result_rows
+        if res and res[0][0]:
+            val = str(res[0][0])
+            snapshot_date = val.split('T')[0]
+    except Exception as e:
+        print(f"⚠️ No se pudo consultar snapshot de ClickHouse: {e}")
+
+    total_works = 0
+    total_journals = 0
+    try:
+        import duckdb
+        duck_path = data_dir / 'revistaslatam.duckdb'
+        if duck_path.exists():
+            con = duckdb.connect(str(duck_path), read_only=True)
+            total_works = int(con.execute("SELECT count(*) FROM works").fetchone()[0])
+            total_journals = int(con.execute("SELECT count(*) FROM journals").fetchone()[0])
+            con.close()
+    except Exception as e:
+        print(f"⚠️ No se pudo consultar totales en DuckDB: {e}")
+
+    metadata = {
+        "last_updated": datetime.now().isoformat(timespec="seconds"),
+        "snapshot_date": snapshot_date,
+        "openalex_release": f"OpenAlex Snapshot {snapshot_date}",
+        "total_works": total_works,
+        "total_journals": total_journals,
+        "total_countries": 20,
+        "pipeline_version": "2.0.0",
+        "database_engine": "ClickHouse + DuckDB"
+    }
+
+    out_file = data_dir / 'pipeline_metadata.json'
+    try:
+        with open(out_file, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        print(f"✅ Metadatos guardados exitosamente en: {out_file}")
+        print(f"   Última actualización: {metadata['last_updated']}")
+        print(f"   Snapshot OpenAlex:    {metadata['openalex_release']}")
+        print(f"   Artículos indexados:  {metadata['total_works']:,}")
+        print(f"   Revistas activas:     {metadata['total_journals']:,}")
+    except Exception as e:
+        print(f"❌ Error guardando metadatos: {e}")
+
+    return metadata
+
+
 if __name__ == "__main__":
     import argparse
     
@@ -172,6 +230,9 @@ if __name__ == "__main__":
     print("🦆 INICIANDO CONSOLIDACIÓN E INDEXACIÓN DUCKDB")
     print("-"*80)
     run_step(f"{PIPELINE_DIR}/build_duckdb.py", "Consolidación e Indexación DuckDB (revistaslatam.duckdb)")
+
+    # --- GUARDAR METADATOS Y SNAPSHOT ---
+    save_pipeline_metadata(DATA_PATH)
 
     total_elapsed = time.time() - total_start
     print(f"\n{'*'*80}")

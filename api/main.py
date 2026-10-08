@@ -2,6 +2,7 @@
 api/main.py - Revistas LATAM FastAPI Server Entrypoint
 """
 import os
+import json
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,11 +60,20 @@ def health_check():
 
 @app.get("/api/info")
 def api_info():
+    metadata_path = Path(__file__).resolve().parent.parent / "data" / "pipeline_metadata.json"
+    meta = {}
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+        except Exception as e:
+            print(f"Error reading metadata: {e}")
     return {
         "status": "online",
         "app": "Revistas LATAM - Scientific Intelligence API",
-        "version": "2.0.0",
-        "docs": "/docs"
+        "version": meta.get("pipeline_version", "2.0.0"),
+        "docs": "/docs",
+        **meta
     }
 
 # Mount React production build if available

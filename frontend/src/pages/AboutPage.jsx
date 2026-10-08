@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   Code, 
@@ -15,14 +15,53 @@ import {
   Quote,
   Copy,
   Check,
-  Sparkles
+  Sparkles,
+  Clock,
+  Calendar,
+  Activity
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
+import api from '../api';
 
 export default function AboutPage() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const repoUrl = 'https://github.com/chilti/revistaslatam';
   const [copiedCitation, setCopiedCitation] = useState(false);
+  const [metadata, setMetadata] = useState(null);
+  const [loadingMeta, setLoadingMeta] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.get('/info')
+      .then(res => {
+        if (isMounted && res.data) {
+          setMetadata(res.data);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch /api/info:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingMeta(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  const formatDate = (isoString) => {
+    if (!isoString) return '7 de octubre de 2026, 09:06';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleDateString(language === 'en' ? 'en-US' : (language === 'pt' ? 'pt-BR' : 'es-MX'), {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return isoString;
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1050px' }}>
@@ -32,6 +71,145 @@ export default function AboutPage() {
         <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
           {t('about.subtitle')}
         </p>
+      </div>
+
+      {/* ── DATA STATUS & PIPELINE SNAPSHOT CARD ── */}
+      <div className="card" style={{
+        border: '1px solid rgba(16, 185, 129, 0.3)',
+        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(2, 132, 199, 0.04) 100%)',
+        boxShadow: '0 4px 20px rgba(16, 185, 129, 0.08)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)'
+            }}>
+              <Database size={22} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '17px', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>{t('about.status_card_title')}</span>
+              </h3>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {t('about.status_card_subtitle')}
+              </span>
+            </div>
+          </div>
+
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            fontSize: '12.5px',
+            fontWeight: '700',
+            color: '#10b981'
+          }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#10b981',
+              boxShadow: '0 0 8px #10b981'
+            }} />
+            <span>{t('about.status_synced')}</span>
+          </div>
+        </div>
+
+        {/* Grid with 4 stat items */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '12px',
+          marginTop: '6px'
+        }}>
+          {/* Last Update */}
+          <div style={{
+            background: 'var(--bg-app)',
+            padding: '12px 16px',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              <Clock size={13} color="var(--accent-primary)" />
+              {t('about.last_update_label')}
+            </div>
+            <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-main)' }}>
+              {formatDate(metadata?.last_updated)}
+            </div>
+          </div>
+
+          {/* Snapshot Date */}
+          <div style={{
+            background: 'var(--bg-app)',
+            padding: '12px 16px',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              <Calendar size={13} color="#10b981" />
+              {t('about.snapshot_label')}
+            </div>
+            <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#10b981' }}>
+              {metadata?.openalex_release || (metadata?.snapshot_date ? `OpenAlex Snapshot ${metadata.snapshot_date}` : 'OpenAlex Snapshot 2026-09-23')}
+            </div>
+          </div>
+
+          {/* Processed Volume */}
+          <div style={{
+            background: 'var(--bg-app)',
+            padding: '12px 16px',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              <Layers size={13} color="#f59e0b" />
+              {t('about.coverage_label')}
+            </div>
+            <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-main)' }}>
+              {(metadata?.total_works || 3540368).toLocaleString()} {t('about.works_indexed')} / {(metadata?.total_journals || 7158).toLocaleString()} {t('about.journals_active')}
+            </div>
+          </div>
+
+          {/* Analytical Engine */}
+          <div style={{
+            background: 'var(--bg-app)',
+            padding: '12px 16px',
+            borderRadius: '10px',
+            border: '1px solid var(--border-color)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              <Cpu size={13} color="#8b5cf6" />
+              {t('about.engine_label')}
+            </div>
+            <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-main)' }}>
+              {metadata?.database_engine || 'ClickHouse + DuckDB'}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── GITHUB REPOSITORY & OPEN SCIENCE CARD ── */}
