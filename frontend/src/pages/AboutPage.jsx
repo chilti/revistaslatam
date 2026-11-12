@@ -502,6 +502,24 @@ export default function AboutPage() {
                 <ExternalLink size={12} />
               </a>
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div>
+                <strong>Dra. María Victoria Guzmán Sánchez</strong> — <span style={{ color: 'var(--text-muted)' }}>{t('about.role_scientometrics_specialist')}</span>
+                <div style={{ fontSize: '11.5px', color: 'var(--accent-primary)', marginTop: '2px', fontWeight: '500' }}>
+                  {t('about.affil_fc')}
+                </div>
+              </div>
+              <a
+                href="https://orcid.org/0000-0002-2664-9639"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#a6ce39', background: 'rgba(166, 206, 57, 0.12)', border: '1px solid rgba(166, 206, 57, 0.3)', padding: '3px 8px', borderRadius: '6px', textDecoration: 'none', fontWeight: '600' }}
+              >
+                <span>🆔 ORCID: 0000-0002-2664-9639</span>
+                <ExternalLink size={12} />
+              </a>
+            </div>
           </div>
         </div>
       </div>

@@ -48,9 +48,9 @@ export function useTranslation() {
     language,
     setLanguage,
     languages: [
-      { code: 'es', label: 'Español', flag: '🇲🇽' },
-      { code: 'pt', label: 'Português', flag: '🇧🇷' },
-      { code: 'en', label: 'English', flag: '🇺🇸' }
+      { code: 'es', label: 'Español' },
+      { code: 'pt', label: 'Português' },
+      { code: 'en', label: 'English' }
     ]
   };
 }

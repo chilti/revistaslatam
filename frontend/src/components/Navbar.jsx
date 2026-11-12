@@ -102,10 +102,9 @@ export default function Navbar() {
               className={`segmented-pill-btn ${language === lang.code ? 'active' : ''}`}
               onClick={() => setLanguage(lang.code)}
               title={lang.label}
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}
+              style={{ padding: '4px 8px', fontSize: '11px', fontWeight: '700' }}
             >
-              <span>{lang.flag}</span>
-              <span>{lang.code.toUpperCase()}</span>
+              {lang.code.toUpperCase()}
             </button>
           ))}
         </div>

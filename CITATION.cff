@@ -16,6 +16,10 @@ authors:
     given-names: "Ricardo"
     orcid: "https://orcid.org/0000-0001-8907-2454"
     affiliation: "Centro de Ciencias de la Complejidad (C3), Universidad Nacional Autónoma de México (UNAM)"
+  - family-names: "Guzmán Sánchez"
+    given-names: "María Victoria"
+    orcid: "https://orcid.org/0000-0002-2664-9639"
+    affiliation: "Facultad de Ciencias, Universidad Nacional Autónoma de México (UNAM)"
 repository-code: "https://github.com/chilti/revistaslatam"
 url: "https://dinamica1.fciencias.unam.mx/revistaslatam/"
 keywords:

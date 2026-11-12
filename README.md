@@ -250,12 +250,12 @@ revistaslatam/
 
 Si utilizas **Revistas LATAM** en tus investigaciones, estudios cienciométricos o desarrollos, por favor cita el software de la siguiente manera:
 
-> **Jiménez Andrade, J. L., Carrillo Calvet, H. A., & Arencibia Jorge, R. (2026). Revistas LATAM: Plataforma de Inteligencia Cienciométrica y Acceso Abierto (Version v2.0.0) [Computer software]. Zenodo. [https://doi.org/10.5281/zenodo.22679773](https://doi.org/10.5281/zenodo.22679773)**
+> **Jiménez Andrade, J. L., Carrillo Calvet, H. A., Arencibia Jorge, R., & Guzmán Sánchez, M. V. (2026). Revistas LATAM: Plataforma de Inteligencia Cienciométrica y Acceso Abierto (Version v2.0.0) [Computer software]. Zenodo. [https://doi.org/10.5281/zenodo.22679773](https://doi.org/10.5281/zenodo.22679773)**
 
 ### Formato BibTeX:
 ```bibtex
 @software{jimenez_andrade_2026_22679773,
-  author       = {Jiménez Andrade, José Luis and Carrillo Calvet, Humberto Andrés and Arencibia Jorge, Ricardo},
+  author       = {Jiménez Andrade, José Luis and Carrillo Calvet, Humberto Andrés and Arencibia Jorge, Ricardo and Guzmán Sánchez, María Victoria},
   title        = {Revistas LATAM: Plataforma de Inteligencia Cienciométrica y Acceso Abierto},
   month        = sep,
   year         = 2026,
@@ -282,6 +282,8 @@ El proyecto **Revistas LATAM** es un desarrollo de ciencia abierta enfocado en l
   [![ORCID](https://img.shields.io/badge/ORCID-0000--0003--3659--6769-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0003-3659-6769)
 - **Dr. Ricardo Arencibia Jorge** — *Especialista Cienciométrico (Centro de Ciencias de la Complejidad - C3, UNAM)*  
   [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--8907--2454-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0001-8907-2454)
+- **Dra. María Victoria Guzmán Sánchez** — *Especialista Cienciométrico (Facultad de Ciencias, UNAM)*  
+  [![ORCID](https://img.shields.io/badge/ORCID-0000--0002--2664--9639-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0000-0002-2664-9639)
 
 ### 💻 Desarrollo, ETL e Ingeniería de Software
 

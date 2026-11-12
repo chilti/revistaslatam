@@ -28,9 +28,9 @@ export const ECOSYSTEM_APPS = [
     name: "Revistas LATAM",
     shortName: "Revistas LATAM",
     tagline: {
-      es: "Cartografía de 7,494 Revistas Científicas Iberoamericanas",
-      pt: "Cartografia de 7.494 Revistas Científicas Ibero-Americanas",
-      en: "Cartography of 7,494 Ibero-American Scientific Journals"
+      es: "Cartografía de Revistas Científicas Latinoamericanas",
+      pt: "Cartografia de Revistas Científicas Latino-Americanas",
+      en: "Cartography of Latin American Scientific Journals"
     },
     badge: "Revistas & Cartografía",
     badgeColor: "#38ef7d",

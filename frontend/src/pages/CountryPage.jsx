@@ -37,7 +37,8 @@ import {
   Share2,
   Check,
   BarChart3,
-  Cpu
+  Cpu,
+  Info
 } from 'lucide-react';
 
 export default function CountryPage() {
@@ -669,7 +670,7 @@ export default function CountryPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.table_docs')}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_docs_analyzed')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {fullDocs.toLocaleString()}
                     </div>
@@ -717,7 +718,7 @@ export default function CountryPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.table_docs')}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>{t('country.stat_docs_analyzed')}</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px' }}>
                       {recDocs.toLocaleString()}
                     </div>
@@ -839,6 +840,27 @@ export default function CountryPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Nota metodológica aclaratoria sobre volumen de artículos */}
+            <div style={{
+              marginTop: '16px',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: 'rgba(2, 132, 199, 0.06)',
+              border: '1px solid rgba(2, 132, 199, 0.2)',
+              fontSize: '12px',
+              lineHeight: 1.5,
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px'
+            }}>
+              <Info size={16} style={{ color: 'var(--accent-primary)', flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <strong style={{ color: 'var(--text-main)' }}>{t('regional.docs_note_title')}: </strong>
+                <span>{t('regional.docs_note_body')}</span>
               </div>
             </div>
           </div>
